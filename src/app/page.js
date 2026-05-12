@@ -61,22 +61,22 @@ const normalizeSupabaseUrl = (url) => {
   if (!url || typeof url !== "string") return url;
   const currentUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
   if (!currentUrl) return url;
-  
+
   // If it's a Supabase storage URL
   if (url.includes("/storage/v1/object/")) {
     // Extract filename and bucket
     const parts = url.split("/object/");
     if (parts.length < 2) return url;
-    
+
     const pathParts = parts[1].replace(/^(public\/|authenticated\/)/, "").split("/");
     const bucket = pathParts[0];
     const filename = pathParts.slice(1).join("/");
-    
+
     if (!bucket || !filename) return url;
-    
+
     // Reconstruct strictly using current credentials
     const newUrl = `${currentUrl}/storage/v1/object/public/${bucket}/${filename}`;
-    
+
     if (url !== newUrl) {
       console.log(`[Strict URL Fix] ${url} -> ${newUrl}`);
     }
@@ -173,7 +173,7 @@ export default function Dashboard() {
   const [createTabConfigOpen, setCreateTabConfigOpen] = useState(false);
   const [pendingAds, setPendingAds] = useState([]);
   const [adTableLinks, setAdTableLinks] = useState({});
- // Stores { "1": { text: "...", format: "Video", Approved: bool }, ... }
+  // Stores { "1": { text: "...", format: "Video", Approved: bool }, ... }
   const [allApprovedAds, setAllApprovedAds] = useState([]);
   const [approvingId, setApprovingId] = useState(null);
   const [selectedAdForDetails, setSelectedAdForDetails] = useState(null);
@@ -225,10 +225,10 @@ export default function Dashboard() {
 
   const fetchAdTableLinks = useCallback(async () => {
     setAdVideosLoading(true);
-    
+
     // 1. Fetch from Storage (Global Lookup)
     // We create a map of filename -> storage info to verify existence and fix bucket mismatches
-    const storageLookup = new Map(); 
+    const storageLookup = new Map();
     try {
       const buckets = ["AD1", "AD2", "AD3", "AD4", "AD5"];
       for (const bucket of buckets) {
@@ -287,7 +287,7 @@ export default function Dashboard() {
           latest[row.id] = entry;
         }
       }
-      
+
       if (!storageInfo && storageLookup.size > 0) {
         console.warn(`[Diagnostics] File not detected in storage list, but showing from DB: ${fileName}`);
       }
@@ -300,7 +300,7 @@ export default function Dashboard() {
     // Select top 3 videos and top 2 images for the Create Ad tab
     const topVideos = validPending.filter(a => (a.format || "").toLowerCase() === "video").slice(0, 3);
     const topImages = validPending.filter(a => (a.format || "").toLowerCase() !== "video").slice(0, 2);
-    
+
     console.log(`[Diagnostics] Top Videos: ${topVideos.length}, Top Images: ${topImages.length}`);
     setPendingAds([...topVideos, ...topImages]);
 
@@ -552,46 +552,43 @@ export default function Dashboard() {
   }, [addSbToast]);
 
   useEffect(() => {
-    // Check initial session
-    const checkSession = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-          setUser(session.user);
-          setIsAuthenticating(false);
-        } else {
-          // No session found, redirect to login
-          router.push("/login");
-        }
-      } catch (error) {
-        console.error("Auth session check error:", error);
+    // Check local session (Bypassing Supabase Auth)
+    const checkLocalSession = () => {
+      const isLoggedIn = localStorage.getItem("toga_auth_session") === "true";
+      const userEmail = localStorage.getItem("toga_user_email") || "togahealthai@gmail.com";
+
+      if (isLoggedIn) {
+        setUser({ email: userEmail });
+        setIsAuthenticating(false);
+      } else {
+        // No local session found, redirect to login
         router.push("/login");
       }
     };
 
-    checkSession();
+    checkLocalSession();
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
-        setUser(session.user);
-        setIsAuthenticating(false);
-      } else {
+    // Listen for storage changes (e.g. logout in another tab)
+    const handleStorageChange = (e) => {
+      if (e.key === "toga_auth_session" && e.newValue !== "true") {
         setUser(null);
         router.push("/login");
       }
-    });
+    };
 
-    return () => subscription.unsubscribe();
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
   }, [router]);
 
   const handleSignOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      addSbToast(error.message, "error");
-    } else {
+    try {
+      localStorage.removeItem("toga_auth_session");
+      localStorage.removeItem("toga_user_email");
       addSbToast("Signed out successfully");
       router.push("/login");
+    } catch (e) {
+      console.error("Logout error:", e);
+      addSbToast("Failed to sign out", "error");
     }
   };
 
@@ -623,7 +620,7 @@ export default function Dashboard() {
         if (data) {
           const newStatus = data.status || "";
           setWorkflowStatus(newStatus);
-          
+
           // Refresh if any part of the workflow completed or if overall completion reached
           const isIntermediateDone = newStatus.toLowerCase().includes("completed") && !workflowStatus?.toLowerCase().includes("completed");
           const isFullyDone = newStatus === "Completed";
@@ -799,7 +796,7 @@ export default function Dashboard() {
       const { error: updError } = await supabase
         .from("your_name_table")
         .update({ Approved: "true" })
-        .eq("text", row.originalText || row.text); 
+        .eq("text", row.originalText || row.text);
       error = updError;
     }
 
@@ -833,7 +830,8 @@ export default function Dashboard() {
         name: editingAdData.adName || (oldJson.ad?.name || oldJson.ads?.[0]?.name || "Untitled Ad"),
         type: oldJson.ad?.type || oldJson.ads?.[0]?.type || "video",
         headline: editingAdData.headline || (oldJson.ad?.headline || oldJson.ads?.[0]?.headline || "No headline provided."),
-        call_to_action_type: editingAdData.ctaType || (oldJson.ad?.call_to_action_type || oldJson.ads?.[0]?.call_to_action_type || "WATCH_MORE")
+        call_to_action_type: editingAdData.ctaType || (oldJson.ad?.call_to_action_type || oldJson.ads?.[0]?.call_to_action_type || "WATCH_MORE"),
+        website_url: editingAdData.linkData || (oldJson.ad?.website_url || oldJson.link_data || ad.text || "")
       },
       link_data: editingAdData.linkData || (oldJson.link_data || ad.text || "")
     };
@@ -2819,61 +2817,61 @@ export default function Dashboard() {
                             if (!workflowStatus || workflowStatus === "waiting") return null;
 
                             return (
-                                  <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 16 }}>
-                                    {showImage && (
-                                      <div>
-                                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-dim)", fontWeight: 600, marginBottom: 6 }}>
-                                          <span>{imgDone ? "Image Generation Completed" : "Generating Image (~1:30)"}</span>
-                                          <span>{imgDone ? "100%" : ""}</span>
-                                        </div>
-                                        <div style={{ position: "relative", height: 6, background: "var(--border)", borderRadius: 3, overflow: "hidden" }}>
-                                          <style>{`
+                              <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 16 }}>
+                                {showImage && (
+                                  <div>
+                                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-dim)", fontWeight: 600, marginBottom: 6 }}>
+                                      <span>{imgDone ? "Image Generation Completed" : "Generating Image (~1:30)"}</span>
+                                      <span>{imgDone ? "100%" : ""}</span>
+                                    </div>
+                                    <div style={{ position: "relative", height: 6, background: "var(--border)", borderRadius: 3, overflow: "hidden" }}>
+                                      <style>{`
                                             @keyframes fillImageGen {
                                               0% { width: 0%; }
                                               100% { width: 98%; }
                                             }
                                           `}</style>
-                                          <div
-                                            style={{
-                                              position: "absolute", top: 0, left: 0, height: "100%",
-                                              background: imgDone ? "var(--green)" : "var(--primary)",
-                                              borderRadius: 3,
-                                              width: imgDone ? "100%" : "0%",
-                                              animation: !imgDone ? "fillImageGen 90s linear forwards" : "none",
-                                              transition: "width 0.5s ease-out, background 0.5s"
-                                            }}
-                                          />
-                                        </div>
-                                      </div>
-                                    )}
+                                      <div
+                                        style={{
+                                          position: "absolute", top: 0, left: 0, height: "100%",
+                                          background: imgDone ? "var(--green)" : "var(--primary)",
+                                          borderRadius: 3,
+                                          width: imgDone ? "100%" : "0%",
+                                          animation: !imgDone ? "fillImageGen 90s linear forwards" : "none",
+                                          transition: "width 0.5s ease-out, background 0.5s"
+                                        }}
+                                      />
+                                    </div>
+                                  </div>
+                                )}
 
-                                    {showVideo && (
-                                      <div>
-                                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-dim)", fontWeight: 600, marginBottom: 6 }}>
-                                          <span>{vidDone ? "Video Generation Completed" : "Generating Video (~10:00)"}</span>
-                                          <span>{vidDone ? "100%" : ""}</span>
-                                        </div>
-                                        <div style={{ position: "relative", height: 6, background: "var(--border)", borderRadius: 3, overflow: "hidden" }}>
-                                          <style>{`
+                                {showVideo && (
+                                  <div>
+                                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-dim)", fontWeight: 600, marginBottom: 6 }}>
+                                      <span>{vidDone ? "Video Generation Completed" : "Generating Video (~10:00)"}</span>
+                                      <span>{vidDone ? "100%" : ""}</span>
+                                    </div>
+                                    <div style={{ position: "relative", height: 6, background: "var(--border)", borderRadius: 3, overflow: "hidden" }}>
+                                      <style>{`
                                             @keyframes fillVideoGen {
                                               0% { width: 0%; }
                                               100% { width: 98%; }
                                             }
                                           `}</style>
-                                          <div
-                                            style={{
-                                              position: "absolute", top: 0, left: 0, height: "100%",
-                                              background: vidDone ? "var(--green)" : "var(--primary)",
-                                              borderRadius: 3,
-                                              width: vidDone ? "100%" : "0%",
-                                              animation: !vidDone ? "fillVideoGen 600s linear forwards" : "none",
-                                              transition: "width 0.5s ease-out, background 0.5s"
-                                            }}
-                                          />
-                                        </div>
-                                      </div>
-                                    )}
+                                      <div
+                                        style={{
+                                          position: "absolute", top: 0, left: 0, height: "100%",
+                                          background: vidDone ? "var(--green)" : "var(--primary)",
+                                          borderRadius: 3,
+                                          width: vidDone ? "100%" : "0%",
+                                          animation: !vidDone ? "fillVideoGen 600s linear forwards" : "none",
+                                          transition: "width 0.5s ease-out, background 0.5s"
+                                        }}
+                                      />
+                                    </div>
                                   </div>
+                                )}
+                              </div>
                             );
                           })()}
                         </div>
@@ -2961,116 +2959,116 @@ export default function Dashboard() {
                       const url = latestEntry?.text || "";
                       const isVideo = (latestEntry?.format || "").toLowerCase() === "video";
 
-                        const id = latestEntry?.id || "Unknown";
-                        let label = isVideo ? `Video Ad ${id}` : `Image Ad ${id}`;
-
-                        return (
-                          <Card key={latestEntry?.id + "_" + latestEntry?.time} style={{ padding: 12, height: "100%" }}>
-                            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                              {label}
-                            </div>
-                            <div style={{
-                              background: "#000",
-                              borderRadius: "var(--radius-md)",
-                              aspectRatio: "9/16",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              overflow: "hidden",
-                              boxShadow: "inset 0 0 40px rgba(0,0,0,0.5)"
-                            }}>
-                              {latestEntry?.Approved && latestEntry?.Approved !== "false" ? (
-                                <div style={{ fontSize: 13, color: "#fff", fontWeight: 700, textAlign: "center", padding: 20 }}>
-                                  ✓ Approved
-                                </div>
-                              ) : !url ? (
-                                <div style={{ fontSize: 11, color: "var(--text-dim)", textAlign: "center", padding: 10 }}>
-                                  Waiting for {label} link...
-                                </div>
-                              ) : isVideo ? (
-                                <video
-                                  key={url}
-                                  src={url}
-                                  controls
-                                  autoPlay={false}
-                                  style={{ width: "100%", height: "100%", objectFit: "contain" }}
-                                />
-                              ) : (
-                                <img
-                                  key={url}
-                                  src={url}
-                                  alt={label}
-                                  style={{ width: "100%", height: "100%", objectFit: "contain" }}
-                                />
-                              )}
-                            </div>
-
-                            {url && (!latestEntry?.Approved || latestEntry?.Approved === "false") && (
-                              <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                                <button
-                                  onClick={() => setSelectedAdForDetails(latestEntry)}
-                                  style={{
-                                    flex: 1, textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center",
-                                    gap: 6, padding: "8px 0", borderRadius: "var(--radius-md)",
-                                    border: "1px solid var(--border)", background: "var(--surface)",
-                                    color: "var(--text)", fontSize: 11, fontWeight: 600, transition: "all 0.15s",
-                                    cursor: "pointer", fontFamily: "inherit"
-                                  }}
-                                  onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface-hover)"}
-                                  onMouseLeave={(e) => e.currentTarget.style.background = "var(--surface)"}
-                                >
-                                  ↗ Full View
-                                </button>
-                                <button
-                                  onClick={() => handleApproveAd(latestEntry)}
-                                  disabled={latestEntry?.Approved || approvingId === (latestEntry?.id + "_" + latestEntry?.time)}
-                                  style={{
-                                    flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
-                                    gap: 6, padding: "8px 0", borderRadius: "var(--radius-md)",
-                                    border: "none",
-                                    background: latestEntry?.Approved ? "var(--green-light)" : "var(--primary)",
-                                    color: latestEntry?.Approved ? "var(--green)" : "#fff",
-                                    fontSize: 11, fontWeight: 600,
-                                    cursor: latestEntry?.Approved ? "default" : "pointer",
-                                    opacity: approvingId === (latestEntry?.id + "_" + latestEntry?.time) ? 0.7 : 1,
-                                    transition: "all 0.15s"
-                                  }}
-                                >
-                                  {approvingId === (latestEntry?.id + "_" + latestEntry?.time) ? (
-                                    <Spinner size={10} />
-                                  ) : latestEntry?.Approved ? (
-                                    "✓ Approved"
-                                  ) : (
-                                    "✓ Approve"
-                                  )}
-                                </button>
-                              </div>
-                            )}
-                          </Card>
-                        );
-                      };
-
-                      if (pendingAds.length === 0) {
-                        return (
-                          <div style={{ padding: "40px", textAlign: "center", color: "var(--text-muted)", fontSize: 14, background: "var(--surface)", borderRadius: "var(--radius-lg)", border: "1px dashed var(--border)" }}>
-                            No pending ads to preview.
-                          </div>
-                        );
-                      }
+                      const id = latestEntry?.id || "Unknown";
+                      let label = isVideo ? `Video Ad ${id}` : `Image Ad ${id}`;
 
                       return (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8 px-0 sm:px-4" style={{
-                          maxWidth: "1100px",
-                          margin: "0 auto"
-                        }}>
-                          {pendingAds.map(ad => (
-                            <div key={ad.id + "_" + ad.time}>
-                              {renderCard(ad)}
+                        <Card key={latestEntry?.id + "_" + latestEntry?.time} style={{ padding: 12, height: "100%" }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                            {label}
+                          </div>
+                          <div style={{
+                            background: "#000",
+                            borderRadius: "var(--radius-md)",
+                            aspectRatio: "9/16",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            overflow: "hidden",
+                            boxShadow: "inset 0 0 40px rgba(0,0,0,0.5)"
+                          }}>
+                            {latestEntry?.Approved && latestEntry?.Approved !== "false" ? (
+                              <div style={{ fontSize: 13, color: "#fff", fontWeight: 700, textAlign: "center", padding: 20 }}>
+                                ✓ Approved
+                              </div>
+                            ) : !url ? (
+                              <div style={{ fontSize: 11, color: "var(--text-dim)", textAlign: "center", padding: 10 }}>
+                                Waiting for {label} link...
+                              </div>
+                            ) : isVideo ? (
+                              <video
+                                key={url}
+                                src={url}
+                                controls
+                                autoPlay={false}
+                                style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                              />
+                            ) : (
+                              <img
+                                key={url}
+                                src={url}
+                                alt={label}
+                                style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                              />
+                            )}
+                          </div>
+
+                          {url && (!latestEntry?.Approved || latestEntry?.Approved === "false") && (
+                            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                              <button
+                                onClick={() => setSelectedAdForDetails(latestEntry)}
+                                style={{
+                                  flex: 1, textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center",
+                                  gap: 6, padding: "8px 0", borderRadius: "var(--radius-md)",
+                                  border: "1px solid var(--border)", background: "var(--surface)",
+                                  color: "var(--text)", fontSize: 11, fontWeight: 600, transition: "all 0.15s",
+                                  cursor: "pointer", fontFamily: "inherit"
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface-hover)"}
+                                onMouseLeave={(e) => e.currentTarget.style.background = "var(--surface)"}
+                              >
+                                ↗ Full View
+                              </button>
+                              <button
+                                onClick={() => handleApproveAd(latestEntry)}
+                                disabled={latestEntry?.Approved || approvingId === (latestEntry?.id + "_" + latestEntry?.time)}
+                                style={{
+                                  flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
+                                  gap: 6, padding: "8px 0", borderRadius: "var(--radius-md)",
+                                  border: "none",
+                                  background: latestEntry?.Approved ? "var(--green-light)" : "var(--primary)",
+                                  color: latestEntry?.Approved ? "var(--green)" : "#fff",
+                                  fontSize: 11, fontWeight: 600,
+                                  cursor: latestEntry?.Approved ? "default" : "pointer",
+                                  opacity: approvingId === (latestEntry?.id + "_" + latestEntry?.time) ? 0.7 : 1,
+                                  transition: "all 0.15s"
+                                }}
+                              >
+                                {approvingId === (latestEntry?.id + "_" + latestEntry?.time) ? (
+                                  <Spinner size={10} />
+                                ) : latestEntry?.Approved ? (
+                                  "✓ Approved"
+                                ) : (
+                                  "✓ Approve"
+                                )}
+                              </button>
                             </div>
-                          ))}
+                          )}
+                        </Card>
+                      );
+                    };
+
+                    if (pendingAds.length === 0) {
+                      return (
+                        <div style={{ padding: "40px", textAlign: "center", color: "var(--text-muted)", fontSize: 14, background: "var(--surface)", borderRadius: "var(--radius-lg)", border: "1px dashed var(--border)" }}>
+                          No pending ads to preview.
                         </div>
                       );
-                    })()}
+                    }
+
+                    return (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8 px-0 sm:px-4" style={{
+                        maxWidth: "1100px",
+                        margin: "0 auto"
+                      }}>
+                        {pendingAds.map(ad => (
+                          <div key={ad.id + "_" + ad.time}>
+                            {renderCard(ad)}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
 
                   {/* ── CUSTOM MEDIA UPLOAD ── */}
                   <div style={{
@@ -4202,7 +4200,19 @@ export default function Dashboard() {
                       {isEditingAd ? (
                         <select
                           value={editingAdData.ctaType}
-                          onChange={(e) => setEditingAdData({ ...editingAdData, ctaType: e.target.value })}
+                          onChange={(e) => {
+                            const newCta = e.target.value;
+                            const suggestions = {
+                              WHATSAPP_MESSAGE: "+10000000000",
+                              CONTACT_US: "https://togahh.com/contact",
+                              MESSAGE_PAGE: "https://m.me/togahh",
+                            };
+                            setEditingAdData({ 
+                              ...editingAdData, 
+                              ctaType: newCta,
+                              linkData: suggestions[newCta] || "https://togahh.com/"
+                            });
+                          }}
                           style={{
                             width: "100%", padding: "8px 12px", borderRadius: "var(--radius-md)",
                             border: "1px solid var(--primary)", background: "var(--card-bg)", fontSize: 13, fontWeight: 600, outline: "none"
@@ -4216,6 +4226,8 @@ export default function Dashboard() {
                           <option value="CONTACT_US">CONTACT_US</option>
                           <option value="APPLY_NOW">APPLY_NOW</option>
                           <option value="GET_OFFER">GET_OFFER</option>
+                          <option value="WHATSAPP_MESSAGE">WHATSAPP_MESSAGE</option>
+                          <option value="MESSAGE_PAGE">MESSAGE_PAGE</option>
                         </select>
                       ) : (
                         <div style={{

@@ -244,7 +244,7 @@ export async function POST(request) {
       (ad?.type || "").toLowerCase() === "video";
 
     // ── Resolve config values ──
-    const objective       = campaign?.objective        || "OUTCOME_SALES";
+    const objective       = campaign?.objective        || "OUTCOME_TRAFFIC";
     const campaignName    = campaign?.name             || `[DRAFT] ${objective}_${Date.now()}`;
     const specialAdCats   = campaign?.special_ad_categories || ["NONE"];
     const isCbo           = campaign?.is_adset_budget_sharing_enabled || false;

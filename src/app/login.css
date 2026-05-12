@@ -278,6 +278,32 @@
   text-decoration: underline;
 }
 
+.password-toggle-btn {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.password-toggle-btn:hover {
+  color: var(--primary);
+  background: var(--primary-light);
+}
+
+.pr-10 {
+  padding-right: 40px !important;
+}
+
 .login-legal {
   margin-top: 32px;
   text-align: center;

@@ -2,21 +2,26 @@ import { NextResponse } from 'next/server';
 
 export async function POST(request) {
   try {
-    const { url, body } = await request.json();
+    const { url, body, method = 'POST' } = await request.json();
 
     if (!url) {
       return NextResponse.json({ error: 'URL is required' }, { status: 400 });
     }
 
-    console.log(`Proxying request to: ${url}`);
+    console.log(`Proxying ${method} request to: ${url}`);
 
-    const response = await fetch(url, {
-      method: 'POST',
+    const fetchOptions = {
+      method: method,
       headers: {
         'Content-Type': 'application/json',
       },
-      body: body ? JSON.stringify(body) : JSON.stringify({}),
-    });
+    };
+
+    if (method !== 'GET' && method !== 'HEAD') {
+      fetchOptions.body = body ? JSON.stringify(body) : JSON.stringify({});
+    }
+
+    const response = await fetch(url, fetchOptions);
 
     const data = await response.json().catch(() => ({ status: 'ok' }));
 

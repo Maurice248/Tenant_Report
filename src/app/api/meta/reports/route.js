@@ -22,8 +22,8 @@ export async function GET() {
     const campaignData = await campaignRes.json();
 
     if (!accountRes.ok || !campaignRes.ok) {
-      return NextResponse.json({ 
-        error: accountData.error?.message || campaignData.error?.message || "Meta API Error" 
+      return NextResponse.json({
+        error: accountData.error?.message || campaignData.error?.message || "Meta API Error"
       }, { status: 400 });
     }
 

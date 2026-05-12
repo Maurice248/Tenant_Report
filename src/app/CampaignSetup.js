@@ -39,7 +39,7 @@ const normalizeSupabaseUrl = (url) => {
 const DEFAULT_CONFIG = {
   campaign: {
     name: "treatment_pathway_q2_2026",
-    objective: "OUTCOME_SALES",
+    objective: "OUTCOME_TRAFFIC",
     buying_type: "AUCTION",
     special_ad_categories: ["NONE"],
     is_adset_budget_sharing_enabled: false,
@@ -82,11 +82,11 @@ const DEFAULT_CONFIG = {
     description: "Experience our state-of-the-art medical facilities and patient-centered care.",
     primary_text:
       "From referral to recovery — experience JCI‑accredited excellence, state‑of‑the‑art facilities, and compassionate patient care. Watch our facility tour and book an initial consultation.",
-    website_url: "https://healpoint.ai",
-    display_link: "healpoint.ai/clinical-excellence",
+    website_url: "https://togahh.com/",
+    display_link: "togahh.com",
     call_to_action_type: "LEARN_MORE",
-    facebook_page: "HealPoint Health Center",
-    instagram_account: "healpoint_medical",
+    facebook_page: "TogaHealth",
+    instagram_account: "togahealth_official",
   },
   link_data: normalizeSupabaseUrl("https://nidoqmcxmlyiovdktzxg.supabase.co/storage/v1/object/AD1/08-04-2026_11-55AM.mp4"),
 };
@@ -258,6 +258,28 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }) {
     } finally {
       setCreating(false);
     }
+  };
+
+  const handleCTAChange = (newCta) => {
+    const suggestions = {
+      WHATSAPP_MESSAGE: "+10000000000",
+      CONTACT_US: "https://togahh.com/contact",
+      MESSAGE_PAGE: "https://m.me/togahh",
+    };
+
+    const nextLink = suggestions[newCta] || "https://togahh.com/";
+    
+    // Update both CTA and the Link in one go
+    const nextConfig = { 
+      ...config, 
+      ad: { 
+        ...config.ad, 
+        call_to_action_type: newCta,
+        website_url: nextLink 
+      } 
+    };
+    setConfig(nextConfig);
+    setConfigJson(JSON.stringify(nextConfig, null, 2));
   };
 
   const handleFullLaunch = async () => {
@@ -693,20 +715,42 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }) {
                   <input value={config.ad?.headline || ""} onChange={(e) => setField("ad", "headline", e.target.value)} style={inputStyle} />
                 </FieldGroup>
                 <FieldGroup label="CTA Button">
-                  <select value={config.ad?.call_to_action_type || "LEARN_MORE"} onChange={(e) => setField("ad", "call_to_action_type", e.target.value)} style={inputStyle}>
+                  <select 
+                    value={config.ad?.call_to_action_type || "LEARN_MORE"} 
+                    onChange={(e) => handleCTAChange(e.target.value)} 
+                    style={inputStyle}
+                  >
                     <option value="LEARN_MORE">LEARN_MORE</option>
                     <option value="BOOK_NOW">BOOK_NOW</option>
                     <option value="CONTACT_US">CONTACT_US</option>
                     <option value="GET_QUOTE">GET_ESTIMATE</option>
+                    <option value="WHATSAPP_MESSAGE">WHATSAPP_MESSAGE</option>
+                    <option value="MESSAGE_PAGE">MESSAGE_PAGE</option>
                   </select>
                 </FieldGroup>
               </div>
               <FieldGroup label="Ad Description (Small Text)">
                 <input value={config.ad?.description || ""} onChange={(e) => setField("ad", "description", e.target.value)} style={inputStyle} />
               </FieldGroup>
-              <FieldGroup label="Display Link Mask">
-                <input value={config.ad?.display_link || ""} onChange={(e) => setField("ad", "display_link", e.target.value)} style={inputStyle} />
-              </FieldGroup>
+
+              <div style={{ padding: "16px", background: "rgba(37, 99, 235, 0.05)", borderRadius: "12px", border: "1px solid rgba(37, 99, 235, 0.1)", display: "flex", flexDirection: "column", gap: 12 }}>
+                <FieldGroup label="Media Link / Destination Data (ACTUAL LINK)">
+                  <input
+                    placeholder="e.g. https://website.com or +123456789"
+                    value={config.ad?.website_url || ""}
+                    onChange={(e) => setField("ad", "website_url", e.target.value)}
+                    style={{ ...inputStyle, background: "#fff", borderColor: "var(--primary)" }}
+                  />
+                </FieldGroup>
+                <FieldGroup label="Display Link Mask (Visual Only)">
+                  <input
+                    placeholder="e.g. yourclinic.ai/booking"
+                    value={config.ad?.display_link || ""}
+                    onChange={(e) => setField("ad", "display_link", e.target.value)}
+                    style={inputStyle}
+                  />
+                </FieldGroup>
+              </div>
             </div>
           </Card>
         </div>

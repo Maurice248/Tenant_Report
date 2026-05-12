@@ -10,7 +10,8 @@ import {
   CheckCircle2, 
   AlertCircle,
   ShieldCheck,
-  UserPlus
+  Eye,
+  EyeOff
 } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import "../globals.css";
@@ -18,9 +19,9 @@ import "../login.css";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorStatus, setErrorStatus] = useState(null);
   const [successStatus, setSuccessStatus] = useState(null);
@@ -42,24 +43,32 @@ export default function LoginPage() {
     setErrorStatus(null);
     setSuccessStatus(null);
 
+    // Hardcoded Administrative Credential Check
+    const targetEmail = "togahealthai@gmail.com";
+    const targetPass = "Meta123.com";
+
+    if (email.trim() !== targetEmail || password !== targetPass) {
+      console.error("Local check failed:", { 
+        emailMatch: email.trim() === targetEmail, 
+        passMatch: password === targetPass 
+      });
+      setErrorStatus("Invalid administrator credentials. Access restricted.");
+      setLoading(false);
+      return;
+    }
+
     try {
-      if (isSignUp) {
-        const { error } = await supabase.auth.signUp({ 
-          email, 
-          password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/auth/callback`
-          }
-        });
-        if (error) throw error;
-        setSuccessStatus("Check your email for the confirmation link!");
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+      // Local Session Implementation (Bypassing Supabase Auth)
+      localStorage.setItem("toga_auth_session", "true");
+      localStorage.setItem("toga_user_email", email.trim());
+      
+      setSuccessStatus("Authentication successful. Redirecting...");
+      setTimeout(() => {
         router.push("/");
-      }
+      }, 500);
     } catch (error) {
-      setErrorStatus(error.message);
+      console.error("Local Session Error:", error.message);
+      setErrorStatus("An error occurred during local authentication.");
     } finally {
       setLoading(false);
     }
@@ -76,20 +85,16 @@ export default function LoginPage() {
           <div className="auth-logo">
             <Stethoscope size={28} />
           </div>
-          <h1 className="auth-title tracking-tight">HealPoint AI</h1>
+          <h1 className="auth-title tracking-tight">Togahh AI</h1>
           <div className="auth-badge-container">
             <span className="auth-badge">Clinical Platform v2.4</span>
           </div>
         </div>
 
         <div className="auth-content">
-          <h2 className="content-title">
-            {isSignUp ? "Create Administrator Account" : "Clinical Team Login"}
-          </h2>
+          <h2 className="content-title">Administrator Login</h2>
           <p className="auth-subtitle">
-            {isSignUp 
-              ? "Join the network to manage hospital-wide digital campaigns." 
-              : "Sign in to access your advertising and content dashboards."}
+            Sign in to access your advertising and content dashboards.
           </p>
 
           <form onSubmit={handleAuth} className="auth-form">
@@ -110,16 +115,23 @@ export default function LoginPage() {
 
             <div className="input-group">
               <label className="input-label">Security Credentials</label>
-              <div className="input-wrapper">
+              <div className="input-wrapper relative">
                 <Lock className="input-icon" size={18} />
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   placeholder="••••••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="auth-input"
+                  className="auth-input pr-10"
                   required
                 />
+                <button
+                  type="button"
+                  className="password-toggle-btn"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
             </div>
 
@@ -130,8 +142,8 @@ export default function LoginPage() {
                 </div>
               ) : (
                 <div className="flex items-center justify-center gap-2">
-                  {isSignUp ? <UserPlus size={18} /> : <ShieldCheck size={18} />}
-                  {isSignUp ? "Register Account" : "Secure Access"}
+                  <ShieldCheck size={18} />
+                  Secure Access
                   <ArrowRight size={16} className="ml-1" />
                 </div>
               )}
@@ -156,20 +168,19 @@ export default function LoginPage() {
 
         <div className="auth-footer">
           <div className="footer-divider">
-            <span>{isSignUp ? "Already Registered?" : "Personnel Access Only"}</span>
+            <span>Personnel Access Only</span>
           </div>
           <p className="footer-text">
-            {isSignUp ? "Already have an account?" : "Need an administrative account?"}{" "}
-            <button className="auth-link-btn" onClick={() => setIsSignUp(!isSignUp)}>
-              {isSignUp ? "Sign In Now" : "Request Access"}
-            </button>
+            Restricted to authorized administrator accounts only.
           </p>
         </div>
       </div>
       
       <div className="login-legal">
-        <p>© 2026 HealPoint AI Healthcare Systems. Restricted Clinical Access.</p>
+        <p>© 2026 Togahh AI Marketing Systems. Restricted Administrative Access.</p>
       </div>
     </div>
   );
 }
+
+

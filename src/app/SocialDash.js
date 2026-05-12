@@ -29,7 +29,7 @@ export default function SocialDash() {
   const [loading, setLoading] = useState(null);
   const [toast, setToast] = useState(null);
   const videoRef = useRef(null);
-  const [status, setStatus] = useState("Connecting...");
+  const [status, setStatus] = useState("Loading...");
   const [showModal, setShowModal] = useState(false);
   const [showRetryModal, setShowRetryModal] = useState(false);
   const [generatedStory, setGeneratedStory] = useState(null);
@@ -50,17 +50,17 @@ export default function SocialDash() {
           .order('id', { ascending: false })
           .limit(1);
 
-        if (error) { setStatus("Status Unavailable"); }
+        if (error) { setStatus("Status Error"); }
         else if (data && data.length > 0) { setStatus(data[0].status); }
-        else { setStatus("Operational"); }
-      } catch { setStatus("Status Error"); }
+        else { setStatus("Waiting for Data..."); }
+      } catch { setStatus("Connection Error"); }
     };
 
     fetchStatus();
 
     const channel = socialSupabase
       .channel('n8n-status-changes')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'n8n' }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'n8n' }, (payload) => {
         if (payload.new?.status) setStatus(payload.new.status);
       })
       .subscribe();
@@ -97,11 +97,13 @@ export default function SocialDash() {
       showToast("Video created successfully!", "success");
     } else if (
       status && 
-      status !== "Operational" && 
-      status !== "Status Unavailable" && 
+      status !== "Waiting for Data..." && 
       status !== "Status Error" && 
+      status !== "Connection Error" && 
       status !== "video created successfully" &&
-      status !== "Connecting..."
+      status !== "Loading..." &&
+      status !== "Generating images..." &&
+      status !== "Images will be generated soon!"
     ) {
       if (!isGenerating) {
         setIsGenerating(true);
@@ -121,13 +123,13 @@ export default function SocialDash() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  const triggerWebhook = async (url, label, successMessage, body = null) => {
+  const triggerWebhook = async (url, label, successMessage, body = null, method = 'POST') => {
     setLoading(label);
     try {
       const response = await fetch('/api/proxy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, body }),
+        body: JSON.stringify({ url, body, method }),
       });
       if (response.ok) {
         showToast(successMessage, 'success');
@@ -148,12 +150,13 @@ export default function SocialDash() {
   };
 
   const handleGenerateImages = () => {
-    setIsGenerating(true);
-    setProgress(0);
     setStatus("Generating images...");
     triggerWebhook(
       "https://n8n.srv1208919.hstgr.cloud/webhook/1703fb64-ec58-4e56-9ce7-bd9e16e15220",
-      "images", "Images will be generated soon!"
+      "images", 
+      "Images will be generated soon!",
+      null,
+      "GET"
     );
   };
 
@@ -367,7 +370,14 @@ export default function SocialDash() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#64748b' }}>
                       <Spinner size={16} /> Generating new story...
                     </div>
-                  ) : generatedStory}
+                  ) : (
+                    <textarea 
+                      className="sd-story-textarea"
+                      value={generatedStory}
+                      onChange={(e) => setGeneratedStory(e.target.value)}
+                      placeholder="Type or edit your story here..."
+                    />
+                  )}
                 </div>
                 <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
                   <button 
