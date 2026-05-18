@@ -1,3 +1,10 @@
+import dns from 'node:dns';
+
+// Force IPv4 to prevent connection timeouts on some networks
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder('ipv4first');
+}
+
 // ============================================================
 // API PROXY — /api/trigger-n8n
 // Routes each action to its own n8n webhook URL (fixes CORS)

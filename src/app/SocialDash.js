@@ -90,17 +90,21 @@ export default function SocialDash() {
 
   // Monitor status to trigger refresh and progress completion
   useEffect(() => {
-    if (status === "video created successfully") {
+    const isDone = status?.toLowerCase().includes("successfully") || status?.toLowerCase().includes("completed");
+
+    if (isDone) {
       setProgress(100);
       setIsGenerating(false);
       handleRefreshPreview();
-      showToast("Video created successfully!", "success");
+      // Only show success toast if it was actually generating
+      if (progress > 0 && progress < 100) {
+        showToast("Process completed successfully!", "success");
+      }
     } else if (
       status && 
       status !== "Waiting for Data..." && 
       status !== "Status Error" && 
       status !== "Connection Error" && 
-      status !== "video created successfully" &&
       status !== "Loading..." &&
       status !== "Generating images..." &&
       status !== "Images will be generated soon!"

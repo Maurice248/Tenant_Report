@@ -38,8 +38,8 @@ const TABS = [
 
   { id: "reports", label: "Reports", icon: "◧" },
   { id: "social-dash", label: "Social-Dash", icon: "🎨" },
-  { id: "newsletter", label: "Newsletter", icon: "📰", externalLink: "https://newsletter-dashboard-ecfb.vercel.app/newsletter/generate" },
-  { id: "outreach", label: "Outreach", icon: "✉️", externalLink: "https://togaah-outreach-kc5r-git-main-optiserve.vercel.app" },
+  { id: "newsletter", label: "Newsletter", icon: "📰", externalLink: "https://newsletter-omega-eight.vercel.app/newsletter/generate" },
+  { id: "outreach", label: "Outreach", icon: "✉️", externalLink: "https://outreach-umber.vercel.app" },
 ];
 
 const TOPICS = [
@@ -623,7 +623,7 @@ export default function Dashboard() {
 
           // Refresh if any part of the workflow completed or if overall completion reached
           const isIntermediateDone = newStatus.toLowerCase().includes("completed") && !workflowStatus?.toLowerCase().includes("completed");
-          const isFullyDone = newStatus === "Completed";
+          const isFullyDone = newStatus.toLowerCase().includes("completed");
 
           if (isIntermediateDone || isFullyDone) {
             fetchAdTableLinks(); // Refresh the grid
@@ -918,6 +918,7 @@ export default function Dashboard() {
     }
     const config = createTabAdsConfig;
     setAdStatus("generating");
+    setWorkflowStatus("Triggering...");
     setWebhookError("");
     try {
       const res = await fetch("/api/trigger-ads", {
@@ -2805,9 +2806,10 @@ export default function Dashboard() {
                             const lStatus = workflowStatus?.toLowerCase() || "";
 
                             // Determine what to show based on status text or if we requested them
+                            // Determine what to show based on status text and current configuration
                             const hasBoth = lStatus.includes("image/video");
-                            const showImage = hasBoth || lStatus.includes("image") || createTabAdsConfig.imageCount > 0;
-                            const showVideo = hasBoth || lStatus.includes("video") || createTabAdsConfig.videoCount > 0;
+                            const showImage = createTabAdsConfig.imageCount > 0 && (hasBoth || lStatus.includes("image") || lStatus.includes("triggering"));
+                            const showVideo = createTabAdsConfig.videoCount > 0 && (hasBoth || lStatus.includes("video") || lStatus.includes("triggering") || !lStatus);
 
                             // Determine completion
                             const allDone = lStatus === "completed" || lStatus === "workflow completed";

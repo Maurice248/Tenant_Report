@@ -3,9 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -44,9 +43,9 @@ model WorkflowExecution {
   workflowName   String?
   status         String    @default("PENDING")
   n8nExecutionId String?
-  inputData      String    @db.Text
-  outputData     String?   @db.Text
-  errorMessage   String?   @db.Text
+  inputData      String
+  outputData     String?
+  errorMessage   String?
   startedAt      DateTime?
   completedAt    DateTime?
   duration       Int?
@@ -71,19 +70,19 @@ model Campaign {
   serviceType        String
   targetRegion       String
   campaignGoal       String    @default("")
-  campaignMessage    String    @default("") @db.Text
+  campaignMessage    String    @default("")
   selectedSheet      String
   totalLeadsSent     Int       @default(0)
   successfulSends    Int       @default(0)
   failedSends        Int       @default(0)
-  aiGeneratedContent String?   @db.Text
+  aiGeneratedContent String?
   status             String    @default("PENDING_APPROVAL")
   approvedBy         String?
   approvedAt         DateTime?
   rejectedBy         String?
   rejectedAt         DateTime?
-  rejectionReason    String?   @db.Text
-  comments           String?   @db.Text
+  rejectionReason    String?
+  comments           String?
   createdBy          String    @default("")
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
