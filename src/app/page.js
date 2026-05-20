@@ -52,6 +52,20 @@ const TOPICS = [
   "Patient Care Protocols",
 ];
 
+const LOCATION_SUGGESTIONS = [
+  { name: "United States", shortcut: "US", details: "Country in North America" },
+  { name: "Canada", shortcut: "CA", details: "Country in North America" },
+  { name: "Turkey", shortcut: "TR", details: "Country in Europe/Asia" },
+  { name: "United Kingdom", shortcut: "GB", details: "Country in Europe" },
+  { name: "Germany", shortcut: "DE", details: "Country in Europe" },
+  { name: "France", shortcut: "FR", details: "Country in Europe" },
+  { name: "Australia", shortcut: "AU", details: "Country in Oceania" },
+  { name: "United Arab Emirates", shortcut: "AE", details: "Country in Middle East" },
+  { name: "India", shortcut: "IN", details: "Country in South Asia" },
+  { name: "Spain", shortcut: "ES", details: "Country in Europe" },
+  { name: "Italy", shortcut: "IT", details: "Country in Europe" },
+];
+
 // ─── HELPERS ─────────────────────────────────────────────────
 /**
  * Ensures Supabase storage URLs use the current project's hostname.
@@ -87,10 +101,45 @@ const normalizeSupabaseUrl = (url) => {
 
 
 
+// ─── PERSISTENT LOCAL STORAGE HOOK ──────────────────────────
+/**
+ * Works like useState but automatically persists to/from localStorage.
+ * Highly robust and SSR/Hydration safe for Next.js.
+ */
+function useLocalStorage(key, defaultValue) {
+  const [value, setValue] = useState(defaultValue);
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Load from localStorage on client-side mount
+  useEffect(() => {
+    setIsMounted(true);
+    try {
+      const stored = window.localStorage.getItem(key);
+      if (stored !== null) {
+        setValue(JSON.parse(stored));
+      }
+    } catch (e) {
+      console.warn(`LocalStorage read error for key "${key}":`, e);
+    }
+  }, [key]);
+
+  // Persist updates to localStorage
+  useEffect(() => {
+    if (!isMounted) return;
+    try {
+      window.localStorage.setItem(key, JSON.stringify(value));
+    } catch (e) {
+      console.warn(`LocalStorage write error for key "${key}":`, e);
+    }
+  }, [key, value, isMounted]);
+
+  return [value, setValue];
+}
+
 // ─── MAIN DASHBOARD ──────────────────────────────────────────
 export default function Dashboard() {
   const router = useRouter();
-  const [tab, setTab] = useState("overview");
+  const [tab, setTab] = useLocalStorage("toga_active_tab", "overview");
   const [selectedTopic, setSelectedTopic] = useState(TOPICS[1]);
   const [user, setUser] = useState(null);
   const [isAuthenticating, setIsAuthenticating] = useState(true);
@@ -101,22 +150,49 @@ export default function Dashboard() {
   }, []);
 
   // Analysis state
-  const [analysisStatus, setAnalysisStatus] = useState("idle");
+  const [analysisStatus, setAnalysisStatus] = useLocalStorage("toga_analysis_status", "idle");
   // idle | generating | waiting | done | error
-  const [analysisData, setAnalysisData] = useState(null);
+  const [analysisData, setAnalysisData] = useLocalStorage("toga_analysis_data", null);
 
   const [analysisError, setAnalysisError] = useState("");
-  const [pendingAnalysisTopic, setPendingAnalysisTopic] = useState(null);
+  const [pendingAnalysisTopic, setPendingAnalysisTopic] = useLocalStorage("toga_pending_analysis_topic", null);
+
+  // Custom keywords research form states
+  const [researchKeywords, setResearchKeywords] = useLocalStorage("toga_research_keywords", [
+    "dental implants turkey",
+    "dental tourism turkey",
+    "hair transplant turkey",
+    "medical tourism turkey",
+    "hollywood smile turkey",
+    "zirconium crowns turkey",
+    "fue hair transplant",
+    "affordable dental treatment abroad"
+  ]);
+  const [keywordInput, setKeywordInput] = useState("");
+  const [researchCountries, setResearchCountries] = useLocalStorage("toga_research_countries", ["CA", "US"]);
+  const [locationSearchInput, setLocationSearchInput] = useState("");
+  const [showLocationDropdown, setShowLocationDropdown] = useState(false);
+  const [researchMaxAds, setResearchMaxAds] = useLocalStorage("toga_research_max_ads", 100);
+  const [researchOnlyActive, setResearchOnlyActive] = useLocalStorage("toga_research_only_active", true);
+  const [researchSort, setResearchSort] = useLocalStorage("toga_research_sort", "Impressions High → Low");
+
+  // Sync first keyword to selectedTopic for compatibility with other tabs
+  useEffect(() => {
+    const firstKeyword = researchKeywords[0];
+    if (firstKeyword && firstKeyword !== selectedTopic) {
+      setSelectedTopic(firstKeyword);
+    }
+  }, [researchKeywords, selectedTopic]);
 
   // Ad creation
-  const [adStatus, setAdStatus] = useState("idle");
+  const [adStatus, setAdStatus] = useLocalStorage("toga_ad_status", "idle");
   // idle | generating | waiting | done | error
-  const [adData, setAdData] = useState(null);
+  const [adData, setAdData] = useLocalStorage("toga_ad_data", null);
 
   // Approval & launch
   const [approved, setApproved] = useState(false);
-  const [budget, setBudget] = useState(50);
-  const [duration, setDuration] = useState(7);
+  const [budget, setBudget] = useLocalStorage("toga_budget", 50);
+  const [duration, setDuration] = useLocalStorage("toga_duration", 7);
   const [launchStatus, setLaunchStatus] = useState("idle");
   // idle | launching | live | error
 
@@ -162,7 +238,7 @@ export default function Dashboard() {
   const [sbSortField, setSbSortField] = useState("score");
   const [sbSortDir, setSbSortDir] = useState("desc");
 
-  const [createTabAdsConfig, setCreateTabAdsConfig] = useState({
+  const [createTabAdsConfig, setCreateTabAdsConfig] = useLocalStorage("toga_create_tab_config", {
     totalAds: 1,
     videoCount: 1,
     imageCount: 0,
@@ -177,8 +253,8 @@ export default function Dashboard() {
   const [allApprovedAds, setAllApprovedAds] = useState([]);
   const [approvingId, setApprovingId] = useState(null);
   const [selectedAdForDetails, setSelectedAdForDetails] = useState(null);
-  const [workflowStatus, setWorkflowStatus] = useState("");
-  const [isStatusPolling, setIsStatusPolling] = useState(false);
+  const [workflowStatus, setWorkflowStatus] = useLocalStorage("toga_workflow_status", "");
+  const [isStatusPolling, setIsStatusPolling] = useLocalStorage("toga_is_status_polling", false);
   const [isEditingAd, setIsEditingAd] = useState(false);
   const [editingAdData, setEditingAdData] = useState({});
   const [isSavingAd, setIsSavingAd] = useState(false);
@@ -297,9 +373,20 @@ export default function Dashboard() {
     console.log(`[Diagnostics] Valid pending found: ${validPending.length}`);
     console.log(`[Diagnostics] Approved found: ${approvedList.length}`);
 
+    // Filter pending ads to only include the latest batch (within 1 hour of the absolute newest ad overall)
+    let batchPending = [...validPending];
+    if (dbData && dbData.length > 0) {
+      const newestAdOverallTime = new Date(dbData[0].time).getTime();
+      const BATCH_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+      batchPending = validPending.filter(a => {
+        const adTime = new Date(a.time).getTime();
+        return (newestAdOverallTime - adTime) <= BATCH_WINDOW_MS;
+      });
+    }
+
     // Select top 3 videos and top 2 images for the Create Ad tab
-    const topVideos = validPending.filter(a => (a.format || "").toLowerCase() === "video").slice(0, 3);
-    const topImages = validPending.filter(a => (a.format || "").toLowerCase() !== "video").slice(0, 2);
+    const topVideos = batchPending.filter(a => (a.format || "").toLowerCase() === "video").slice(0, 3);
+    const topImages = batchPending.filter(a => (a.format || "").toLowerCase() !== "video").slice(0, 2);
 
     console.log(`[Diagnostics] Top Videos: ${topVideos.length}, Top Images: ${topImages.length}`);
     setPendingAds([...topVideos, ...topImages]);
@@ -1004,7 +1091,12 @@ export default function Dashboard() {
 
     const result = await callWebhook({
       action: "competitor_analysis",
-      topic: selectedTopic,
+      topic: researchKeywords[0] || "Dental Implants Turkey",
+      keywords: researchKeywords,
+      countries: researchCountries,
+      max_ads: Number(researchMaxAds) || 100,
+      only_active: researchOnlyActive,
+      sort: researchSort,
       timestamp: new Date().toISOString(),
     }, setAnalysisStatus);
 
@@ -1662,65 +1754,512 @@ export default function Dashboard() {
           {/* Main Content Area */}
           <div style={{ flex: 1 }}>
             <Card style={{ marginBottom: 14 }}>
+              <style dangerouslySetInnerHTML={{ __html: `
+                @keyframes radar-sweep {
+                  from { transform: rotate(0deg); }
+                  to { transform: rotate(360deg); }
+                }
+                @keyframes radar-pulse {
+                  0% { transform: scale(0.6); opacity: 0.8; }
+                  100% { transform: scale(2.2); opacity: 0; }
+                }
+                @keyframes blip-glow {
+                  0%, 100% { transform: scale(0.8); opacity: 0.4; }
+                  50% { transform: scale(1.3); opacity: 1; filter: drop-shadow(0 0 4px var(--primary)); }
+                }
+              `}} />
               <SectionTitle>Topic for analysis</SectionTitle>
               <div
                 style={{
                   display: "flex",
-                  flexWrap: "wrap",
-                  gap: 6,
-                  marginBottom: 20,
+                  flexDirection: "column",
+                  gap: 16,
+                  marginBottom: 24,
+                  background: "var(--surface)",
+                  padding: 20,
+                  borderRadius: "var(--radius-md)",
+                  border: "1px solid var(--border)",
                 }}
               >
-                {TOPICS.map((t) => (
-                  <button
-                    key={t}
-                    style={topicBtnStyle(t)}
-                    onClick={() => setSelectedTopic(t)}
+                {/* Keywords Tag Manager */}
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: "var(--text-muted)",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.05em",
+                      marginBottom: 8,
+                    }}
                   >
-                    {t}
-                  </button>
-                ))}
+                    Keywords (Press Enter or click Add to append)
+                  </label>
+                  
+                  {/* Selected Keywords list as beautiful tags */}
+                  <div
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: 8,
+                      marginBottom: 10,
+                      padding: 8,
+                      background: "var(--card-bg)",
+                      border: "1px solid var(--border)",
+                      borderRadius: "var(--radius-md)",
+                      minHeight: "45px",
+                    }}
+                  >
+                    {researchKeywords.map((kw, idx) => (
+                      <span
+                        key={idx}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                          padding: "5px 12px",
+                          background: "var(--primary-light)",
+                          border: "1px solid var(--primary-mid)",
+                          borderRadius: "var(--radius-pill)",
+                          color: "var(--primary-dark)",
+                          fontSize: 13,
+                          fontWeight: 500,
+                          transition: "all 0.15s ease",
+                        }}
+                      >
+                        {kw}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setResearchKeywords(prev => prev.filter((_, i) => i !== idx));
+                          }}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            color: "var(--primary)",
+                            fontSize: 14,
+                            fontWeight: "bold",
+                            cursor: "pointer",
+                            padding: "0 2px",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.color = "var(--red-dark)"}
+                          onMouseLeave={(e) => e.currentTarget.style.color = "var(--primary)"}
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    ))}
+                    {researchKeywords.length === 0 && (
+                      <span style={{ fontSize: 13, color: "var(--text-dim)", alignSelf: "center", paddingLeft: 4 }}>
+                        No keywords selected. Add some below.
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Add Keyword Input Box */}
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input
+                      type="text"
+                      placeholder="Add a new keyword..."
+                      value={keywordInput}
+                      onChange={(e) => setKeywordInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          const val = keywordInput.trim();
+                          if (val && !researchKeywords.includes(val)) {
+                            setResearchKeywords(prev => [...prev, val]);
+                            setKeywordInput("");
+                          }
+                        }
+                      }}
+                      style={{
+                        flex: 1,
+                        padding: "8px 12px",
+                        borderRadius: "var(--radius-md)",
+                        border: "1px solid var(--border)",
+                        background: "var(--card-bg)",
+                        color: "var(--text)",
+                        fontFamily: "inherit",
+                        fontSize: 13,
+                        outline: "none",
+                        transition: "border-color 0.15s, box-shadow 0.15s",
+                      }}
+                      onFocus={(e) => {
+                        e.target.style.borderColor = "var(--primary)";
+                        e.target.style.boxShadow = "0 0 0 3px var(--primary-light)";
+                      }}
+                      onBlur={(e) => {
+                        e.target.style.borderColor = "var(--border)";
+                        e.target.style.boxShadow = "none";
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const val = keywordInput.trim();
+                        if (val && !researchKeywords.includes(val)) {
+                          setResearchKeywords(prev => [...prev, val]);
+                          setKeywordInput("");
+                        }
+                      }}
+                      style={{
+                        padding: "8px 16px",
+                        borderRadius: "var(--radius-md)",
+                        border: "none",
+                        background: "var(--primary)",
+                        color: "#fff",
+                        fontSize: 13,
+                        fontWeight: 500,
+                        cursor: "pointer",
+                        transition: "background 0.2s",
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "var(--primary-dark)"}
+                      onMouseLeave={(e) => e.currentTarget.style.background = "var(--primary)"}
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
+
+                {/* Grid for Options */}
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                    gap: 16,
+                  }}
+                >
+                  {/* Google Maps Country Search Autocomplete */}
+                  <div style={{ position: "relative" }} onMouseLeave={() => setShowLocationDropdown(false)}>
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: "var(--text-muted)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em",
+                        marginBottom: 8,
+                      }}
+                    >
+                      Countries / Locations
+                    </label>
+
+                    {/* Google Maps style capsule input */}
+                    <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                      <span style={{ position: "absolute", left: 10, fontSize: 14, color: "var(--text-muted)" }}>
+                        🔍
+                      </span>
+                      <input
+                        type="text"
+                        placeholder="Search country (e.g. Turkey)..."
+                        value={locationSearchInput}
+                        onChange={(e) => {
+                          setLocationSearchInput(e.target.value);
+                          setShowLocationDropdown(true);
+                        }}
+                        onFocus={() => setShowLocationDropdown(true)}
+                        style={{
+                          width: "100%",
+                          padding: "8px 12px 8px 30px",
+                          borderRadius: "var(--radius-md)",
+                          border: "1px solid var(--border)",
+                          background: "var(--card-bg)",
+                          color: "var(--text)",
+                          fontFamily: "inherit",
+                          fontSize: 13,
+                          outline: "none",
+                          transition: "border-color 0.15s, box-shadow 0.15s",
+                        }}
+                        onFocusCapture={(e) => {
+                          e.target.style.borderColor = "var(--primary)";
+                          e.target.style.boxShadow = "0 0 0 3px var(--primary-light)";
+                        }}
+                        onBlurCapture={(e) => {
+                          e.target.style.borderColor = "var(--border)";
+                          e.target.style.boxShadow = "none";
+                        }}
+                      />
+                      {locationSearchInput && (
+                        <button
+                          type="button"
+                          onClick={() => setLocationSearchInput("")}
+                          style={{
+                            position: "absolute",
+                            right: 10,
+                            background: "none",
+                            border: "none",
+                            fontSize: 12,
+                            color: "var(--text-muted)",
+                            cursor: "pointer",
+                          }}
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Autocomplete Dropdown list */}
+                    {showLocationDropdown && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: "100%",
+                          left: 0,
+                          right: 0,
+                          zIndex: 50,
+                          background: "var(--card-bg)",
+                          border: "1px solid var(--border)",
+                          borderRadius: "var(--radius-md)",
+                          boxShadow: "var(--shadow-lg)",
+                          maxHeight: 200,
+                          overflowY: "auto",
+                          marginTop: 4,
+                        }}
+                      >
+                        {LOCATION_SUGGESTIONS.filter(item =>
+                          item.name.toLowerCase().includes(locationSearchInput.toLowerCase()) ||
+                          item.shortcut.toLowerCase().includes(locationSearchInput.toLowerCase())
+                        ).map((item, index) => (
+                          <div
+                            key={index}
+                            onClick={() => {
+                              if (!researchCountries.includes(item.shortcut)) {
+                                setResearchCountries(prev => [...prev, item.shortcut]);
+                              }
+                              setLocationSearchInput("");
+                              setShowLocationDropdown(false);
+                            }}
+                            style={{
+                              padding: "8px 12px",
+                              cursor: "pointer",
+                              fontSize: 13,
+                              borderBottom: "1px solid var(--border-light)",
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              transition: "background 0.1s",
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = "var(--primary-light)"}
+                            onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                          >
+                            <div>
+                              <span style={{ marginRight: 6 }}>📍</span>
+                              <span style={{ fontWeight: 500 }}>{item.name}</span>
+                              <div style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: 20 }}>
+                                {item.details}
+                              </div>
+                            </div>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--primary)", background: "var(--primary-light)", padding: "2px 6px", borderRadius: 4 }}>
+                              {item.shortcut}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Selected Countries Location Pin Badges */}
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+                      {researchCountries.map(code => {
+                        const matched = LOCATION_SUGGESTIONS.find(c => c.shortcut === code);
+                        const label = matched ? matched.name : code;
+                        return (
+                          <span
+                            key={code}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                              padding: "4px 8px",
+                              background: "var(--secondary-light)",
+                              border: "1px solid var(--secondary-dark)",
+                              borderRadius: "var(--radius-sm)",
+                              color: "var(--secondary-dark)",
+                              fontSize: 12,
+                              fontWeight: 600,
+                            }}
+                          >
+                            📍 {label} ({code})
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setResearchCountries(prev => prev.filter(c => c !== code));
+                              }}
+                              style={{
+                                background: "none",
+                                border: "none",
+                                color: "var(--secondary-dark)",
+                                fontSize: 12,
+                                fontWeight: "bold",
+                                cursor: "pointer",
+                                marginLeft: 2,
+                                display: "inline-flex",
+                                alignItems: "center",
+                              }}
+                              onMouseEnter={(e) => e.currentTarget.style.color = "var(--red-dark)"}
+                              onMouseLeave={(e) => e.currentTarget.style.color = "var(--secondary-dark)"}
+                            >
+                              ✕
+                            </button>
+                          </span>
+                        );
+                      })}
+                      {researchCountries.length === 0 && (
+                        <span style={{ fontSize: 12, color: "var(--text-dim)", fontStyle: "italic", marginTop: 4 }}>
+                          No countries selected. Webhook payload will omit location targeting.
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Max Ads Input */}
+                  <div>
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: "var(--text-muted)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em",
+                        marginBottom: 6,
+                      }}
+                    >
+                      Max Ads
+                    </label>
+                    <input
+                      type="number"
+                      value={researchMaxAds}
+                      onChange={(e) => setResearchMaxAds(e.target.value)}
+                      min={1}
+                      max={1000}
+                      style={{
+                        width: "100%",
+                        padding: "8px 12px",
+                        borderRadius: "var(--radius-md)",
+                        border: "1px solid var(--border)",
+                        background: "var(--card-bg)",
+                        color: "var(--text)",
+                        fontFamily: "inherit",
+                        fontSize: 13,
+                        outline: "none",
+                        transition: "border-color 0.15s, box-shadow 0.15s",
+                      }}
+                      onFocus={(e) => {
+                        e.target.style.borderColor = "var(--primary)";
+                        e.target.style.boxShadow = "0 0 0 3px var(--primary-light)";
+                      }}
+                      onBlur={(e) => {
+                        e.target.style.borderColor = "var(--border)";
+                        e.target.style.boxShadow = "none";
+                      }}
+                    />
+                  </div>
+
+                  {/* Only Active Ads Toggle */}
+                  <div>
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: "var(--text-muted)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em",
+                        marginBottom: 8,
+                      }}
+                    >
+                      Only Active Ads
+                    </label>
+                    <label
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 8,
+                        cursor: "pointer",
+                        userSelect: "none",
+                        padding: "6px 0",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={researchOnlyActive}
+                        onChange={(e) => setResearchOnlyActive(e.target.checked)}
+                        style={{
+                          width: 16,
+                          height: 16,
+                          accentColor: "var(--primary)",
+                          cursor: "pointer",
+                        }}
+                      />
+                      <span style={{ fontSize: 13, color: "var(--text)", fontWeight: 500 }}>
+                        Active Only
+                      </span>
+                    </label>
+                  </div>
+
+                  {/* Sort Option Dropdown */}
+                  <div>
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: "var(--text-muted)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em",
+                        marginBottom: 6,
+                      }}
+                    >
+                      Sort
+                    </label>
+                    <select
+                      value={researchSort}
+                      onChange={(e) => setResearchSort(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "8px 10px",
+                        borderRadius: "var(--radius-md)",
+                        border: "1px solid var(--border)",
+                        background: "var(--card-bg)",
+                        color: "var(--text)",
+                        fontFamily: "inherit",
+                        fontSize: 13,
+                        outline: "none",
+                        cursor: "pointer",
+                        transition: "border-color 0.15s, box-shadow 0.15s",
+                      }}
+                      onFocus={(e) => {
+                        e.target.style.borderColor = "var(--primary)";
+                        e.target.style.boxShadow = "0 0 0 3px var(--primary-light)";
+                      }}
+                      onBlur={(e) => {
+                        e.target.style.borderColor = "var(--border)";
+                        e.target.style.boxShadow = "none";
+                      }}
+                    >
+                      <option value="Impressions High → Low">Impressions High → Low</option>
+                      <option value="Impressions Low → High">Impressions Low → High</option>
+                      <option value="Newest First">Newest First</option>
+                      <option value="Oldest First">Oldest First</option>
+                    </select>
+                  </div>
+                </div>
               </div>
 
-              <SectionTitle>n8n Workflow Steps</SectionTitle>
-              <WorkflowStep
-                step="1"
-                label="Trigger webhook"
-                sub={`POST → ${API_URL}/competitor_analysis`}
-                active={analysisStatus === "idle"}
-                done={analysisStatus !== "idle" || !!analysisData}
-              />
-              <WorkflowStep
-                step="2"
-                label="n8n receives & scrapes competitors"
-                sub="Apify actor — IG, FB, Google local studios"
-                active={analysisStatus === "generating" || analysisStatus === "waiting"}
-                done={analysisStatus === "done" || !!analysisData}
-              />
-              <WorkflowStep
-                step="3"
-                label="Claude analyzes patterns in n8n"
-                sub="CTR, creative type, offers, copy angles"
-                active={analysisStatus === "waiting"}
-                done={analysisStatus === "done" || !!analysisData}
-              />
-              <WorkflowStep
-                step="4"
-                label="n8n POSTs results back to dashboard"
-                sub="Results appear below"
-                active={false}
-                done={analysisStatus === "done" || !!analysisData}
-              />
-
-              {/* TRIGGER BUTTON — shown when idle, error, or done (allow re-run) */}
+              {/* IDLE / DONE / ERROR STATE: TRIGGER BUTTON */}
               {(analysisStatus === "idle" || analysisStatus === "done" || analysisStatus === "error") && (
-                <div>
+                <div style={{ width: "100%" }}>
                   <button
                     onClick={runCompetitorAnalysis}
-                    disabled={false}
                     style={{
                       width: "100%",
-                      padding: "11px 18px",
+                      padding: "12px 18px",
                       borderRadius: "var(--radius-md)",
                       border: "none",
                       background: "var(--primary)",
@@ -1730,8 +2269,9 @@ export default function Dashboard() {
                       cursor: "pointer",
                       fontFamily: "inherit",
                       transition: "background 0.2s, transform 0.15s",
+                      boxShadow: "var(--shadow-md)",
                     }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = "#3D35A0"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = "var(--primary-dark)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
                     onMouseLeave={(e) => { e.currentTarget.style.background = "var(--primary)"; e.currentTarget.style.transform = "translateY(0)"; }}
                   >
                     {analysisStatus === "done"
@@ -1739,172 +2279,107 @@ export default function Dashboard() {
                       : "Trigger n8n webhook — run competitor analysis"}
                   </button>
                   {analysisStatus === "error" && (
-                    <div style={{ marginTop: 8, fontSize: 12, color: "var(--red-strong)" }}>
-                      Could not reach n8n: {analysisError || webhookError}. Please try again.
+                    <div style={{ marginTop: 10, fontSize: 13, color: "var(--red-strong)", background: "var(--red-light)", padding: "10px 14px", borderRadius: "var(--radius-md)", border: "1px solid var(--red)" }}>
+                      <strong>Webhook error:</strong> {analysisError || webhookError || "Could not reach the webhook endpoint."}
                     </div>
                   )}
                 </div>
               )}
 
-              {/* GENERATING */}
-              {analysisStatus === "generating" && (
+              {/* LOADING STATE: CSS-ANIMATED RADAR SWEEPER SCREEN */}
+              {(analysisStatus === "generating" || analysisStatus === "waiting") && (
                 <div
                   className="animate-slide-up"
-                  style={{ background: "var(--primary-light)", borderRadius: "var(--radius-md)", padding: 16, textAlign: "center" }}
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 0,
+                    background: "var(--card-bg)",
+                    borderRadius: "var(--radius-md)",
+                    border: "1.5px solid var(--border-mid)",
+                    boxShadow: "var(--shadow-md)",
+                    color: "var(--text)",
+                    textAlign: "center",
+                    overflow: "hidden",
+                  }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 6 }}>
-                    <Spinner size={14} />
-                    <span style={{ fontSize: 13, color: "var(--primary)", fontWeight: 500 }}>
-                      Sending to n8n...
-                    </span>
-                  </div>
-                  <div style={{ fontFamily: "monospace", fontSize: 11, color: "var(--purple-dark)" }}>
-                    POST {API_URL}
-                  </div>
-                </div>
-              )}
-
-              {/* WAITING */}
-              {analysisStatus === "waiting" && (
-                <div className="animate-slide-up">
-                  <div
-                    style={{
-                      background: "var(--amber-light)",
-                      border: "0.5px solid var(--amber)",
-                      borderRadius: "var(--radius-md)",
-                      padding: 14,
-                      marginBottom: 12,
-                    }}
-                  >
+                  {/* Top section: radar + status text */}
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 20, padding: "30px 20px", width: "100%" }}>
+                    {/* Circular radar scanner */}
                     <div
                       style={{
-                        fontSize: 13,
-                        color: "var(--amber)",
-                        fontWeight: 500,
-                        marginBottom: 6,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
+                        width: 200,
+                        height: 200,
+                        borderRadius: "50%",
+                        border: "2px solid var(--primary-mid)",
+                        background: "var(--surface)",
+                        position: "relative",
+                        overflow: "hidden",
+                        boxShadow: "0 0 0 6px var(--primary-light), var(--shadow-md)",
                       }}
                     >
-                      <Spinner size={12} color="var(--amber)" />
-                      Webhook triggered — waiting for n8n response
+                      {/* Concentric grids */}
+                      <div style={{ width: 50, height: 50, border: "1px dashed rgba(37, 99, 235, 0.2)", borderRadius: "50%", position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)" }} />
+                      <div style={{ width: 100, height: 100, border: "1px dashed rgba(37, 99, 235, 0.2)", borderRadius: "50%", position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)" }} />
+                      <div style={{ width: 150, height: 150, border: "1px solid rgba(37, 99, 235, 0.15)", borderRadius: "50%", position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)" }} />
+                      {/* Axes */}
+                      <div style={{ width: "100%", height: 1, background: "rgba(37, 99, 235, 0.12)", position: "absolute", top: "50%", left: 0 }} />
+                      <div style={{ height: "100%", width: 1, background: "rgba(37, 99, 235, 0.12)", position: "absolute", left: "50%", top: 0 }} />
+                      {/* Rotating radar sweep */}
+                      <div
+                        style={{
+                          position: "absolute", top: 0, left: 0, width: "100%", height: "100%",
+                          borderRadius: "50%",
+                          background: "conic-gradient(from 0deg at 50% 50%, rgba(37, 99, 235, 0.3) 0deg, rgba(37, 99, 235, 0) 90deg)",
+                          animation: "radar-sweep 3s linear infinite",
+                        }}
+                      />
+                      {/* Target blips */}
+                      <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#10B981", position: "absolute", top: "25%", left: "65%", transform: "translate(-50%, -50%)", animation: "blip-glow 2.5s ease-in-out infinite", animationDelay: "0.2s" }} />
+                      <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#10B981", position: "absolute", top: "60%", left: "30%", transform: "translate(-50%, -50%)", animation: "blip-glow 2.5s ease-in-out infinite", animationDelay: "1.1s" }} />
+                      <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#3B82F6", position: "absolute", top: "75%", left: "55%", transform: "translate(-50%, -50%)", animation: "blip-glow 2.5s ease-in-out infinite", animationDelay: "0.6s" }} />
+                      <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#10B981", position: "absolute", top: "40%", left: "80%", transform: "translate(-50%, -50%)", animation: "blip-glow 2.5s ease-in-out infinite", animationDelay: "1.8s" }} />
                     </div>
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: "var(--amber-dark)",
-                        lineHeight: 1.6,
-                      }}
-                    >
-                      n8n scraping + analyzing competitors. When
-                      done, n8n must POST results back here.
-                      <br />
-                      <strong>
-                        Add a &ldquo;Respond to Webhook&rdquo; node
-                        in n8n
-                      </strong>{" "}
-                      with the JSON format below.
+
+                    {/* Status text */}
+                    <div>
+                      <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text)", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 6 }}>
+                        <Spinner size={14} color="var(--primary)" />
+                        {analysisStatus === "generating" ? "Contacting n8n endpoint..." : "Competitor radar active — scanning ad libraries"}
+                      </div>
+                      <div style={{ fontSize: 12, color: "var(--text-muted)", maxWidth: 380, lineHeight: 1.6, margin: "0 auto" }}>
+                        {analysisStatus === "generating"
+                          ? "Establishing proxy connection & posting query payload..."
+                          : "n8n is running the competitor scraping pipeline. Claude is analyzing creative angles & CTR gaps. Results will appear below momentarily."}
+                      </div>
                     </div>
                   </div>
 
-                  {/* Expected response format */}
-                  <div
-                    style={{
-                      background: "var(--surface)",
-                      borderRadius: "var(--radius-md)",
-                      padding: "12px 14px",
-                      marginBottom: 12,
-                    }}
-                  >
-                    <div
+                  {/* Footer: Cancel only */}
+                  <div style={{ width: "100%", borderTop: "1.5px solid var(--border-mid)", padding: "14px 20px", display: "flex", justifyContent: "center" }}>
+                    <button
+                      type="button"
+                      onClick={() => setAnalysisStatus("idle")}
                       style={{
-                        fontSize: 11,
-                        fontWeight: 600,
+                        padding: "7px 20px",
+                        borderRadius: "var(--radius-sm)",
+                        border: "1px solid var(--border-mid)",
+                        background: "var(--surface)",
                         color: "var(--text-muted)",
-                        marginBottom: 8,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.04em",
-                      }}
-                    >
-                      Expected n8n response format
-                    </div>
-                    <pre
-                      style={{
-                        fontSize: 11,
-                        color: "var(--text)",
-                        margin: 0,
-                        lineHeight: 1.7,
-                        overflow: "auto",
-                      }}
-                    >
-                      {`{
-  "success": true,
-  "executive_summary": "...",
-  "competitors_table": [
-    { "name": "...", "ads": 0, "score": 0,
-      "threat": "...", "angle": "...", "hook": "..." }
-  ],
-  "hooks_table": [
-    { "pattern": "...", "example": "...",
-      "reason": "...", "score": "..." }
-  ],
-  "market_insights_table": [
-    { "field": "...", "value": "..." }
-  ],
-  "gaps_table": [
-    { "gap": "...", "opportunity": "...",
-      "priority": "...", "impact": "..." }
-  ]
-}`}
-                    </pre>
-                  </div>
-
-                  <SecondaryButton onClick={simulateAnalysisResponse}>
-                    ⚙ Simulate n8n response — UI testing only
-                  </SecondaryButton>
-                </div>
-              )}
-
-              {/* ERROR */}
-              {analysisStatus === "error" && (
-                <div className="animate-slide-up">
-                  <div
-                    style={{
-                      background: "var(--red-error-bg)",
-                      border: "0.5px solid var(--red-error)",
-                      borderRadius: "var(--radius-md)",
-                      padding: 14,
-                      marginBottom: 12,
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: 13,
-                        color: "var(--red-strong)",
-                        fontWeight: 500,
-                        marginBottom: 4,
-                      }}
-                    >
-                      Webhook trigger failed
-                    </div>
-                    <div
-                      style={{
                         fontSize: 12,
-                        color: "var(--red-dark)",
+                        fontWeight: 500,
+                        cursor: "pointer",
+                        transition: "all 0.2s",
                       }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "var(--red-light)"; e.currentTarget.style.borderColor = "var(--red-dark)"; e.currentTarget.style.color = "var(--red-dark)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "var(--surface)"; e.currentTarget.style.borderColor = "var(--border-mid)"; e.currentTarget.style.color = "var(--text-muted)"; }}
                     >
-                      {analysisError}
-                    </div>
+                      Cancel
+                    </button>
                   </div>
-                  <SecondaryButton
-                    onClick={() => setAnalysisStatus("idle")}
-                  >
-                    Reset
-                  </SecondaryButton>
                 </div>
               )}
-
             </Card>
 
             {/* ── RESULTS ── */}
@@ -1923,22 +2398,24 @@ export default function Dashboard() {
 
                 {/* 2. Competitor Ads Table */}
                 {(analysisData?.competitors_table?.length > 0) && (
-                  <Card style={{ marginBottom: 14 }}>
-                    <SectionTitle>Competitor Ads</SectionTitle>
+                  <Card style={{ marginBottom: 14, padding: 0, overflow: "hidden" }}>
+                    <div style={{ padding: "16px 20px", borderBottom: "1.5px solid var(--border-mid)" }}>
+                      <SectionTitle>Competitor Ads</SectionTitle>
+                    </div>
                     <div style={{ overflowX: "auto" }}>
-                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 600 }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                         <thead>
                           <tr style={{ background: "var(--surface)" }}>
                             {["Name", "Ads", "Score", "Threat", "Angle", "Hook"].map((h) => (
                               <th key={h} style={{
-                                padding: "9px 12px",
+                                padding: "10px 14px",
                                 textAlign: "left",
-                                fontWeight: 600,
+                                fontWeight: 700,
                                 fontSize: 11,
                                 color: "var(--text-muted)",
                                 textTransform: "uppercase",
-                                letterSpacing: "0.04em",
-                                borderBottom: "1px solid var(--border)",
+                                letterSpacing: "0.05em",
+                                borderBottom: "1.5px solid var(--border-mid)",
                                 whiteSpace: "nowrap",
                               }}>{h}</th>
                             ))}
@@ -1946,32 +2423,33 @@ export default function Dashboard() {
                         </thead>
                         <tbody>
                           {analysisData.competitors_table.map((row, i) => (
-                            <tr key={i} style={{ borderBottom: "0.5px solid var(--border-light)" }}
+                            <tr key={i} style={{ borderBottom: "1px solid var(--border)" }}
                               onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface)"}
                               onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                             >
-                              <td style={{ padding: "10px 12px", fontWeight: 500, color: "var(--text)" }}>{row?.name}</td>
-                              <td style={{ padding: "10px 12px", color: "var(--text-body)" }}>{row?.ads}</td>
-                              <td style={{ padding: "10px 12px" }}>
+                              <td style={{ padding: "11px 14px", fontWeight: 600, color: "var(--text)", whiteSpace: "nowrap" }}>{row?.name}</td>
+                              <td style={{ padding: "11px 14px", color: "var(--text-body)", whiteSpace: "nowrap" }}>{row?.ads}</td>
+                              <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}>
                                 <span style={{
                                   display: "inline-block",
-                                  padding: "2px 8px",
+                                  padding: "3px 9px",
                                   borderRadius: "var(--radius-pill)",
                                   fontSize: 11,
-                                  fontWeight: 600,
+                                  fontWeight: 700,
                                   background: row?.score >= 75 ? "var(--green-light)" : row?.score >= 50 ? "var(--amber-light)" : "var(--red-error-bg)",
-                                  color: row?.score >= 75 ? "var(--green)" : row?.score >= 50 ? "var(--amber)" : "var(--red-dark)",
+                                  color: row?.score >= 75 ? "var(--green-dark)" : row?.score >= 50 ? "var(--amber-dark)" : "var(--red-dark)",
+                                  border: `1px solid ${row?.score >= 75 ? "var(--green)" : row?.score >= 50 ? "var(--amber)" : "var(--red-error)"}`,
                                 }}>{row?.score}</span>
                               </td>
-                              <td style={{ padding: "10px 12px" }}>
+                              <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}>
                                 <Badge
                                   text={row?.threat}
-                                  color={row?.threat === "High" ? "var(--red-dark)" : row?.threat === "Medium" ? "var(--amber)" : "var(--green)"}
-                                  bg={row?.threat === "High" ? "var(--red-error-bg)" : row?.threat === "Medium" ? "var(--amber-light)" : "var(--green-light)"}
+                                  color={row?.threat?.toLowerCase() === "high" ? "var(--red-dark)" : row?.threat?.toLowerCase() === "medium" ? "var(--amber-dark)" : "var(--green-dark)"}
+                                  bg={row?.threat?.toLowerCase() === "high" ? "var(--red-error-bg)" : row?.threat?.toLowerCase() === "medium" ? "var(--amber-light)" : "var(--green-light)"}
                                 />
                               </td>
-                              <td style={{ padding: "10px 12px", color: "var(--text-body)" }}>{row?.angle}</td>
-                              <td style={{ padding: "10px 12px", color: "var(--primary)", fontStyle: "italic" }}>&ldquo;{row?.hook}&rdquo;</td>
+                              <td style={{ padding: "11px 14px", color: "var(--text-body)", lineHeight: 1.5, minWidth: 160 }}>{row?.angle}</td>
+                              <td style={{ padding: "11px 14px", color: "var(--primary-dark)", fontStyle: "italic", lineHeight: 1.5, minWidth: 180 }}>&ldquo;{row?.hook}&rdquo;</td>
                             </tr>
                           ))}
                         </tbody>
@@ -1982,22 +2460,24 @@ export default function Dashboard() {
 
                 {/* 3. Top Hook Patterns Table */}
                 {(analysisData?.hooks_table?.length > 0) && (
-                  <Card style={{ marginBottom: 14 }}>
-                    <SectionTitle>Top Hook Patterns</SectionTitle>
+                  <Card style={{ marginBottom: 14, padding: 0, overflow: "hidden" }}>
+                    <div style={{ padding: "16px 20px", borderBottom: "1.5px solid var(--border-mid)" }}>
+                      <SectionTitle>Top Hook Patterns</SectionTitle>
+                    </div>
                     <div style={{ overflowX: "auto" }}>
-                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 600 }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                         <thead>
                           <tr style={{ background: "var(--surface)" }}>
                             {["Pattern", "Example", "Reason", "Score"].map((h) => (
                               <th key={h} style={{
-                                padding: "9px 12px",
+                                padding: "10px 14px",
                                 textAlign: "left",
-                                fontWeight: 600,
+                                fontWeight: 700,
                                 fontSize: 11,
                                 color: "var(--text-muted)",
                                 textTransform: "uppercase",
-                                letterSpacing: "0.04em",
-                                borderBottom: "1px solid var(--border)",
+                                letterSpacing: "0.05em",
+                                borderBottom: "1.5px solid var(--border-mid)",
                                 whiteSpace: "nowrap",
                               }}>{h}</th>
                             ))}
@@ -2005,22 +2485,23 @@ export default function Dashboard() {
                         </thead>
                         <tbody>
                           {analysisData.hooks_table.map((row, i) => (
-                            <tr key={i} style={{ borderBottom: "0.5px solid var(--border-light)" }}
+                            <tr key={i} style={{ borderBottom: "1px solid var(--border)" }}
                               onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface)"}
                               onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                             >
-                              <td style={{ padding: "10px 12px", fontWeight: 500, color: "var(--text)", whiteSpace: "nowrap" }}>{row?.pattern}</td>
-                              <td style={{ padding: "10px 12px", color: "var(--primary)", fontStyle: "italic" }}>&ldquo;{row?.example}&rdquo;</td>
-                              <td style={{ padding: "10px 12px", color: "var(--text-body)", lineHeight: 1.5 }}>{row?.reason}</td>
-                              <td style={{ padding: "10px 12px" }}>
+                              <td style={{ padding: "11px 14px", fontWeight: 600, color: "var(--text)", whiteSpace: "nowrap" }}>{row?.pattern}</td>
+                              <td style={{ padding: "11px 14px", color: "var(--primary-dark)", fontStyle: "italic", lineHeight: 1.5, minWidth: 180 }}>&ldquo;{row?.example}&rdquo;</td>
+                              <td style={{ padding: "11px 14px", color: "var(--text-body)", lineHeight: 1.6, minWidth: 200 }}>{row?.reason}</td>
+                              <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}>
                                 <span style={{
                                   display: "inline-block",
-                                  padding: "2px 8px",
+                                  padding: "3px 9px",
                                   borderRadius: "var(--radius-pill)",
                                   fontSize: 11,
                                   fontWeight: 700,
                                   background: "var(--primary-light)",
-                                  color: "var(--primary)",
+                                  color: "var(--primary-dark)",
+                                  border: "1px solid var(--primary-mid)",
                                 }}>{row?.score}</span>
                               </td>
                             </tr>
@@ -2036,30 +2517,35 @@ export default function Dashboard() {
 
                   {/* 4. Market Insights Table */}
                   {(analysisData?.market_insights_table?.length > 0) && (
-                    <Card>
-                      <SectionTitle>Market Insights</SectionTitle>
-                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 600 }}>
+                    <Card style={{ padding: 0, overflow: "hidden" }}>
+                      <div style={{ padding: "16px 20px", borderBottom: "1.5px solid var(--border-mid)" }}>
+                        <SectionTitle>Market Insights</SectionTitle>
+                      </div>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                         <thead>
                           <tr style={{ background: "var(--surface)" }}>
                             {["Field", "Value"].map((h) => (
                               <th key={h} style={{
-                                padding: "8px 10px",
+                                padding: "10px 14px",
                                 textAlign: "left",
-                                fontWeight: 600,
+                                fontWeight: 700,
                                 fontSize: 11,
                                 color: "var(--text-muted)",
                                 textTransform: "uppercase",
-                                letterSpacing: "0.04em",
-                                borderBottom: "1px solid var(--border)",
+                                letterSpacing: "0.05em",
+                                borderBottom: "1.5px solid var(--border-mid)",
                               }}>{h}</th>
                             ))}
                           </tr>
                         </thead>
                         <tbody>
                           {analysisData.market_insights_table.map((row, i) => (
-                            <tr key={i} style={{ borderBottom: "0.5px solid var(--border-light)" }}>
-                              <td style={{ padding: "9px 10px", fontWeight: 500, color: "var(--text-muted)", fontSize: 11 }}>{row?.field}</td>
-                              <td style={{ padding: "9px 10px", fontWeight: 500, color: "var(--text)" }}>{row?.value}</td>
+                            <tr key={i} style={{ borderBottom: "1px solid var(--border)" }}
+                              onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface)"}
+                              onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                            >
+                              <td style={{ padding: "11px 14px", fontWeight: 600, color: "var(--text-muted)", fontSize: 12, whiteSpace: "nowrap" }}>{row?.field}</td>
+                              <td style={{ padding: "11px 14px", color: "var(--text)", lineHeight: 1.6 }}>{row?.value}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -2069,46 +2555,50 @@ export default function Dashboard() {
 
                   {/* 5. Gap Opportunities Table */}
                   {(analysisData?.gaps_table?.length > 0) && (
-                    <Card>
-                      <SectionTitle>Gap Opportunities</SectionTitle>
-                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 600 }}>
-                        <thead>
-                          <tr style={{ background: "var(--surface)" }}>
-                            {["Gap", "Opportunity", "Priority", "Impact"].map((h) => (
-                              <th key={h} style={{
-                                padding: "8px 10px",
-                                textAlign: "left",
-                                fontWeight: 600,
-                                fontSize: 11,
-                                color: "var(--text-muted)",
-                                textTransform: "uppercase",
-                                letterSpacing: "0.04em",
-                                borderBottom: "1px solid var(--border)",
-                                whiteSpace: "nowrap",
-                              }}>{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {analysisData.gaps_table.map((row, i) => (
-                            <tr key={i} style={{ borderBottom: "0.5px solid var(--border-light)" }}
-                              onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface)"}
-                              onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                            >
-                              <td style={{ padding: "9px 10px", fontWeight: 500, color: "var(--text)" }}>{row?.gap}</td>
-                              <td style={{ padding: "9px 10px", color: "var(--text-body)", lineHeight: 1.5 }}>{row?.opportunity}</td>
-                              <td style={{ padding: "9px 10px" }}>
-                                <Badge
-                                  text={row?.priority}
-                                  color={row?.priority === "High" ? "var(--red-dark)" : row?.priority === "Medium" ? "var(--amber)" : "var(--green)"}
-                                  bg={row?.priority === "High" ? "var(--red-error-bg)" : row?.priority === "Medium" ? "var(--amber-light)" : "var(--green-light)"}
-                                />
-                              </td>
-                              <td style={{ padding: "9px 10px", color: "var(--blue)", fontSize: 11 }}>{row?.impact}</td>
+                    <Card style={{ padding: 0, overflow: "hidden" }}>
+                      <div style={{ padding: "16px 20px", borderBottom: "1.5px solid var(--border-mid)" }}>
+                        <SectionTitle>Gap Opportunities</SectionTitle>
+                      </div>
+                      <div style={{ overflowX: "auto" }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                          <thead>
+                            <tr style={{ background: "var(--surface)" }}>
+                              {["Gap", "Opportunity", "Priority", "Impact"].map((h) => (
+                                <th key={h} style={{
+                                  padding: "10px 14px",
+                                  textAlign: "left",
+                                  fontWeight: 700,
+                                  fontSize: 11,
+                                  color: "var(--text-muted)",
+                                  textTransform: "uppercase",
+                                  letterSpacing: "0.05em",
+                                  borderBottom: "1.5px solid var(--border-mid)",
+                                  whiteSpace: "nowrap",
+                                }}>{h}</th>
+                              ))}
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody>
+                            {analysisData.gaps_table.map((row, i) => (
+                              <tr key={i} style={{ borderBottom: "1px solid var(--border)" }}
+                                onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface)"}
+                                onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                              >
+                                <td style={{ padding: "11px 14px", fontWeight: 600, color: "var(--text)", lineHeight: 1.5, minWidth: 140 }}>{row?.gap}</td>
+                                <td style={{ padding: "11px 14px", color: "var(--text-body)", lineHeight: 1.6, minWidth: 180 }}>{row?.opportunity}</td>
+                                <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}>
+                                  <Badge
+                                    text={row?.priority}
+                                    color={row?.priority?.toLowerCase() === "high" ? "var(--red-dark)" : row?.priority?.toLowerCase() === "medium" ? "var(--amber-dark)" : "var(--green-dark)"}
+                                    bg={row?.priority?.toLowerCase() === "high" ? "var(--red-error-bg)" : row?.priority?.toLowerCase() === "medium" ? "var(--amber-light)" : "var(--green-light)"}
+                                  />
+                                </td>
+                                <td style={{ padding: "11px 14px", color: "var(--text-body)", lineHeight: 1.6, minWidth: 180, fontSize: 12 }}>{row?.impact}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </Card>
                   )}
                 </div>
@@ -2221,58 +2711,80 @@ export default function Dashboard() {
             </div>
           )}
 
-          <Card style={{ marginBottom: 14 }}>
-            <SectionTitle>Select topic</SectionTitle>
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 6,
-                marginBottom: 20,
-              }}
-            >
-              {TOPICS.map((t) => (
-                <button
-                  key={t}
-                  style={topicBtnStyle(t)}
-                  onClick={() => setSelectedTopic(t)}
-                >
-                  {t}
-                </button>
-              ))}
+          <Card style={{ marginBottom: 14, padding: 0, overflow: "hidden" }}>
+            {/* Header */}
+            <div style={{ padding: "16px 20px", borderBottom: "1.5px solid var(--border-mid)", display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: "50%",
+                background: "var(--primary-light)", display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 14,
+              }}>💡</div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>How to create an ad</div>
+                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>Follow these steps to generate your creatives</div>
+              </div>
             </div>
 
-            <SectionTitle>n8n Workflow Steps</SectionTitle>
-            <WorkflowStep
-              step="1"
-              label="Topic + analysis data sent to n8n"
-              sub="Competitor brief + topic = better ad"
-              active={adStatus === "idle"}
-              done={adStatus !== "idle"}
-            />
-            <WorkflowStep
-              step="2"
-              label="Claude generates ad copy"
-              sub="Using top hook patterns and ready templates"
-              active={adStatus === "waiting"}
-              done={adStatus === "done"}
-            />
-            <WorkflowStep
-              step="3"
-              label="Runway ML video / DALL-E image"
-              sub="28-sec reel or static visual"
-              active={adStatus === "waiting"}
-              done={adStatus === "done"}
-            />
-            <WorkflowStep
-              step="4"
-              label="Ready ad sent to Approval tab"
-              sub="You confirm budget & launch"
-              active={false}
-              done={adStatus === "done"}
-            />
+            {/* Bullet steps */}
+            <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 0 }}>
+              {[
+                {
+                  num: "1",
+                  icon: "🔢",
+                  title: "Select how many ads",
+                  desc: "Choose the total number of creatives — between 1 and 5.",
+                },
+                {
+                  num: "2",
+                  icon: "🎬",
+                  title: "Choose the type of each ad",
+                  desc: "Pick Video or Image per slot. Max 3 videos and max 2 images at a time.",
+                },
+                {
+                  num: "3",
+                  icon: "✏️",
+                  title: "Fill in the ad details",
+                  desc: "Add the hook, offer, tone, and any extra notes. Then click the black button to generate an idea from AI.",
+                },
+                {
+                  num: "4",
+                  icon: "✅",
+                  title: "Pick one generated idea",
+                  desc: "AI will suggest creative concepts — click on the one you like to select it.",
+                },
+                {
+                  num: "5",
+                  icon: "🚀",
+                  title: "Confirm & generate",
+                  desc: "Click \"Confirm & Generate Ads\" to send everything to n8n. Ready ads appear in the Approval tab.",
+                },
+              ].map((s, i, arr) => (
+                <div key={s.num} style={{
+                  display: "flex", gap: 14, alignItems: "flex-start",
+                  paddingBottom: i < arr.length - 1 ? 16 : 0,
+                  marginBottom: i < arr.length - 1 ? 16 : 0,
+                  borderBottom: i < arr.length - 1 ? "1px solid var(--border)" : "none",
+                }}>
+                  {/* Step number circle */}
+                  <div style={{
+                    width: 30, height: 30, borderRadius: "50%", flexShrink: 0,
+                    background: "var(--primary)", color: "#fff",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 12, fontWeight: 800, marginTop: 1,
+                  }}>{s.num}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+                      <span style={{ fontSize: 14 }}>{s.icon}</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>{s.title}</span>
+                    </div>
+                    <div style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.6 }}>{s.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
 
-            <div>
+          <Card style={{ marginBottom: 14 }}>
               {/* Toggle configuration panel */}
               {!createTabConfigOpen ? (
                 <button
@@ -2303,124 +2815,116 @@ export default function Dashboard() {
                 </button>
               ) : (
                 <div className="animate-fade-in" style={{
-                  padding: 18, borderRadius: "var(--radius-md)",
-                  background: "var(--surface)", border: "0.5px solid var(--border-light)",
+                  borderRadius: "var(--radius-lg)",
+                  background: "#fff",
+                  border: "1.5px solid #e0e7ff",
+                  overflow: "hidden",
                 }}>
                   {/* Cancel button */}
-                  <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+                  <div style={{ display: "flex", justifyContent: "flex-end", padding: "12px 16px", borderBottom: "1px solid #f0f0f0" }}>
                     <button
                       onClick={() => setCreateTabConfigOpen(false)}
                       style={{
-                        padding: "5px 12px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)",
-                        background: "var(--card-bg)", color: "var(--text-muted)", fontSize: 11, cursor: "pointer",
+                        padding: "5px 14px", borderRadius: "var(--radius-sm)", border: "1px solid #e0e7ff",
+                        background: "#f5f3ff", color: "#7c3aed", fontSize: 11, fontWeight: 600, cursor: "pointer",
                       }}
                     >
-                      Cancel
+                      ✕ Close
                     </button>
                   </div>
 
                   {/* ── PHASE 1: TOTAL QUANTITY ── */}
                   <div style={{
-                    padding: 24, borderRadius: "var(--radius-lg)",
-                    background: "var(--surface)", border: "0.5px solid var(--border-light)",
-                    marginBottom: 20, position: "relative", overflow: "hidden"
+                    background: "linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)",
+                    borderBottom: "1.5px solid #bae6fd",
+                    padding: "20px 24px",
                   }}>
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5" style={{ marginBottom: 20 }}>
                       <div>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", marginBottom: 4 }}>
-                          STEP 1: HOW MANY ADS?
+                        <div style={{ fontSize: 13, fontWeight: 800, color: "#0369a1", marginBottom: 3, display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 20, height: 20, borderRadius: "50%", background: "#0284c7", color: "#fff", fontSize: 11, fontWeight: 800 }}>1</span>
+                          HOW MANY ADS?
                         </div>
-                        <div style={{ fontSize: 11, color: "var(--text-dim)" }}>
+                        <div style={{ fontSize: 11, color: "#0284c7" }}>
                           Pick the total number of creatives you want to generate.
                         </div>
                       </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         {[1, 2, 3, 4, 5].map((n) => (
                           <button
                             key={n}
                             onClick={() => updateCreateTabTotalAds(n)}
                             type="button"
                             style={{
-                              width: 38, height: 38, borderRadius: "var(--radius-md)",
-                              border: createTabAdsConfig.totalAds === n ? "1.5px solid var(--primary)" : "1px solid var(--border)",
-                              background: createTabAdsConfig.totalAds === n ? "var(--primary-light)" : "var(--card-bg)",
-                              color: createTabAdsConfig.totalAds === n ? "var(--primary)" : "var(--text)",
-                              fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "all 0.2s",
-                              fontFamily: "inherit"
+                              width: 40, height: 40, borderRadius: "10px",
+                              border: createTabAdsConfig.totalAds === n ? "2px solid #0284c7" : "1.5px solid #bae6fd",
+                              background: createTabAdsConfig.totalAds === n ? "#0284c7" : "#fff",
+                              color: createTabAdsConfig.totalAds === n ? "#fff" : "#0284c7",
+                              fontSize: 14, fontWeight: 800, cursor: "pointer", transition: "all 0.18s",
+                              fontFamily: "inherit", boxShadow: createTabAdsConfig.totalAds === n ? "0 4px 12px rgba(2,132,199,0.35)" : "none",
                             }}
                           >
                             {n}
                           </button>
                         ))}
-                        <input
-                          type="number"
-                          min={1}
-                          max={5}
-                          value={createTabAdsConfig.totalAds}
-                          onChange={(e) => updateCreateTabTotalAds(parseInt(e.target.value) || 1)}
-                          style={{
-                            width: 50, padding: "8px 0", textAlign: "center", borderRadius: "var(--radius-md)",
-                            border: "1px solid var(--border)", background: "var(--card-bg)",
-                            color: "var(--text)", fontSize: 13, fontWeight: 600, outline: "none",
-                            fontFamily: "inherit"
-                          }}
-                        />
                       </div>
                     </div>
 
                     {/* ── PHASE 2: ALLOCATION ── */}
-                    <div style={{ borderTop: "1px dashed var(--border)", paddingTop: 20 }}>
+                    <div style={{ borderTop: "1.5px solid #bae6fd", paddingTop: 20, background: "linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)", margin: "0 -24px -20px", padding: "20px 24px 24px" }}>
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5" style={{ marginBottom: 16 }}>
                         <div>
                           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>
-                              STEP 2: ALLOCATE TYPES
+                            <div style={{ fontSize: 13, fontWeight: 800, color: "#78350f", display: "flex", alignItems: "center", gap: 6 }}>
+                              <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 20, height: 20, borderRadius: "50%", background: "#d97706", color: "#fff", fontSize: 11, fontWeight: 800 }}>2</span>
+                              ALLOCATE TYPES
                             </div>
                             <div style={{
-                              fontSize: 10, padding: "2px 6px", borderRadius: 4,
-                              background: "var(--amber-light)", color: "var(--amber)", fontWeight: 700,
-                              border: "0.5px solid var(--amber)"
+                              fontSize: 10, padding: "2px 7px", borderRadius: 5,
+                              background: "#fef3c7", color: "#b45309", fontWeight: 800,
+                              border: "1px solid #fde68a"
                             }}>
-                              LIMIT: 3V / 2I
+                              MAX 3🎬 / 2🖼️
                             </div>
                           </div>
-                          <div style={{ fontSize: 11, color: "var(--text-dim)" }}>
+                          <div style={{ fontSize: 11, color: "#b45309" }}>
                             Divide your {createTabAdsConfig.totalAds} ads into Videos and Images.
                           </div>
                         </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--card-bg)", padding: 4, borderRadius: "var(--radius-md)", border: "1px solid var(--border-light)" }}>
-                          <div style={{ padding: "6px 12px", display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, color: createTabAdsConfig.videoCount >= 3 ? "var(--primary)" : "var(--text)" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#fff", padding: "6px 12px", borderRadius: "var(--radius-md)", border: "1.5px solid #fde68a" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, color: "#0284c7" }}>
                             🎬 {createTabAdsConfig.videoCount}/3
                           </div>
-                          <div style={{ width: 1, height: 16, background: "var(--border)" }} />
-                          <div style={{ padding: "6px 12px", display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, color: createTabAdsConfig.imageCount >= 2 ? "var(--amber)" : "var(--text)" }}>
+                          <div style={{ width: 1, height: 16, background: "#fde68a" }} />
+                          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, color: "#d97706" }}>
                             🖼️ {createTabAdsConfig.imageCount}/2
                           </div>
                         </div>
                       </div>
 
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
                         {createTabAdsConfig.items.map((item, idx) => {
                           const videoDisabled = item.type !== "video" && createTabAdsConfig.videoCount >= 3;
                           const imageDisabled = item.type !== "image" && createTabAdsConfig.imageCount >= 2;
 
                           return (
                             <div key={item.id} style={{
-                              flex: "1 1 120px", display: "flex", flexDirection: "column", gap: 6
+                              flex: "1 1 130px", display: "flex", flexDirection: "column", gap: 6
                             }}>
-                              <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", marginLeft: 2 }}>AD {idx + 1}</div>
+                              <div style={{ fontSize: 10, fontWeight: 800, color: "#b45309", marginLeft: 2, textTransform: "uppercase", letterSpacing: "0.05em" }}>AD {idx + 1}</div>
                               <div style={{
-                                display: "flex", borderRadius: "var(--radius-md)", overflow: "hidden",
-                                border: "1px solid var(--border)", background: "var(--card-bg)"
+                                display: "flex", borderRadius: 10, overflow: "hidden",
+                                border: item.type === "video" ? "2px solid #0284c7" : item.type === "image" ? "2px solid #d97706" : "1.5px solid #bae6fd",
+                                background: "#fff", boxShadow: "0 2px 8px rgba(2,132,199,0.1)"
                               }}>
                                 <button
                                   onClick={() => setCreateTabItemType(idx, "video")}
                                   type="button"
                                   style={{
-                                    flex: 1, padding: "10px 0", border: "none", cursor: videoDisabled ? "not-allowed" : "pointer",
-                                    background: item.type === "video" ? "var(--primary-light)" : "transparent",
-                                    color: item.type === "video" ? "var(--primary)" : "var(--text-dim)",
-                                    fontSize: 14, transition: "all 0.15s",
+                                    flex: 1, padding: "12px 0", border: "none", cursor: videoDisabled ? "not-allowed" : "pointer",
+                                    background: item.type === "video" ? "linear-gradient(135deg, #f0f9ff, #e0f2fe)" : "transparent",
+                                    color: item.type === "video" ? "#0284c7" : "#9ca3af",
+                                    fontSize: 18, transition: "all 0.15s",
                                     opacity: videoDisabled ? 0.3 : 1
                                   }}
                                   title={videoDisabled ? "3 Video maximum reached" : "Video"}
@@ -2431,10 +2935,10 @@ export default function Dashboard() {
                                   onClick={() => setCreateTabItemType(idx, "image")}
                                   type="button"
                                   style={{
-                                    flex: 1, padding: "10px 0", border: "none", cursor: imageDisabled ? "not-allowed" : "pointer",
-                                    background: item.type === "image" ? "var(--amber-light)" : "transparent",
-                                    color: item.type === "image" ? "var(--amber)" : "var(--text-dim)",
-                                    fontSize: 14, transition: "all 0.15s",
+                                    flex: 1, padding: "12px 0", border: "none", cursor: imageDisabled ? "not-allowed" : "pointer",
+                                    background: item.type === "image" ? "linear-gradient(135deg, #fffbeb, #fef3c7)" : "transparent",
+                                    color: item.type === "image" ? "#b45309" : "#9ca3af",
+                                    fontSize: 18, transition: "all 0.15s",
                                     opacity: imageDisabled ? 0.3 : 1
                                   }}
                                   title={imageDisabled ? "2 Image maximum reached" : "Image"}
@@ -2450,28 +2954,35 @@ export default function Dashboard() {
                   </div>
 
                   {/* ── PHASE 3: DETAILED CONFIG ── */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 0, padding: "20px 24px" }}>
                     {createTabAdsConfig.items.map((item, idx) => {
                       const isVideo = item.type === "video";
                       return (
                         <div key={item.id} style={{
-                          padding: 20, borderRadius: "var(--radius-lg)",
-                          background: isVideo ? "linear-gradient(to bottom, var(--card-bg), var(--surface))" : "linear-gradient(to bottom, var(--card-bg), var(--amber-light))",
-                          border: `1.5px solid ${isVideo ? "var(--primary-light)" : "var(--amber-light)"}`,
-                          boxShadow: "var(--shadow-sm)"
+                          borderRadius: 14,
+                          background: isVideo ? "#f0f9ff" : "#fffbeb",
+                          border: `2px solid ${isVideo ? "#bae6fd" : "#fde68a"}`,
+                          overflow: "hidden",
+                          boxShadow: isVideo ? "0 4px 16px rgba(2,132,199,0.08)" : "0 4px 16px rgba(217,119,6,0.08)"
                         }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}>
-                            <span style={{ fontSize: 20 }}>{isVideo ? "🎬" : "🖼️"}</span>
-                            <div style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", textTransform: "uppercase", letterSpacing: "0.02em" }}>
-                              {isVideo ? "Video" : "Image"} {idx + 1} Configuration
+                          {/* Config card header */}
+                          <div style={{
+                            padding: "14px 20px",
+                            background: isVideo ? "linear-gradient(135deg, #0284c7, #38bdf8)" : "linear-gradient(135deg, #b45309, #d97706)",
+                            display: "flex", alignItems: "center", gap: 10,
+                          }}>
+                            <span style={{ fontSize: 22 }}>{isVideo ? "🎬" : "🖼️"}</span>
+                            <div style={{ fontSize: 13, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                              {isVideo ? "Video" : "Image"} {idx + 1} — Configuration
                             </div>
                           </div>
+                          <div style={{ padding: 20 }}>
 
                           {isVideo ? (
                             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                                 <div>
-                                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", marginBottom: 6, textTransform: "uppercase" }}>Duration</div>
+                                  <div style={{ fontSize: 10, fontWeight: 800, color: "#0284c7", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Duration</div>
                                   <select
                                     value={item.duration}
                                     onChange={(e) => updateCreateTabItemField(idx, "duration", e.target.value)}
@@ -2485,7 +2996,7 @@ export default function Dashboard() {
                                   </select>
                                 </div>
                                 <div>
-                                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", marginBottom: 6, textTransform: "uppercase" }}>Audio Style</div>
+                                  <div style={{ fontSize: 10, fontWeight: 800, color: "#0284c7", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Audio Style</div>
                                   <select
                                     value={item.audioStyle}
                                     onChange={(e) => updateCreateTabItemField(idx, "audioStyle", e.target.value)}
@@ -2501,7 +3012,7 @@ export default function Dashboard() {
                               </div>
                               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                                 <div>
-                                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", marginBottom: 6, textTransform: "uppercase" }}>Character</div>
+                                  <div style={{ fontSize: 10, fontWeight: 800, color: "#0284c7", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Character</div>
                                   <select
                                     value={item.character || "male"}
                                     onChange={(e) => {
@@ -2524,7 +3035,7 @@ export default function Dashboard() {
                                   </select>
                                 </div>
                                 <div>
-                                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", marginBottom: 6, textTransform: "uppercase" }}>Voice</div>
+                                  <div style={{ fontSize: 10, fontWeight: 800, color: "#0284c7", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Voice</div>
                                   <select
                                     value={item.voiceId || VOICE_OPTIONS[item.character || "male"][0].id}
                                     onChange={(e) => updateCreateTabItemField(idx, "voiceId", e.target.value)}
@@ -2541,7 +3052,7 @@ export default function Dashboard() {
                                 </div>
                               </div>
                               <div>
-                                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", marginBottom: 6, textTransform: "uppercase" }}>Visual Style</div>
+                                <div style={{ fontSize: 10, fontWeight: 800, color: "#0284c7", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Visual Style</div>
                                 <select
                                   value={item.videoStyle}
                                   onChange={(e) => updateCreateTabItemField(idx, "videoStyle", e.target.value)}
@@ -2556,7 +3067,7 @@ export default function Dashboard() {
                               </div>
                               <div>
                                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>Script / Storyboard Idea</div>
+                                  <div style={{ fontSize: 10, fontWeight: 800, color: "#0284c7", textTransform: "uppercase", letterSpacing: "0.06em" }}>Script / Storyboard Idea</div>
                                   <button
                                     disabled={sentIdeaIds[item.id]}
                                     onClick={async () => {
@@ -2598,16 +3109,16 @@ export default function Dashboard() {
                                       }
                                     }}
                                     style={{
-                                      padding: "4px 10px", borderRadius: "var(--radius-sm)", border: "none",
-                                      background: sentIdeaIds[item.id] ? "#4a4a6a" : "#1a1a2e", color: "#fff", fontSize: 10, fontWeight: 700,
+                                      padding: "5px 12px", borderRadius: "var(--radius-sm)", border: "none",
+                                      background: sentIdeaIds[item.id] ? "#38bdf8" : "linear-gradient(135deg, #0284c7, #38bdf8)",
+                                      color: "#fff", fontSize: 10, fontWeight: 700,
                                       cursor: sentIdeaIds[item.id] ? "not-allowed" : "pointer",
                                       transition: "all 0.2s", textTransform: "uppercase",
-                                      opacity: sentIdeaIds[item.id] ? 0.6 : 1
+                                      opacity: sentIdeaIds[item.id] ? 0.7 : 1,
+                                      boxShadow: sentIdeaIds[item.id] ? "none" : "0 3px 10px rgba(2,132,199,0.4)"
                                     }}
-                                    onMouseEnter={(e) => { if (!sentIdeaIds[item.id]) e.currentTarget.style.background = "#2a2a4e"; }}
-                                    onMouseLeave={(e) => { if (!sentIdeaIds[item.id]) e.currentTarget.style.background = "#1a1a2e"; }}
                                   >
-                                    {sentIdeaIds[item.id] ? "Generating..." : "Generate an idea"}
+                                    {sentIdeaIds[item.id] ? "✨ Generating..." : "✨ Generate an idea"}
                                   </button>
                                 </div>
                                 <textarea
@@ -2616,30 +3127,30 @@ export default function Dashboard() {
                                   onChange={(e) => updateCreateTabItemField(idx, "idea", e.target.value)}
                                   style={{
                                     width: "100%", minHeight: 80, padding: "12px", borderRadius: "var(--radius-md)",
-                                    border: "1px solid var(--border)", background: "var(--card-bg)",
-                                    fontSize: 12, outline: "none", color: "var(--text)", resize: "vertical", fontFamily: "inherit"
+                                    border: "1.5px solid #bae6fd", background: "#fff",
+                                    fontSize: 12, outline: "none", color: "#0369a1", resize: "vertical", fontFamily: "inherit"
                                   }}
                                 />
                                 {generatedIdeas[item.id] && generatedIdeas[item.id].length > 0 && (
                                   <div style={{
-                                    marginTop: 16, display: "flex", flexDirection: "column", gap: 12,
-                                    padding: "16px", borderRadius: "var(--radius-lg)",
-                                    border: "1px dashed var(--primary-light)",
-                                    background: "rgba(99, 102, 241, 0.04)"
+                                    marginTop: 16, display: "flex", flexDirection: "column", gap: 10,
+                                    padding: "16px", borderRadius: 12,
+                                    border: "1.5px solid #bae6fd",
+                                    background: "linear-gradient(135deg, #f0f9ff, #e0f2fe)"
                                   }}>
-                                    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--primary)", textTransform: "uppercase", letterSpacing: "0.02em" }}>✨ AI Generated Ideas (Click to use)</div>
-                                    <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
+                                    <div style={{ fontSize: 11, fontWeight: 800, color: "#0284c7", textTransform: "uppercase", letterSpacing: "0.04em" }}>✨ AI Generated Ideas — Click to use</div>
+                                    <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 8 }}>
                                       {generatedIdeas[item.id].map(ideaObj => (
                                         <div
                                           key={ideaObj.id}
                                           onClick={() => updateCreateTabItemField(idx, "idea", ideaObj.idea)}
                                           style={{
-                                            padding: "14px 16px", borderRadius: "var(--radius-md)", border: "1px solid var(--primary-light)",
-                                            background: "var(--surface)", cursor: "pointer", fontSize: 12, color: "var(--text-body)",
-                                            transition: "all 0.2s", lineHeight: 1.5, boxShadow: "0 2px 8px rgba(0,0,0,0.02)"
+                                            padding: "13px 16px", borderRadius: 10, border: "1.5px solid #bae6fd",
+                                            background: "#fff", cursor: "pointer", fontSize: 12, color: "#0369a1",
+                                            transition: "all 0.18s", lineHeight: 1.6, boxShadow: "0 2px 8px rgba(2,132,199,0.07)"
                                           }}
-                                          onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--primary)"; e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.05)"; }}
-                                          onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--primary-light)"; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.02)"; }}
+                                          onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#0284c7"; e.currentTarget.style.background = "#f0f9ff"; e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 6px 18px rgba(2,132,199,0.15)"; }}
+                                          onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#bae6fd"; e.currentTarget.style.background = "#fff"; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 2px 8px rgba(2,132,199,0.07)"; }}
                                         >
                                           {ideaObj.idea}
                                         </div>
@@ -2652,7 +3163,7 @@ export default function Dashboard() {
                           ) : (
                             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                               <div>
-                                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", marginBottom: 6, textTransform: "uppercase" }}>Visual Style</div>
+                                <div style={{ fontSize: 10, fontWeight: 800, color: "#92400e", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Visual Style</div>
                                 <select
                                   value={item.imageStyle || "Bold & Colorful"}
                                   onChange={(e) => updateCreateTabItemField(idx, "imageStyle", e.target.value)}
@@ -2667,7 +3178,7 @@ export default function Dashboard() {
                               </div>
                               <div>
                                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>Image Description / Prompt</div>
+                                  <div style={{ fontSize: 10, fontWeight: 800, color: "#92400e", textTransform: "uppercase", letterSpacing: "0.06em" }}>Image Description / Prompt</div>
                                   <button
                                     disabled={sentIdeaIds[item.id]}
                                     onClick={async () => {
@@ -2709,16 +3220,16 @@ export default function Dashboard() {
                                       }
                                     }}
                                     style={{
-                                      padding: "4px 10px", borderRadius: "var(--radius-sm)", border: "none",
-                                      background: sentIdeaIds[item.id] ? "#4a4a6a" : "#1a1a2e", color: "#fff", fontSize: 10, fontWeight: 700,
+                                      padding: "5px 12px", borderRadius: "var(--radius-sm)", border: "none",
+                                      background: sentIdeaIds[item.id] ? "#fde68a" : "linear-gradient(135deg, #b45309, #d97706)",
+                                      color: "#fff", fontSize: 10, fontWeight: 700,
                                       cursor: sentIdeaIds[item.id] ? "not-allowed" : "pointer",
                                       transition: "all 0.2s", textTransform: "uppercase",
-                                      opacity: sentIdeaIds[item.id] ? 0.6 : 1
+                                      opacity: sentIdeaIds[item.id] ? 0.7 : 1,
+                                      boxShadow: sentIdeaIds[item.id] ? "none" : "0 3px 10px rgba(217,119,6,0.4)"
                                     }}
-                                    onMouseEnter={(e) => { if (!sentIdeaIds[item.id]) e.currentTarget.style.background = "#2a2a4e"; }}
-                                    onMouseLeave={(e) => { if (!sentIdeaIds[item.id]) e.currentTarget.style.background = "#1a1a2e"; }}
                                   >
-                                    {sentIdeaIds[item.id] ? "Generating..." : "Generate an idea"}
+                                    {sentIdeaIds[item.id] ? "✨ Generating..." : "✨ Generate an idea"}
                                   </button>
                                 </div>
                                 <textarea
@@ -2727,30 +3238,30 @@ export default function Dashboard() {
                                   onChange={(e) => updateCreateTabItemField(idx, "idea", e.target.value)}
                                   style={{
                                     width: "100%", minHeight: 80, padding: "12px", borderRadius: "var(--radius-md)",
-                                    border: "1px solid var(--border)", background: "var(--card-bg)",
-                                    fontSize: 12, outline: "none", color: "var(--text)", resize: "vertical", fontFamily: "inherit"
+                                    border: "1.5px solid #fde68a", background: "#fff",
+                                    fontSize: 12, outline: "none", color: "#78350f", resize: "vertical", fontFamily: "inherit"
                                   }}
                                 />
                                 {generatedIdeas[item.id] && generatedIdeas[item.id].length > 0 && (
                                   <div style={{
-                                    marginTop: 16, display: "flex", flexDirection: "column", gap: 12,
-                                    padding: "16px", borderRadius: "var(--radius-lg)",
-                                    border: "1px dashed var(--primary-light)",
-                                    background: "rgba(99, 102, 241, 0.04)"
+                                    marginTop: 16, display: "flex", flexDirection: "column", gap: 10,
+                                    padding: "16px", borderRadius: 12,
+                                    border: "1.5px solid #fde68a",
+                                    background: "linear-gradient(135deg, #fffbeb, #fef3c7)"
                                   }}>
-                                    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--primary)", textTransform: "uppercase", letterSpacing: "0.02em" }}>✨ AI Generated Ideas (Click to use)</div>
-                                    <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
+                                    <div style={{ fontSize: 11, fontWeight: 800, color: "#92400e", textTransform: "uppercase", letterSpacing: "0.04em" }}>✨ AI Generated Ideas — Click to use</div>
+                                    <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 8 }}>
                                       {generatedIdeas[item.id].map(ideaObj => (
                                         <div
                                           key={ideaObj.id}
                                           onClick={() => updateCreateTabItemField(idx, "idea", ideaObj.idea)}
                                           style={{
-                                            padding: "14px 16px", borderRadius: "var(--radius-md)", border: "1px solid var(--primary-light)",
-                                            background: "var(--surface)", cursor: "pointer", fontSize: 12, color: "var(--text-body)",
-                                            transition: "all 0.2s", lineHeight: 1.5, boxShadow: "0 2px 8px rgba(0,0,0,0.02)"
+                                            padding: "13px 16px", borderRadius: 10, border: "1.5px solid #fde68a",
+                                            background: "#fff", cursor: "pointer", fontSize: 12, color: "#78350f",
+                                            transition: "all 0.18s", lineHeight: 1.6, boxShadow: "0 2px 8px rgba(217,119,6,0.07)"
                                           }}
-                                          onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--primary)"; e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.05)"; }}
-                                          onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--primary-light)"; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.02)"; }}
+                                          onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#d97706"; e.currentTarget.style.background = "#fffbeb"; e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 6px 18px rgba(217,119,6,0.15)"; }}
+                                          onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#fde68a"; e.currentTarget.style.background = "#fff"; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 2px 8px rgba(217,119,6,0.07)"; }}
                                         >
                                           {ideaObj.idea}
                                         </div>
@@ -2761,13 +3272,14 @@ export default function Dashboard() {
                               </div>
                             </div>
                           )}
+                          </div>
                         </div>
                       );
                     })}
                   </div>
 
                   {/* Submit / Status Area */}
-                  <div style={{ marginTop: 24, padding: "16px 20px", borderRadius: "var(--radius-lg)", background: "var(--surface)", border: "1px solid var(--border-light)" }}>
+                  <div style={{ padding: "20px 24px", background: "linear-gradient(135deg, #fffbeb 0%, #f0f9ff 100%)", borderTop: "1.5px solid #bae6fd" }}>
                     {(isStatusPolling || adStatus === "waiting") ? (
                       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                         {!workflowStatus?.toLowerCase().includes("completed") && (
@@ -2880,9 +3392,9 @@ export default function Dashboard() {
                       </div>
                     ) : (
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5">
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <span style={{ fontSize: 15 }}>🚀</span>
-                          <div style={{ fontSize: 12, color: "var(--text-dim)" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <span style={{ fontSize: 18 }}>🚀</span>
+                          <div style={{ fontSize: 13, color: "#92400e", fontWeight: 600 }}>
                             <b>{createTabAdsConfig.totalAds} Ads</b> ready ({createTabAdsConfig.videoCount}V / {createTabAdsConfig.imageCount}I)
                           </div>
                         </div>
@@ -2893,12 +3405,12 @@ export default function Dashboard() {
                           className="w-full sm:w-auto"
                           style={{
                             padding: "12px 30px", borderRadius: "var(--radius-lg)", border: "none",
-                            background: (adStatus === "generating" || adStatus === "waiting" || !analysisData) ? "var(--primary-light)" : "linear-gradient(135deg, #f97316, #ec4899)",
+                            background: (adStatus === "generating" || adStatus === "waiting" || !analysisData) ? "var(--primary-light)" : "linear-gradient(135deg, #0284c7, #0ea5e9)",
                             color: (adStatus === "generating" || adStatus === "waiting" || !analysisData) ? "var(--primary)" : "#fff",
                             fontSize: 13, fontWeight: 700, cursor: (adStatus === "generating" || !analysisData) ? "not-allowed" : "pointer",
                             fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
                             opacity: (adStatus === "generating" || !analysisData) ? 0.7 : 1, transition: "transform 0.15s, box-shadow 0.15s",
-                            boxShadow: (adStatus === "generating" || adStatus === "waiting" || !analysisData) ? "none" : "0 4px 12px rgba(236, 72, 153, 0.3)"
+                            boxShadow: (adStatus === "generating" || adStatus === "waiting" || !analysisData) ? "none" : "0 4px 12px rgba(2, 132, 199, 0.3)"
                           }}
                           onMouseEnter={(e) => { if (adStatus !== "generating") e.currentTarget.style.transform = "translateY(-1px)"; }}
                           onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; }}
@@ -2916,7 +3428,6 @@ export default function Dashboard() {
                   </div>
                 </div>
               )}
-            </div>
           </Card>
 
 

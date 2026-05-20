@@ -121,6 +121,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }) {
   const [error, setError] = useState("");
   const [creating, setCreating] = useState(false);
   const [newCampaignName, setNewCampaignName] = useState("");
+  const [keywordInput, setKeywordInput] = useState("");
 
   // ── Editable JSON config ──────────────────────────────────────────────────
   const [config, setConfig] = useState(DEFAULT_CONFIG);
@@ -355,6 +356,17 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }) {
     catch { return "HEALPOINT.AI"; }
   })();
 
+  const getGeographyDisplay = () => {
+    const geo = config.ad_set?.geo_locations;
+    if (!geo) return "—";
+    const parts = [];
+    if (geo.countries) geo.countries.forEach(c => parts.push(c));
+    if (geo.cities) geo.cities.forEach(c => parts.push(c.name || c.key));
+    if (geo.regions) geo.regions.forEach(c => parts.push(c.name || c.key));
+    if (geo.zips) geo.zips.forEach(c => parts.push(c.name || c.key));
+    return parts.length > 0 ? parts.join(", ") : "—";
+  };
+
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3" style={{ marginBottom: 32, padding: "0 8px" }}>
@@ -477,7 +489,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }) {
           <Card>
             <SectionTitle>Patient Targeting Parameters</SectionTitle>
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <Row label="Geography" value={config.ad_set?.geo_targeting?.join(", ") || "—"} />
+              <Row label="Geography" value={getGeographyDisplay()} />
               <Row label="Age Group" value={`${config.ad_set?.age_min || 18}–${config.ad_set?.age_max || 65}`} />
               <Row label="Gender Demographic" value={GENDER_LABELS[config.ad_set?.gender ?? 0]} />
               <Row label="Clinical Budget" value={`$${(config.ad_set?.daily_budget || 0) / 100} USD/day`} />
@@ -533,18 +545,20 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }) {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 lg:gap-7 items-start">
-          <Card style={{ border: "1.5px solid var(--border)", boxShadow: "var(--shadow-md)" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-              <SectionTitle style={{ marginBottom: 0 }}>CAMPAIGN | Pathway</SectionTitle>
-              <button
-                onClick={() => setShowRawJson(!showRawJson)}
-                style={{ fontSize: 12, padding: "6px 14px", borderRadius: "10px", border: "1.5px solid var(--border)", background: "var(--surface)", cursor: "pointer", fontWeight: 700, transition: "all 0.15s" }}
-                onMouseEnter={(e) => e.currentTarget.style.background = "#fff"}
-                onMouseLeave={(e) => e.currentTarget.style.background = "var(--surface)"}
-              >
-                {showRawJson ? "Visual Mode" : "Developer JSON"}
-              </button>
-            </div>
+          {/* Column 1: Campaign settings + Clinical Focus stacked */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            <Card style={{ border: "1.5px solid var(--border)", boxShadow: "var(--shadow-md)" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+                <SectionTitle style={{ marginBottom: 0 }}>CAMPAIGN | Pathway</SectionTitle>
+                <button
+                  onClick={() => setShowRawJson(!showRawJson)}
+                  style={{ fontSize: 12, padding: "6px 14px", borderRadius: "10px", border: "1.5px solid var(--border)", background: "var(--surface)", cursor: "pointer", fontWeight: 700, transition: "all 0.15s" }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = "#fff"}
+                  onMouseLeave={(e) => e.currentTarget.style.background = "var(--surface)"}
+                >
+                  {showRawJson ? "Visual Mode" : "Developer JSON"}
+                </button>
+              </div>
             {showRawJson ? (
               <div>
                 <textarea
@@ -609,6 +623,62 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }) {
             )}
           </Card>
 
+          {/* ── Clinical Focus — left column ── */}
+          <Card style={{ border: "1.5px solid var(--border)", boxShadow: "var(--shadow-md)", opacity: showRawJson ? 0.3 : 1, pointerEvents: showRawJson ? "none" : "auto" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+              <SectionTitle style={{ marginBottom: 0 }}>Clinical Focus</SectionTitle>
+              <Badge text="Keywords" color="var(--primary)" bg="var(--primary-light)" />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, padding: "12px 14px", border: "1.5px solid var(--border)", borderRadius: "var(--radius-md)", background: "var(--surface)", minHeight: 54 }}>
+                {(config.ad_set?.targeting_keywords || []).map((kw) => (
+                  <span key={kw} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, padding: "5px 11px", borderRadius: "var(--radius-pill)", background: "var(--primary-light)", color: "var(--primary-dark)", fontWeight: 700, border: "1px solid rgba(2,132,199,0.15)" }}>
+                    {kw}
+                    <button
+                      type="button"
+                      onClick={() => setField("ad_set", "targeting_keywords", (config.ad_set?.targeting_keywords || []).filter(k => k !== kw))}
+                      style={{ border: "none", background: "transparent", color: "var(--primary)", cursor: "pointer", fontSize: 14, padding: 0, display: "flex", alignItems: "center", fontWeight: "bold", lineHeight: 1 }}
+                    >&times;</button>
+                  </span>
+                ))}
+                {(config.ad_set?.targeting_keywords || []).length === 0 && (
+                  <span style={{ color: "var(--text-muted)", fontSize: 13, fontStyle: "italic" }}>No focus keywords yet.</span>
+                )}
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input
+                  type="text"
+                  value={keywordInput}
+                  onChange={(e) => setKeywordInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const t = keywordInput.trim();
+                      if (t && !(config.ad_set?.targeting_keywords || []).includes(t)) {
+                        setField("ad_set", "targeting_keywords", [...(config.ad_set?.targeting_keywords || []), t]);
+                        setKeywordInput("");
+                      }
+                    }
+                  }}
+                  placeholder="Add keyword, press Enter..."
+                  style={{ ...inputStyle, flex: 1 }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const t = keywordInput.trim();
+                    if (t && !(config.ad_set?.targeting_keywords || []).includes(t)) {
+                      setField("ad_set", "targeting_keywords", [...(config.ad_set?.targeting_keywords || []), t]);
+                      setKeywordInput("");
+                    }
+                  }}
+                  style={{ flexShrink: 0, padding: "12px 18px", borderRadius: "var(--radius-md)", background: "var(--primary)", color: "#fff", border: "none", fontWeight: 700, fontSize: 14, cursor: "pointer" }}
+                >+ Add</button>
+              </div>
+            </div>
+          </Card>
+          </div>
+          {/* Column 2: AD SET */}
           <Card style={{ border: "1.5px solid var(--border)", boxShadow: "var(--shadow-md)", opacity: showRawJson ? 0.3 : 1, pointerEvents: showRawJson ? "none" : "auto" }}>
             <SectionTitle>AD SET | Routing & Target</SectionTitle>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-1">
@@ -638,14 +708,20 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }) {
                       {BUDGET_TYPES.map(bt => <option key={bt.value} value={bt.value}>{bt.label}</option>)}
                     </select>
                   </FieldGroup>
-                  <FieldGroup label={`Amount (${config.ad_set?.budget_type === "DAILY" ? "Daily" : "Lifetime"})`}>
-                    <input 
-                      type="number" 
-                      value={config.ad_set?.budget_type === "DAILY" ? (config.ad_set?.daily_budget || 5000) : (config.ad_set?.lifetime_budget || 50000)} 
-                      onChange={(e) => setField("ad_set", config.ad_set?.budget_type === "DAILY" ? "daily_budget" : "lifetime_budget", Number(e.target.value))} 
-                      style={inputStyle} 
-                    />
+                  <FieldGroup label={`Amount (${config.ad_set?.budget_type === "DAILY" ? "Daily" : "Lifetime"}) ($ - enter in dollars)`}>
+                    <div style={{ position: "relative" }}>
+                      <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", fontWeight: 600, fontSize: 14 }}>$</span>
+                      <input 
+                        type="number" 
+                        value={config.ad_set?.budget_type === "DAILY" ? (config.ad_set?.daily_budget || 0) / 100 : (config.ad_set?.lifetime_budget || 0) / 100} 
+                        onChange={(e) => setField("ad_set", config.ad_set?.budget_type === "DAILY" ? "daily_budget" : "lifetime_budget", Math.round(Number(e.target.value) * 100))} 
+                        style={{ ...inputStyle, paddingLeft: 28 }} 
+                        placeholder="0.00"
+                        step="0.01"
+                      />
+                    </div>
                   </FieldGroup>
+
                   <FieldGroup label="Start Date">
                     <input 
                       type="datetime-local" 
@@ -679,13 +755,69 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }) {
                 </div>
               </div>
 
-              <FieldGroup label="Demographics" span={2}>
-                <select value={config.ad_set?.gender ?? 0} onChange={(e) => setField("ad_set", "gender", Number(e.target.value))} style={inputStyle}>
-                  <option value={0}>All Patients</option>
-                  <option value={1}>Male Focus</option>
-                  <option value={2}>Female Focus</option>
-                </select>
-              </FieldGroup>
+              <div className="col-span-1 sm:col-span-2 p-4 sm:p-5 bg-slate-50 rounded-2xl border border-slate-200 mt-2">
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                  <SectionTitle style={{ fontSize: 13, marginBottom: 0, color: "var(--primary-dark)", letterSpacing: "0.05em" }}>DEMOGRAPHICS</SectionTitle>
+                  <Badge text="Age & Gender" color="var(--primary)" bg="var(--primary-light)" />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <FieldGroup label="Gender Demographic">
+                    <select value={config.ad_set?.gender ?? 0} onChange={(e) => setField("ad_set", "gender", Number(e.target.value))} style={inputStyle}>
+                      <option value={0}>All Patients</option>
+                      <option value={1}>Male Focus</option>
+                      <option value={2}>Female Focus</option>
+                    </select>
+                  </FieldGroup>
+                  <FieldGroup label="Min Age">
+                    <input 
+                      type="number" 
+                      min={13} 
+                      max={65} 
+                      value={config.ad_set?.age_min ?? 18} 
+                      onChange={(e) => setField("ad_set", "age_min", Number(e.target.value))} 
+                      style={inputStyle} 
+                    />
+                  </FieldGroup>
+                  <FieldGroup label="Max Age">
+                    <input 
+                      type="number" 
+                      min={13} 
+                      max={65} 
+                      value={config.ad_set?.age_max ?? 65} 
+                      onChange={(e) => setField("ad_set", "age_max", Number(e.target.value))} 
+                      style={inputStyle} 
+                    />
+                  </FieldGroup>
+                </div>
+              </div>
+
+              <div className="col-span-1 sm:col-span-2 p-4 sm:p-5 bg-slate-50 rounded-2xl border border-slate-200 mt-2">
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                  <SectionTitle style={{ fontSize: 13, marginBottom: 0, color: "var(--primary-dark)", letterSpacing: "0.05em" }}>DSA TRANSPARENCY</SectionTitle>
+                  <Badge text="Meta Compliance" color="var(--primary)" bg="var(--primary-light)" />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <FieldGroup label="DSA Beneficiary">
+                    <input 
+                      type="text" 
+                      value={config.ad_set?.dsa_beneficiary || ""} 
+                      onChange={(e) => setField("ad_set", "dsa_beneficiary", e.target.value)} 
+                      placeholder="e.g. HealPoint Health"
+                      style={inputStyle} 
+                    />
+                  </FieldGroup>
+                  <FieldGroup label="DSA Payor">
+                    <input 
+                      type="text" 
+                      value={config.ad_set?.dsa_payor || ""} 
+                      onChange={(e) => setField("ad_set", "dsa_payor", e.target.value)} 
+                      placeholder="e.g. HealPoint Health"
+                      style={inputStyle} 
+                    />
+                  </FieldGroup>
+                </div>
+              </div>
+
             </div>
           </Card>
 

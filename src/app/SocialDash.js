@@ -129,25 +129,35 @@ export default function SocialDash() {
 
   const triggerWebhook = async (url, label, successMessage, body = null, method = 'POST') => {
     setLoading(label);
+    console.log(`[UI] Triggering webhook: ${url}`, { body, method });
     try {
       const response = await fetch('/api/proxy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url, body, method }),
       });
+
+      console.log(`[UI] Proxy response status: ${response.status} ${response.statusText}`);
+
+      const rawText = await response.text();
+      console.log(`[UI] Raw proxy response:`, rawText.slice(0, 1000));
+
+      let data;
+      try { data = JSON.parse(rawText); }
+      catch { data = rawText ? { message: rawText } : { status: 'ok' }; }
+
       if (response.ok) {
         showToast(successMessage, 'success');
-        // Safely handle immediate or non-JSON responses
-        const data = await response.json().catch(() => ({ status: 'ok' }));
         return data;
       } else {
-        const errorData = await response.json().catch(() => ({}));
-        showToast(`Trigger failed: ${errorData.error || response.statusText}`, 'info');
+        console.error(`[UI] Webhook failed:`, data);
+        showToast(`Trigger failed: ${data?.error || response.statusText}`, 'info');
         return null;
       }
     } catch (err) {
-      console.error("Webhook Error:", err);
-      showToast("Trigger failed. Check console for details.", 'info');
+      console.error("[UI] Webhook fetch error:", err);
+      showToast("Trigger failed. Check browser console for details.", 'info');
+      return null;
     } finally {
       setLoading(null);
     }
@@ -157,13 +167,12 @@ export default function SocialDash() {
     setStatus("Generating images...");
     triggerWebhook(
       "https://n8n.srv1208919.hstgr.cloud/webhook/1703fb64-ec58-4e56-9ce7-bd9e16e15220",
-      "images", 
+      "images",
       "Images will be generated soon!",
       null,
       "GET"
     );
   };
-
 
   const handleManualTrigger = () => {
     setIsGenerating(true);
@@ -175,29 +184,34 @@ export default function SocialDash() {
     );
   };
 
-
   const handleDynamicTrigger = () => {
     setShowModal(true);
   };
 
   const handleModalSubmit = async (data) => {
+    console.log("[UI] Modal submitted with data:", data);
     setShowModal(false);
     setLastInputs(data);
+
     const result = await triggerWebhook(
       "https://n8n.srv1208919.hstgr.cloud/webhook/7be28969-c4ad-404a-b982-841dda7133af",
-      "dynamic", 
+      "dynamic",
       "Spotlight Triggered!",
       data
     );
-    
-    console.log("Webhook Result:", result);
 
-    const story = Array.isArray(result) 
+    console.log("[UI] handleModalSubmit result:", result);
+
+    const story = Array.isArray(result)
       ? (result[0]?.output?.story || result[0]?.story)
       : (result?.output?.story || result?.story);
-    
+
+    console.log("[UI] Extracted story:", story ? story.slice(0, 100) : "NONE");
+
     if (story) {
       setGeneratedStory(story);
+    } else {
+      console.warn("[UI] No story found in result. Full result:", JSON.stringify(result));
     }
   };
 
