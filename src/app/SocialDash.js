@@ -36,7 +36,25 @@ export default function SocialDash() {
   const [lastInputs, setLastInputs] = useState(null);
   const [progress, setProgress] = useState(0);
   const [isGenerating, setIsGenerating] = useState(false);
+  const prevStatusRef = useRef(undefined); // tracks previous status to detect transitions
 
+
+  // ── Restore progress from localStorage on page load ──
+  useEffect(() => {
+    const savedStartTime = localStorage.getItem('sd_generation_start');
+    if (savedStartTime) {
+      const elapsed = (Date.now() - parseInt(savedStartTime)) / 1000;
+      const MAX_TIME = 360;
+      if (elapsed < MAX_TIME) {
+        const restoredProgress = Math.min((elapsed / MAX_TIME) * 100, 98);
+        setIsGenerating(true);
+        setProgress(restoredProgress);
+      } else {
+        // Timed out — clear stale storage
+        localStorage.removeItem('sd_generation_start');
+      }
+    }
+  }, []);
 
   useEffect(() => {
     const sampleUrl = "https://cdssxtquayzijmbnlqmt.supabase.co/storage/v1/object/public/n8n/finalbefore2.mp3";
@@ -91,20 +109,23 @@ export default function SocialDash() {
   // Monitor status to trigger refresh and progress completion
   useEffect(() => {
     const isDone = status?.toLowerCase().includes("successfully") || status?.toLowerCase().includes("completed");
+    const prevIsDone = prevStatusRef.current?.toLowerCase().includes("successfully") || prevStatusRef.current?.toLowerCase().includes("completed");
+    const isFirstLoad = prevStatusRef.current === undefined;
 
-    if (isDone) {
+    if (isDone && !isFirstLoad && !prevIsDone) {
+      // ✅ Status genuinely JUST changed to done — real completion
+      localStorage.removeItem('sd_generation_start');
       setProgress(100);
       setIsGenerating(false);
       handleRefreshPreview();
-      // Only show success toast if it was actually generating
       if (progress > 0 && progress < 100) {
         showToast("Process completed successfully!", "success");
       }
-    } else if (
-      status && 
-      status !== "Waiting for Data..." && 
-      status !== "Status Error" && 
-      status !== "Connection Error" && 
+    } else if (!isDone &&
+      status &&
+      status !== "Waiting for Data..." &&
+      status !== "Status Error" &&
+      status !== "Connection Error" &&
       status !== "Loading..." &&
       status !== "Generating images..." &&
       status !== "Images will be generated soon!"
@@ -112,8 +133,11 @@ export default function SocialDash() {
       if (!isGenerating) {
         setIsGenerating(true);
         setProgress(0);
+        localStorage.setItem('sd_generation_start', Date.now().toString());
       }
     }
+
+    prevStatusRef.current = status; // always update after checking
   }, [status]);
 
   const handleRefreshPreview = () => {
@@ -177,6 +201,7 @@ export default function SocialDash() {
   const handleManualTrigger = () => {
     setIsGenerating(true);
     setProgress(0);
+    localStorage.setItem('sd_generation_start', Date.now().toString()); // ── Persist start time
     setStatus("Starting video process...");
     triggerWebhook(
       "https://n8n.srv1208919.hstgr.cloud/webhook/289d4090-ac38-4c90-9876-5ca765e46211",
@@ -219,6 +244,7 @@ export default function SocialDash() {
     setGeneratedStory(null); // Clear immediately as requested
     setIsGenerating(true);   // Show timeline immediately
     setProgress(0);
+    localStorage.setItem('sd_generation_start', Date.now().toString()); // ── Persist start time
     setStatus("Initiating workflow...");
     await triggerWebhook(
       "https://n8n.srv1208919.hstgr.cloud/webhook/81f0d39d-6344-421a-b3a2-019b2c737483",

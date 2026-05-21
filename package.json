@@ -40,7 +40,6 @@
     "react-hook-form": "^7.51.0",
     "recharts": "^2.12.2",
     "tailwind-merge": "^2.2.1",
-    "tailwindcss": "^4.2.2",
     "tailwindcss-animate": "^1.0.7",
     "zod": "^3.22.4",
     "zustand": "^4.5.2"
@@ -53,6 +52,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "prisma": "^5.10.0",
+    "tailwindcss": "^4.3.0",
     "typescript": "^5"
   }
 }
