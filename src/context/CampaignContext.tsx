@@ -25,10 +25,13 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   const [history, setHistory] = useState<Campaign[]>([]);
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) setHistory(JSON.parse(stored));
-    } catch {}
+    const timer = setTimeout(() => {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) setHistory(JSON.parse(stored));
+      } catch {}
+    }, 0);
+    return () => clearTimeout(timer);
   }, []);
 
   const addCampaign = (c: Campaign) => {

@@ -267,7 +267,7 @@ export default function ScraperPage() {
               <p className="text-xs text-blue-700">
                 first_name · last_name · mobile_number · personal_email · linkedin · city · country · email_status
               </p>
-              <p className="text-xs text-blue-600 mt-1">Invalid emails go to a separate "Invalid_Emails" sheet automatically.</p>
+              <p className="text-xs text-blue-600 mt-1">Invalid emails go to a separate &quot;Invalid_Emails&quot; sheet automatically.</p>
             </div>
 
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">

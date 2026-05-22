@@ -112,15 +112,18 @@ function useLocalStorage(key, defaultValue) {
 
   // Load from localStorage on client-side mount
   useEffect(() => {
-    setIsMounted(true);
-    try {
-      const stored = window.localStorage.getItem(key);
-      if (stored !== null) {
-        setValue(JSON.parse(stored));
+    const timer = setTimeout(() => {
+      setIsMounted(true);
+      try {
+        const stored = window.localStorage.getItem(key);
+        if (stored !== null) {
+          setValue(JSON.parse(stored));
+        }
+      } catch (e) {
+        console.warn(`LocalStorage read error for key "${key}":`, e);
       }
-    } catch (e) {
-      console.warn(`LocalStorage read error for key "${key}":`, e);
-    }
+    }, 0);
+    return () => clearTimeout(timer);
   }, [key]);
 
   // Persist updates to localStorage
@@ -211,6 +214,12 @@ export default function Dashboard() {
   // Shared error
   const [webhookError, setWebhookError] = useState("");
 
+  // Ad scenes (generated prompts per ad item)
+  const [adScenesMap, setAdScenesMap] = useState({});       // { [itemId]: scenesArray }
+  const [adScenesGenerating, setAdScenesGenerating] = useState({}); // { [itemId]: boolean }
+  const [scenesModal, setScenesModal] = useState({ open: false, scenes: [], adLabel: "", itemId: null });
+  const [editedScenes, setEditedScenes] = useState([]);     // editable copy of scenes in modal
+
   // Approval queue
   const [scheduledAds, setScheduledAds] = useState([]);
   const [approvedAds, setApprovedAds] = useState([]);
@@ -238,7 +247,7 @@ export default function Dashboard() {
   const [sbSortField, setSbSortField] = useState("score");
   const [sbSortDir, setSbSortDir] = useState("desc");
 
-  const [createTabAdsConfig, setCreateTabAdsConfig] = useLocalStorage("toga_create_tab_config", {
+  const [createTabAdsConfig, setCreateTabAdsConfig] = useState({
     totalAds: 1,
     videoCount: 1,
     imageCount: 0,
@@ -263,6 +272,7 @@ export default function Dashboard() {
   const [generatedIdeas, setGeneratedIdeas] = useState({});
   const [retryPrompt, setRetryPrompt] = useState("");
   const [isRetryingSubmit, setIsRetryingSubmit] = useState(false);
+  const [acceptingPrompts, setAcceptingPrompts] = useState(false);
   const [selectedMetaCampaign, setSelectedMetaCampaign] = useState(null);
   const [launchAdCandidate, setLaunchAdCandidate] = useState(null);
 
@@ -1004,33 +1014,64 @@ export default function Dashboard() {
       return;
     }
     const config = createTabAdsConfig;
+
+    // Single loading state for all ads
+    setAdScenesGenerating({ __all__: true });
     setAdStatus("generating");
-    setWorkflowStatus("Triggering...");
     setWebhookError("");
+
     try {
-      const res = await fetch("/api/trigger-ads", {
+      // ONE single webhook call with all ad configs bundled together
+      const res = await fetch("https://n8n.srv881198.hstgr.cloud/webhook/generate_ad", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           report_id: analysisData?.id || crypto.randomUUID(),
           report_data: analysisData,
-          ads_config: config
+          ads_config: config,
         }),
       });
-      const result = await res.json();
-      if (result.success) {
-        addSbToast("Ads workflow triggered successfully!");
-        setAdStatus("waiting");
-        setIsStatusPolling(true); // Initiate polling
-      } else {
-        setAdStatus("error");
-        setWebhookError(result.error || "Failed to trigger ad generation");
-        addSbToast("Failed to trigger generation. Try again.", "error");
-      }
+      const data = await res.json();
+      const scenes = Array.isArray(data) ? data : [];
+
+      // Store scenes under shared key — all ad cards use the same result
+      const scenesMap = {};
+      config.items.forEach(item => { scenesMap[item.id] = scenes; });
+      setAdScenesMap(scenesMap);
+      setAdStatus("done");
+      addSbToast("Ad prompts generated! Click \"View Prompts\" on each ad.", "success");
     } catch (e) {
       setAdStatus("error");
-      setWebhookError(e.message || "Failed to reach API");
-      addSbToast("Failed to trigger generation. Try again.", "error");
+      setWebhookError(e.message || "Failed to reach webhook");
+      addSbToast("Failed to generate ad prompts. Try again.", "error");
+    } finally {
+      setAdScenesGenerating({});
+    }
+  }
+
+  async function handleAcceptPrompts() {
+    setAcceptingPrompts(true);
+    addSbToast("Sending accepted prompts to webhook...");
+    try {
+      const res = await fetch("https://n8n.srv881198.hstgr.cloud/webhook/3be958fe-3d6e-4ccf-8d72-5a9a0bb2d932", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          report_id: analysisData?.id || crypto.randomUUID(),
+          report_data: analysisData,
+          ads_config: createTabAdsConfig,
+          generated_prompts: adScenesMap
+        }),
+      });
+      if (res.ok) {
+        addSbToast("Prompts successfully accepted!", "success");
+      } else {
+        addSbToast("Failed to accept prompts. Please try again.", "error");
+      }
+    } catch (e) {
+      addSbToast("Error sending accepted prompts.", "error");
+    } finally {
+      setAcceptingPrompts(false);
     }
   }
 
@@ -2902,14 +2943,14 @@ export default function Dashboard() {
                         </div>
                       </div>
 
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+                      <div style={{ display: "flex", flexDirection: "row", gap: 12 }}>
                         {createTabAdsConfig.items.map((item, idx) => {
                           const videoDisabled = item.type !== "video" && createTabAdsConfig.videoCount >= 3;
                           const imageDisabled = item.type !== "image" && createTabAdsConfig.imageCount >= 2;
 
                           return (
                             <div key={item.id} style={{
-                              flex: "1 1 130px", display: "flex", flexDirection: "column", gap: 6
+                              flex: "1 1 0", display: "flex", flexDirection: "column", gap: 6
                             }}>
                               <div style={{ fontSize: 10, fontWeight: 800, color: "#b45309", marginLeft: 2, textTransform: "uppercase", letterSpacing: "0.05em" }}>AD {idx + 1}</div>
                               <div style={{
@@ -2954,7 +2995,7 @@ export default function Dashboard() {
                   </div>
 
                   {/* ── PHASE 3: DETAILED CONFIG ── */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 0, padding: "20px 24px" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 0, padding: "20px 24px" }}>
                     {createTabAdsConfig.items.map((item, idx) => {
                       const isVideo = item.type === "video";
                       return (
@@ -3140,10 +3181,17 @@ export default function Dashboard() {
                                   }}>
                                     <div style={{ fontSize: 11, fontWeight: 800, color: "#0284c7", textTransform: "uppercase", letterSpacing: "0.04em" }}>✨ AI Generated Ideas — Click to use</div>
                                     <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 8 }}>
-                                      {generatedIdeas[item.id].map(ideaObj => (
+                                      {generatedIdeas[item.id].map((ideaObj, ideaIndex) => (
                                         <div
-                                          key={ideaObj.id}
-                                          onClick={() => updateCreateTabItemField(idx, "idea", ideaObj.idea)}
+                                          key={`${item.id}-${ideaIndex}`}
+                                          onClick={() => {
+                                            updateCreateTabItemField(idx, "idea", ideaObj.idea);
+                                            setGeneratedIdeas(prev => {
+                                              const updated = { ...prev };
+                                              delete updated[item.id];
+                                              return updated;
+                                            });
+                                          }}
                                           style={{
                                             padding: "13px 16px", borderRadius: 10, border: "1.5px solid #bae6fd",
                                             background: "#fff", cursor: "pointer", fontSize: 12, color: "#0369a1",
@@ -3251,10 +3299,17 @@ export default function Dashboard() {
                                   }}>
                                     <div style={{ fontSize: 11, fontWeight: 800, color: "#92400e", textTransform: "uppercase", letterSpacing: "0.04em" }}>✨ AI Generated Ideas — Click to use</div>
                                     <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 8 }}>
-                                      {generatedIdeas[item.id].map(ideaObj => (
+                                      {generatedIdeas[item.id].map((ideaObj, ideaIndex) => (
                                         <div
-                                          key={ideaObj.id}
-                                          onClick={() => updateCreateTabItemField(idx, "idea", ideaObj.idea)}
+                                          key={`${item.id}-img-${ideaIndex}`}
+                                          onClick={() => {
+                                            updateCreateTabItemField(idx, "idea", ideaObj.idea);
+                                            setGeneratedIdeas(prev => {
+                                              const updated = { ...prev };
+                                              delete updated[item.id];
+                                              return updated;
+                                            });
+                                          }}
                                           style={{
                                             padding: "13px 16px", borderRadius: 10, border: "1.5px solid #fde68a",
                                             background: "#fff", cursor: "pointer", fontSize: 12, color: "#78350f",
@@ -3272,6 +3327,38 @@ export default function Dashboard() {
                               </div>
                             </div>
                           )}
+                          {/* ── View Image & Video Prompts button ── */}
+                          {adScenesGenerating["__all__"] ? (
+                            <div style={{
+                              marginTop: 16, padding: "13px 0", display: "flex", alignItems: "center",
+                              justifyContent: "center", gap: 8, borderTop: "1.5px solid #e2e8f0",
+                              color: isVideo ? "#0284c7" : "#b45309", fontSize: 12, fontWeight: 600,
+                            }}>
+                              <Spinner size={14} color={isVideo ? "#0284c7" : "#b45309"} />
+                              Generating prompts… please wait
+                            </div>
+                          ) : adScenesMap[item.id]?.length > 0 ? (
+                            <button
+                              onClick={() => {
+                                const scenes = adScenesMap[item.id] || [];
+                                setScenesModal({ open: true, scenes, adLabel: `${isVideo ? "Video" : "Image"} ${idx + 1}`, itemId: item.id });
+                                setEditedScenes(JSON.parse(JSON.stringify(scenes)));
+                              }}
+                              style={{
+                                marginTop: 16, width: "100%", padding: "13px 0", borderRadius: "var(--radius-md)",
+                                border: "none", fontFamily: "inherit", cursor: "pointer",
+                                background: isVideo ? "linear-gradient(135deg, #0284c7, #38bdf8)" : "linear-gradient(135deg, #b45309, #d97706)",
+                                color: "#fff", fontSize: 12, fontWeight: 700,
+                                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                                boxShadow: isVideo ? "0 4px 12px rgba(2,132,199,0.35)" : "0 4px 12px rgba(217,119,6,0.35)",
+                                transition: "transform 0.15s",
+                              }}
+                              onMouseEnter={e => e.currentTarget.style.transform = "translateY(-2px)"}
+                              onMouseLeave={e => e.currentTarget.style.transform = "translateY(0)"}
+                            >
+                              🎬 View Image &amp; Video Prompts &nbsp;·&nbsp; {adScenesMap[item.id].length} scenes
+                            </button>
+                          ) : null}
                           </div>
                         </div>
                       );
@@ -3398,25 +3485,52 @@ export default function Dashboard() {
                             <b>{createTabAdsConfig.totalAds} Ads</b> ready ({createTabAdsConfig.videoCount}V / {createTabAdsConfig.imageCount}I)
                           </div>
                         </div>
-                        <button
-                          onClick={handleCreateTabTriggerAds}
-                          disabled={adStatus === "generating" || adStatus === "waiting" || !analysisData}
-                          type="button"
-                          className="w-full sm:w-auto"
-                          style={{
-                            padding: "12px 30px", borderRadius: "var(--radius-lg)", border: "none",
-                            background: (adStatus === "generating" || adStatus === "waiting" || !analysisData) ? "var(--primary-light)" : "linear-gradient(135deg, #0284c7, #0ea5e9)",
-                            color: (adStatus === "generating" || adStatus === "waiting" || !analysisData) ? "var(--primary)" : "#fff",
-                            fontSize: 13, fontWeight: 700, cursor: (adStatus === "generating" || !analysisData) ? "not-allowed" : "pointer",
-                            fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
-                            opacity: (adStatus === "generating" || !analysisData) ? 0.7 : 1, transition: "transform 0.15s, box-shadow 0.15s",
-                            boxShadow: (adStatus === "generating" || adStatus === "waiting" || !analysisData) ? "none" : "0 4px 12px rgba(2, 132, 199, 0.3)"
-                          }}
-                          onMouseEnter={(e) => { if (adStatus !== "generating") e.currentTarget.style.transform = "translateY(-1px)"; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; }}
-                        >
-                          {adStatus === "generating" ? <><Spinner size={14} /> Triggering...</> : "Confirm & Generate Ads →"}
-                        </button>
+
+                        {adStatus === "generating" ? (
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#0284c7", fontSize: 13, fontWeight: 700 }}>
+                            <Spinner size={16} color="#0284c7" /> Generating prompts… please wait
+                          </div>
+                        ) : Object.values(adScenesMap).some(scenes => Array.isArray(scenes) && scenes.length > 0) ? (
+                          <button
+                            onClick={handleAcceptPrompts}
+                            disabled={acceptingPrompts}
+                            type="button"
+                            className="w-full sm:w-auto"
+                            style={{
+                              padding: "12px 30px", borderRadius: "var(--radius-lg)", border: "none",
+                              background: acceptingPrompts ? "var(--primary-light)" : "linear-gradient(135deg, #22c55e, #16a34a)",
+                              color: "#fff",
+                              fontSize: 13, fontWeight: 700, cursor: acceptingPrompts ? "not-allowed" : "pointer",
+                              fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+                              opacity: acceptingPrompts ? 0.7 : 1, transition: "transform 0.15s, box-shadow 0.15s",
+                              boxShadow: acceptingPrompts ? "none" : "0 4px 12px rgba(34, 197, 94, 0.3)"
+                            }}
+                            onMouseEnter={(e) => { if (!acceptingPrompts) e.currentTarget.style.transform = "translateY(-1px)"; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; }}
+                          >
+                            {acceptingPrompts ? <><Spinner size={14} /> Accepting...</> : "Accept Prompts ✓"}
+                          </button>
+                        ) : (
+                          <button
+                            onClick={handleCreateTabTriggerAds}
+                            disabled={adStatus === "generating" || adStatus === "waiting" || !analysisData}
+                            type="button"
+                            className="w-full sm:w-auto"
+                            style={{
+                              padding: "12px 30px", borderRadius: "var(--radius-lg)", border: "none",
+                              background: (adStatus === "generating" || adStatus === "waiting" || !analysisData) ? "var(--primary-light)" : "linear-gradient(135deg, #0284c7, #0ea5e9)",
+                              color: (adStatus === "generating" || adStatus === "waiting" || !analysisData) ? "var(--primary)" : "#fff",
+                              fontSize: 13, fontWeight: 700, cursor: (adStatus === "generating" || !analysisData) ? "not-allowed" : "pointer",
+                              fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+                              opacity: (adStatus === "generating" || !analysisData) ? 0.7 : 1, transition: "transform 0.15s, box-shadow 0.15s",
+                              boxShadow: (adStatus === "generating" || adStatus === "waiting" || !analysisData) ? "none" : "0 4px 12px rgba(2, 132, 199, 0.3)"
+                            }}
+                            onMouseEnter={(e) => { if (adStatus !== "generating") e.currentTarget.style.transform = "translateY(-1px)"; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; }}
+                          >
+                            Confirm &amp; Generate Ads →
+                          </button>
+                        )}
                       </div>
                     )}
 
@@ -4868,6 +4982,145 @@ export default function Dashboard() {
           </div>
         ))}
       </div>
+
+      {/* ── Scenes Prompt Modal ── */}
+      {scenesModal.open && (
+        <div
+          onClick={() => setScenesModal({ open: false, scenes: [], adLabel: "", itemId: null })}
+          style={{
+            position: "fixed", inset: 0, zIndex: 9999,
+            background: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)",
+            display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: "#fff", borderRadius: 18, width: "100%", maxWidth: 980,
+              maxHeight: "88vh", overflow: "hidden", display: "flex", flexDirection: "column",
+              boxShadow: "0 32px 80px rgba(0,0,0,0.35)",
+            }}
+          >
+            {/* Modal Header */}
+            <div style={{
+              padding: "18px 24px", display: "flex", alignItems: "center", justifyContent: "space-between",
+              background: "linear-gradient(135deg, #0284c7, #0ea5e9)",
+            }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: "#fff", display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 20 }}>🎬</span>
+                {scenesModal.adLabel} — Image &amp; Video Prompts
+                <span style={{ fontSize: 11, background: "rgba(255,255,255,0.2)", padding: "3px 10px", borderRadius: 20, fontWeight: 600 }}>
+                  {editedScenes.length} scenes
+                </span>
+                <span style={{ fontSize: 10, background: "rgba(255,255,255,0.15)", padding: "2px 8px", borderRadius: 20, color: "#e0f2fe" }}>
+                  ✏️ Editable
+                </span>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                {/* Save button */}
+                <button
+                  onClick={() => {
+                    if (scenesModal.itemId) {
+                      // Save edited scenes back to adScenesMap for all items that share this data
+                      setAdScenesMap(prev => {
+                        const updated = { ...prev };
+                        Object.keys(updated).forEach(k => {
+                          if (updated[k] === prev[scenesModal.itemId] || k === String(scenesModal.itemId)) {
+                            updated[k] = editedScenes;
+                          }
+                        });
+                        return updated;
+                      });
+                    }
+                    setScenesModal({ open: false, scenes: [], adLabel: "", itemId: null });
+                  }}
+                  style={{
+                    background: "#fff", border: "none", color: "#0284c7",
+                    borderRadius: 8, padding: "7px 16px", cursor: "pointer", fontSize: 13, fontWeight: 800,
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+                  }}
+                >✓ Save Changes</button>
+                <button
+                  onClick={() => setScenesModal({ open: false, scenes: [], adLabel: "", itemId: null })}
+                  style={{ background: "rgba(255,255,255,0.2)", border: "none", color: "#fff", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontSize: 13, fontWeight: 700 }}
+                >✕ Close</button>
+              </div>
+            </div>
+
+            {/* Column headers */}
+            <div style={{ display: "grid", gridTemplateColumns: "44px 1fr 1fr", padding: "10px 20px", background: "#f8fafc", borderBottom: "1.5px solid #e2e8f0" }}>
+              <div style={{ fontSize: 10, fontWeight: 800, color: "#94a3b8", textTransform: "uppercase" }}>#</div>
+              <div style={{ fontSize: 10, fontWeight: 800, color: "#0284c7", textTransform: "uppercase", letterSpacing: "0.05em", paddingRight: 16 }}>🖼️ Image Prompt</div>
+              <div style={{ fontSize: 10, fontWeight: 800, color: "#7c3aed", textTransform: "uppercase", letterSpacing: "0.05em", paddingLeft: 16 }}>🎬 Video Scenario</div>
+            </div>
+
+            {/* Editable scenes rows */}
+            <div style={{ overflowY: "auto", flex: 1 }}>
+              {editedScenes.map((scene, i) => (
+                <div key={i} style={{ display: "grid", gridTemplateColumns: "44px 1fr 1fr", borderBottom: "1px solid #f1f5f9", background: i % 2 === 0 ? "#fff" : "#f8fafc" }}>
+                  {/* Scene number */}
+                  <div style={{ padding: "16px 8px", display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 18 }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, borderRadius: "50%", background: "#0284c7", color: "#fff", fontSize: 11, fontWeight: 800 }}>{scene.scene}</span>
+                  </div>
+
+                  {/* Image Prompt — editable */}
+                  <div style={{ padding: "12px 12px 12px 0", borderRight: "1px solid #e2e8f0" }}>
+                    {scene.script_line && (
+                      <div style={{ fontSize: 10, fontWeight: 700, color: "#0284c7", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.04em" }}>{scene.script_line}</div>
+                    )}
+                    <textarea
+                      value={scene.prompt_clean || scene.prompt || ""}
+                      onChange={e => setEditedScenes(prev => {
+                        const arr = [...prev];
+                        arr[i] = { ...arr[i], prompt_clean: e.target.value, prompt: e.target.value };
+                        return arr;
+                      })}
+                      rows={5}
+                      style={{
+                        width: "100%", fontSize: 11, color: "#334155", lineHeight: 1.75,
+                        border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "10px 12px",
+                        resize: "vertical", fontFamily: "inherit", outline: "none",
+                        background: "#f8fafc", transition: "border 0.15s",
+                      }}
+                      onFocus={e => e.target.style.borderColor = "#0284c7"}
+                      onBlur={e => e.target.style.borderColor = "#e2e8f0"}
+                    />
+                  </div>
+
+                  {/* Video Scenario — editable */}
+                  <div style={{ padding: "12px 12px" }}>
+                    <textarea
+                      value={scene.video_scenario || ""}
+                      onChange={e => setEditedScenes(prev => {
+                        const arr = [...prev];
+                        arr[i] = { ...arr[i], video_scenario: e.target.value };
+                        return arr;
+                      })}
+                      rows={5}
+                      style={{
+                        width: "100%", fontSize: 11, color: "#6d28d9", lineHeight: 1.75,
+                        border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "10px 12px",
+                        resize: "vertical", fontFamily: "inherit", outline: "none",
+                        background: "#f5f3ff", transition: "border 0.15s",
+                      }}
+                      onFocus={e => e.target.style.borderColor = "#7c3aed"}
+                      onBlur={e => e.target.style.borderColor = "#e2e8f0"}
+                    />
+                    {scene.emotion_type && (
+                      <span style={{
+                        marginTop: 6, display: "inline-block", fontSize: 10, padding: "2px 8px", borderRadius: 20, fontWeight: 700, border: "1px solid",
+                        background: scene.emotion_type === "happy" ? "#f0fdf4" : scene.emotion_type === "sad" ? "#eff6ff" : "#fafafa",
+                        color: scene.emotion_type === "happy" ? "#15803d" : scene.emotion_type === "sad" ? "#1d4ed8" : "#64748b",
+                        borderColor: scene.emotion_type === "happy" ? "#bbf7d0" : scene.emotion_type === "sad" ? "#bfdbfe" : "#e2e8f0",
+                      }}>{scene.emotion_type}</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
