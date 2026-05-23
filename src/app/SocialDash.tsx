@@ -19,25 +19,28 @@ import { Badge, Spinner } from './components';
 import { socialSupabase } from '../lib/socialSupabase';
 import GeneratorModal from './GeneratorModal';
 import RetryModal from './RetryModal';
-import './social-dash.css';
 
 const medicalBlue = "#0284c7";
 const medicalTeal = "#0d9488";
 
-export default function SocialDash() {
-  const [videoUrl, setVideoUrl] = useState("");
-  const [loading, setLoading] = useState(null);
-  const [toast, setToast] = useState(null);
-  const videoRef = useRef(null);
-  const [status, setStatus] = useState("Loading...");
-  const [showModal, setShowModal] = useState(false);
-  const [showRetryModal, setShowRetryModal] = useState(false);
-  const [generatedStory, setGeneratedStory] = useState(null);
-  const [lastInputs, setLastInputs] = useState(null);
-  const [progress, setProgress] = useState(0);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const prevStatusRef = useRef(undefined); // tracks previous status to detect transitions
+interface ToastState {
+  message: string;
+  type: string;
+}
 
+export default function SocialDash() {
+  const [videoUrl, setVideoUrl] = useState<string>("");
+  const [loading, setLoading] = useState<string | null>(null);
+  const [toast, setToast] = useState<ToastState | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [status, setStatus] = useState<string>("Loading...");
+  const [showModal, setShowModal] = useState<boolean>(false);
+  const [showRetryModal, setShowRetryModal] = useState<boolean>(false);
+  const [generatedStory, setGeneratedStory] = useState<string | null>(null);
+  const [lastInputs, setLastInputs] = useState<any>(null);
+  const [progress, setProgress] = useState<number>(0);
+  const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const prevStatusRef = useRef<string | undefined>(undefined); // tracks previous status to detect transitions
 
   // ── Restore progress from localStorage on page load ──
   useEffect(() => {
@@ -78,7 +81,7 @@ export default function SocialDash() {
 
     const channel = socialSupabase
       .channel('n8n-status-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'n8n' }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'n8n' }, (payload: any) => {
         if (payload.new?.status) setStatus(payload.new.status);
       })
       .subscribe();
@@ -88,7 +91,7 @@ export default function SocialDash() {
 
   // Timer logic for progress bar (max 6 minutes = 360s)
   useEffect(() => {
-    let interval;
+    let interval: NodeJS.Timeout;
     if (isGenerating) {
       const MAX_TIME = 360; // seconds
       interval = setInterval(() => {
@@ -100,10 +103,10 @@ export default function SocialDash() {
           return prev + (100 / MAX_TIME);
         });
       }, 1000);
-    } else {
-      clearInterval(interval);
     }
-    return () => clearInterval(interval);
+    return () => {
+      if (interval) clearInterval(interval);
+    };
   }, [isGenerating]);
 
   // Monitor status to trigger refresh and progress completion
@@ -146,12 +149,12 @@ export default function SocialDash() {
   };
 
 
-  const showToast = (message, type = 'info') => {
+  const showToast = (message: string, type = 'info') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
   };
 
-  const triggerWebhook = async (url, label, successMessage, body = null, method = 'POST') => {
+  const triggerWebhook = async (url: string, label: string, successMessage: string, body: any = null, method = 'POST') => {
     setLoading(label);
     console.log(`[UI] Triggering webhook: ${url}`, { body, method });
     try {
@@ -166,7 +169,7 @@ export default function SocialDash() {
       const rawText = await response.text();
       console.log(`[UI] Raw proxy response:`, rawText.slice(0, 1000));
 
-      let data;
+      let data: any;
       try { data = JSON.parse(rawText); }
       catch { data = rawText ? { message: rawText } : { status: 'ok' }; }
 
@@ -213,7 +216,7 @@ export default function SocialDash() {
     setShowModal(true);
   };
 
-  const handleModalSubmit = async (data) => {
+  const handleModalSubmit = async (data: any) => {
     console.log("[UI] Modal submitted with data:", data);
     setShowModal(false);
     setLastInputs(data);
@@ -254,10 +257,7 @@ export default function SocialDash() {
     );
   };
 
-
-
-
-  const handleRetrySubmit = async (retryPrompt) => {
+  const handleRetrySubmit = async (retryPrompt: string) => {
     setShowRetryModal(false);
     const data = { ...lastInputs, retry_prompt: retryPrompt, status: "retry", generated_story: generatedStory };
     

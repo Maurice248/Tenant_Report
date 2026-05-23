@@ -247,7 +247,7 @@ export default function Dashboard() {
   const [sbSortField, setSbSortField] = useState("score");
   const [sbSortDir, setSbSortDir] = useState("desc");
 
-  const [createTabAdsConfig, setCreateTabAdsConfig] = useState({
+  const [createTabAdsConfig, setCreateTabAdsConfig] = useState<any>({
     totalAds: 1,
     videoCount: 1,
     imageCount: 0,
@@ -265,7 +265,7 @@ export default function Dashboard() {
   const [workflowStatus, setWorkflowStatus] = useLocalStorage("toga_workflow_status", "");
   const [isStatusPolling, setIsStatusPolling] = useLocalStorage("toga_is_status_polling", false);
   const [isEditingAd, setIsEditingAd] = useState(false);
-  const [editingAdData, setEditingAdData] = useState({});
+  const [editingAdData, setEditingAdData] = useState<any>({});
   const [isSavingAd, setIsSavingAd] = useState(false);
   const [isRetryingAd, setIsRetryingAd] = useState(false);
   const [sentIdeaIds, setSentIdeaIds] = useState({});
@@ -527,7 +527,7 @@ export default function Dashboard() {
     setEditSaving(true);
     setEditError("");
     try {
-      const payload = {};
+      const payload: any = {};
       if (editType === "Campaign") {
         payload.campaignId = editData.id;
         payload.campaignData = {
@@ -1694,7 +1694,7 @@ export default function Dashboard() {
                       ["Create new ad setup", () => setTab("create"), "◈", "Generate scripts and creative logic using AI."],
                       ["Review approvals queue", () => setTab("approval"), "◉", "Finalize ad creatives and prepare launch configurations."],
                       ["Monitor live tracking", () => setTab("reports"), "◧", "Review granular performance tables inside Reports."],
-                    ].map(([label, fn, icon, sub], i) => (
+                    ].map(([label, fn, icon, sub]: any, i) => (
                       <button
                         key={i}
                         onClick={fn}
@@ -3822,7 +3822,7 @@ export default function Dashboard() {
           {allApprovedAds.length === 0 ? (
             <EmptyState
               title="No ads approved yet"
-              description="Go to the 'Create Ad' tab to preview and approve your generated creatives. Once approved, they will appear here for final launch."
+              sub="Go to the 'Create Ad' tab to preview and approve your generated creatives. Once approved, they will appear here for final launch."
             />
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 40, maxWidth: "1200px", margin: "0 auto" }}>
@@ -3905,11 +3905,11 @@ export default function Dashboard() {
 
                 const approvedVideos = allApprovedAds
                   .filter(ad => (ad.format || "").toLowerCase() === "video")
-                  .sort((a, b) => new Date(b.time) - new Date(a.time));
+                  .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
 
                 const approvedImages = allApprovedAds
                   .filter(ad => (ad.format || "").toLowerCase() !== "video")
-                  .sort((a, b) => new Date(b.time) - new Date(a.time));
+                  .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
 
                 return (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12" style={{ padding: "0 20px" }}>
@@ -4623,7 +4623,7 @@ export default function Dashboard() {
           || currentAdInApproved
           || selectedAdForDetails;
 
-        let jsonData = {};
+        let jsonData: any = {};
         try {
           const raw = ad["json data"];
           jsonData = typeof raw === "string" ? JSON.parse(raw) : (raw || {});

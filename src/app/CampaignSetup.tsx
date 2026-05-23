@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Card,
   SectionTitle,
@@ -13,7 +13,7 @@ import {
 /**
  * Ensures Supabase storage URLs use the current project's hostname.
  */
-const normalizeSupabaseUrl = (url) => {
+const normalizeSupabaseUrl = (url: string | null | undefined): string | null | undefined => {
   if (!url || typeof url !== "string") return url;
   const currentUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
   if (!currentUrl) return url;
@@ -33,10 +33,8 @@ const normalizeSupabaseUrl = (url) => {
   return url;
 };
 
-
-
 // ─── DEFAULT SCHEMA ────────────────────────────────────────────────────────────
-const DEFAULT_CONFIG = {
+const DEFAULT_CONFIG: any = {
   campaign: {
     name: "treatment_pathway_q2_2026",
     objective: "OUTCOME_TRAFFIC",
@@ -92,7 +90,7 @@ const DEFAULT_CONFIG = {
 };
 
 // ─── CONSTANTS ─────────────────────────────────────────────────────────────────
-const GENDER_LABELS = { 0: "All Patients", 1: "Male", 2: "Female" };
+const GENDER_LABELS: Record<number, string> = { 0: "All Patients", 1: "Male", 2: "Female" };
 const BUYING_TYPES = ["AUCTION", "REACH"];
 const AD_CATEGORIES = ["NONE", "EMPLOYMENT", "HOUSING", "CREDIT", "ISSUES_ELECTIONS_POLITICS"];
 const CAMPAIGN_OBJECTIVES = [
@@ -115,27 +113,33 @@ const BUDGET_TYPES = [
   { value: "LIFETIME", label: "Lifetime budget" }
 ];
 
-export default function CampaignSetup({ onSelect, selectedId, selectedAd }) {
-  const [campaigns, setCampaigns] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [creating, setCreating] = useState(false);
-  const [newCampaignName, setNewCampaignName] = useState("");
-  const [keywordInput, setKeywordInput] = useState("");
+interface CampaignSetupProps {
+  onSelect: (campaign: any) => void;
+  selectedId: string | null | undefined;
+  selectedAd: any;
+}
+
+export default function CampaignSetup({ onSelect, selectedId, selectedAd }: CampaignSetupProps) {
+  const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string>("");
+  const [creating, setCreating] = useState<boolean>(false);
+  const [newCampaignName, setNewCampaignName] = useState<string>("");
+  const [keywordInput, setKeywordInput] = useState<string>("");
 
   // ── Editable JSON config ──────────────────────────────────────────────────
-  const [config, setConfig] = useState(DEFAULT_CONFIG);
-  const [configJson, setConfigJson] = useState(
+  const [config, setConfig] = useState<any>(DEFAULT_CONFIG);
+  const [configJson, setConfigJson] = useState<string>(
     JSON.stringify(DEFAULT_CONFIG, null, 2)
   );
-  const [jsonError, setJsonError] = useState("");
-  const [showRawJson, setShowRawJson] = useState(false);
+  const [jsonError, setJsonError] = useState<string>("");
+  const [showRawJson, setShowRawJson] = useState<boolean>(false);
 
   // ── Launch state ──────────────────────────────────────────────────────────
-  const [launching, setLaunching] = useState(false);
-  const [launchStep, setLaunchStep] = useState(0);
-  const [launchError, setLaunchError] = useState("");
-  const [launchSuccess, setLaunchSuccess] = useState(false);
+  const [launching, setLaunching] = useState<boolean>(false);
+  const [launchStep, setLaunchStep] = useState<number>(0);
+  const [launchError, setLaunchError] = useState<string>("");
+  const [launchSuccess, setLaunchSuccess] = useState<boolean>(false);
 
   const fetchCampaigns = useCallback(async () => {
     setLoading(true);
@@ -162,7 +166,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }) {
   useEffect(() => {
     if (selectedAd) {
       try {
-        let parsed = {};
+        let parsed: any = {};
         if (typeof selectedAd["json data"] === "string") {
           parsed = JSON.parse(selectedAd["json data"]);
         } else if (selectedAd["json data"]) {
@@ -220,24 +224,24 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
 
-  const handleJsonChange = (raw) => {
+  const handleJsonChange = (raw: string) => {
     setConfigJson(raw);
     try {
       const parsed = JSON.parse(raw);
       setConfig(parsed);
       setJsonError("");
-    } catch (e) {
+    } catch (e: any) {
       setJsonError(e.message);
     }
   };
 
-  const setField = (section, key, value) => {
+  const setField = (section: string, key: string, value: any) => {
     const next = { ...config, [section]: { ...config[section], [key]: value } };
     setConfig(next);
     setConfigJson(JSON.stringify(next, null, 2));
   };
 
-  const handleCreate = async (e) => {
+  const handleCreate = async (e: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!newCampaignName.trim()) return;
     setCreating(true);
@@ -261,8 +265,8 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }) {
     }
   };
 
-  const handleCTAChange = (newCta) => {
-    const suggestions = {
+  const handleCTAChange = (newCta: string) => {
+    const suggestions: Record<string, string> = {
       WHATSAPP_MESSAGE: "+10000000000",
       CONTACT_US: "https://togahh.com/contact",
       MESSAGE_PAGE: "https://m.me/togahh",
@@ -320,7 +324,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }) {
         setLaunchStep(0);
       }
 
-    } catch (e) {
+    } catch (e: any) {
       let friendlyMsg = e.message;
       if (friendlyMsg.includes("1885760")) {
         friendlyMsg = "Goal Mismatch: The selected campaign uses a different Optimization Goal. Tip: Click 'Reset Selection' to launch as a New Pathway, or match the existing campaign's goal.";
@@ -330,12 +334,11 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }) {
       setLaunchError(friendlyMsg);
       setLaunchStep(0);
     } finally {
-
       setLaunching(false);
     }
   };
 
-  const getStatusColor = (status) => {
+  const getStatusColor = (status: string) => {
     switch (status) {
       case "ACTIVE":
         return { color: "var(--green)", bg: "var(--green-light)" };
@@ -359,11 +362,11 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }) {
   const getGeographyDisplay = () => {
     const geo = config.ad_set?.geo_locations;
     if (!geo) return "—";
-    const parts = [];
-    if (geo.countries) geo.countries.forEach(c => parts.push(c));
-    if (geo.cities) geo.cities.forEach(c => parts.push(c.name || c.key));
-    if (geo.regions) geo.regions.forEach(c => parts.push(c.name || c.key));
-    if (geo.zips) geo.zips.forEach(c => parts.push(c.name || c.key));
+    const parts: string[] = [];
+    if (geo.countries) geo.countries.forEach((c: any) => parts.push(c));
+    if (geo.cities) geo.cities.forEach((c: any) => parts.push(c.name || c.key));
+    if (geo.regions) geo.regions.forEach((c: any) => parts.push(c.name || c.key));
+    if (geo.zips) geo.zips.forEach((c: any) => parts.push(c.name || c.key));
     return parts.length > 0 ? parts.join(", ") : "—";
   };
 
@@ -457,11 +460,11 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }) {
                   No active operations found.
                 </div>
               ) : (
-                campaigns.map((c) => {
+                campaigns.map((c: any) => {
                   const isSelected = selectedId === c.id;
                   const { color, bg } = getStatusColor(c.effective_status);
                   return (
-                    <div
+                     <div
                       key={c.id}
                       onClick={() => onSelect(c)}
                       style={{
@@ -505,7 +508,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }) {
                 <div style={{ marginTop: 8 }}>
                   <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 10, textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.05em" }}>Clinical Focus</div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                    {config.ad_set.targeting_keywords.map((kw) => (
+                    {config.ad_set.targeting_keywords.map((kw: any) => (
                       <span key={kw} style={{ fontSize: 11, padding: "5px 12px", borderRadius: "var(--radius-pill)", background: "var(--primary-light)", color: "var(--primary-dark)", fontWeight: 700, border: "1px solid var(--primary)15" }}>{kw}</span>
                     ))}
                   </div>
@@ -548,7 +551,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }) {
           {/* Column 1: Campaign settings + Clinical Focus stacked */}
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <Card style={{ border: "1.5px solid var(--border)", boxShadow: "var(--shadow-md)" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+              <div style={{ display: "flex", alignItems: "center", marginBottom: 20, justifyContent: "space-between" }}>
                 <SectionTitle style={{ marginBottom: 0 }}>CAMPAIGN | Pathway</SectionTitle>
                 <button
                   onClick={() => setShowRawJson(!showRawJson)}
@@ -621,62 +624,62 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }) {
                 )}
               </div>
             )}
-          </Card>
+            </Card>
 
-          {/* ── Clinical Focus — left column ── */}
-          <Card style={{ border: "1.5px solid var(--border)", boxShadow: "var(--shadow-md)", opacity: showRawJson ? 0.3 : 1, pointerEvents: showRawJson ? "none" : "auto" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-              <SectionTitle style={{ marginBottom: 0 }}>Clinical Focus</SectionTitle>
-              <Badge text="Keywords" color="var(--primary)" bg="var(--primary-light)" />
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, padding: "12px 14px", border: "1.5px solid var(--border)", borderRadius: "var(--radius-md)", background: "var(--surface)", minHeight: 54 }}>
-                {(config.ad_set?.targeting_keywords || []).map((kw) => (
-                  <span key={kw} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, padding: "5px 11px", borderRadius: "var(--radius-pill)", background: "var(--primary-light)", color: "var(--primary-dark)", fontWeight: 700, border: "1px solid rgba(2,132,199,0.15)" }}>
-                    {kw}
-                    <button
-                      type="button"
-                      onClick={() => setField("ad_set", "targeting_keywords", (config.ad_set?.targeting_keywords || []).filter(k => k !== kw))}
-                      style={{ border: "none", background: "transparent", color: "var(--primary)", cursor: "pointer", fontSize: 14, padding: 0, display: "flex", alignItems: "center", fontWeight: "bold", lineHeight: 1 }}
-                    >&times;</button>
-                  </span>
-                ))}
-                {(config.ad_set?.targeting_keywords || []).length === 0 && (
-                  <span style={{ color: "var(--text-muted)", fontSize: 13, fontStyle: "italic" }}>No focus keywords yet.</span>
-                )}
+            {/* ── Clinical Focus — left column ── */}
+            <Card style={{ border: "1.5px solid var(--border)", boxShadow: "var(--shadow-md)", opacity: showRawJson ? 0.3 : 1, pointerEvents: showRawJson ? "none" : "auto" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                <SectionTitle style={{ marginBottom: 0 }}>Clinical Focus</SectionTitle>
+                <Badge text="Keywords" color="var(--primary)" bg="var(--primary-light)" />
               </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <input
-                  type="text"
-                  value={keywordInput}
-                  onChange={(e) => setKeywordInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, padding: "12px 14px", border: "1.5px solid var(--border)", borderRadius: "var(--radius-md)", background: "var(--surface)", minHeight: 54 }}>
+                  {(config.ad_set?.targeting_keywords || []).map((kw: any) => (
+                    <span key={kw} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, padding: "5px 11px", borderRadius: "var(--radius-pill)", background: "var(--primary-light)", color: "var(--primary-dark)", fontWeight: 700, border: "1px solid rgba(2,132,199,0.15)" }}>
+                      {kw}
+                      <button
+                        type="button"
+                        onClick={() => setField("ad_set", "targeting_keywords", (config.ad_set?.targeting_keywords || []).filter((k: any) => k !== kw))}
+                        style={{ border: "none", background: "transparent", color: "var(--primary)", cursor: "pointer", fontSize: 14, padding: 0, display: "flex", alignItems: "center", fontWeight: "bold", lineHeight: 1 }}
+                      >&times;</button>
+                    </span>
+                  ))}
+                  {(config.ad_set?.targeting_keywords || []).length === 0 && (
+                    <span style={{ color: "var(--text-muted)", fontSize: 13, fontStyle: "italic" }}>No focus keywords yet.</span>
+                  )}
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input
+                    type="text"
+                    value={keywordInput}
+                    onChange={(e) => setKeywordInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const t = keywordInput.trim();
+                        if (t && !(config.ad_set?.targeting_keywords || []).includes(t)) {
+                          setField("ad_set", "targeting_keywords", [...(config.ad_set?.targeting_keywords || []), t]);
+                          setKeywordInput("");
+                        }
+                      }
+                    }}
+                    placeholder="Add keyword, press Enter..."
+                    style={{ ...inputStyle, flex: 1 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
                       const t = keywordInput.trim();
                       if (t && !(config.ad_set?.targeting_keywords || []).includes(t)) {
                         setField("ad_set", "targeting_keywords", [...(config.ad_set?.targeting_keywords || []), t]);
                         setKeywordInput("");
                       }
-                    }
-                  }}
-                  placeholder="Add keyword, press Enter..."
-                  style={{ ...inputStyle, flex: 1 }}
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    const t = keywordInput.trim();
-                    if (t && !(config.ad_set?.targeting_keywords || []).includes(t)) {
-                      setField("ad_set", "targeting_keywords", [...(config.ad_set?.targeting_keywords || []), t]);
-                      setKeywordInput("");
-                    }
-                  }}
-                  style={{ flexShrink: 0, padding: "12px 18px", borderRadius: "var(--radius-md)", background: "var(--primary)", color: "#fff", border: "none", fontWeight: 700, fontSize: 14, cursor: "pointer" }}
-                >+ Add</button>
+                    }}
+                    style={{ flexShrink: 0, padding: "12px 18px", borderRadius: "var(--radius-md)", background: "var(--primary)", color: "#fff", border: "none", fontWeight: 700, fontSize: 14, cursor: "pointer" }}
+                  >+ Add</button>
+                </div>
               </div>
-            </div>
-          </Card>
+            </Card>
           </div>
           {/* Column 2: AD SET */}
           <Card style={{ border: "1.5px solid var(--border)", boxShadow: "var(--shadow-md)", opacity: showRawJson ? 0.3 : 1, pointerEvents: showRawJson ? "none" : "auto" }}>
@@ -966,7 +969,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }) {
   );
 }
 
-function Row({ label, value, children }) {
+function Row({ label, value, children }: { label: string; value?: string; children?: React.ReactNode }) {
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: 8, borderBottom: "1px solid var(--border-light)" }}>
       <span style={{ fontSize: 13, color: "var(--text-dim)", fontWeight: 500 }}>{label}</span>
@@ -975,7 +978,7 @@ function Row({ label, value, children }) {
   );
 }
 
-function FieldGroup({ label, children, span }) {
+function FieldGroup({ label, children, span }: { label: string; children: React.ReactNode; span?: number }) {
   return (
     <div className={span === 2 ? "col-span-1 sm:col-span-2 flex flex-col gap-2" : "flex flex-col gap-2"}>
       <label style={{ fontSize: 12, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</label>
@@ -984,16 +987,7 @@ function FieldGroup({ label, children, span }) {
   );
 }
 
-const subSectionStyle = {
-  gridColumn: "span 2",
-  padding: "20px",
-  background: "#f8fafc",
-  borderRadius: "16px",
-  border: "1.5px solid var(--border-light)",
-  marginTop: 8
-};
-
-const inputStyle = {
+const inputStyle: React.CSSProperties = {
   padding: "12px 14px",
   borderRadius: "var(--radius-md)",
   border: "1.5px solid var(--border)",
@@ -1006,7 +1000,7 @@ const inputStyle = {
   outline: "none",
 };
 
-const navSegmentStyle = {
+const navSegmentStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: 12,
@@ -1018,7 +1012,7 @@ const navSegmentStyle = {
   position: "relative"
 };
 
-const navBadgeStyle = {
+const navBadgeStyle: React.CSSProperties = {
   width: 24,
   height: 24,
   borderRadius: "50%",
@@ -1031,21 +1025,21 @@ const navBadgeStyle = {
   fontWeight: 800
 };
 
-const navLabelStyle = {
+const navLabelStyle: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 900,
   color: "var(--primary)",
   letterSpacing: "0.05em"
 };
 
-const navSubLabelStyle = {
+const navSubLabelStyle: React.CSSProperties = {
   fontSize: 13,
   fontWeight: 600,
   color: "var(--text)",
   marginTop: -1
 };
 
-const navConnectorStyle = {
+const navConnectorStyle: React.CSSProperties = {
   position: "absolute",
   right: -20,
   top: "50%",
@@ -1056,18 +1050,23 @@ const navConnectorStyle = {
   zIndex: 1
 };
 
-function LocationSearch({ geoLocations, onChange }) {
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [showDropdown, setShowDropdown] = useState(false);
+interface LocationSearchProps {
+  geoLocations: any;
+  onChange: (newGeo: any) => void;
+}
 
-  const selectedPills = [];
+function LocationSearch({ geoLocations, onChange }: LocationSearchProps) {
+  const [query, setQuery] = useState<string>("");
+  const [results, setResults] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [showDropdown, setShowDropdown] = useState<boolean>(false);
+
+  const selectedPills: any[] = [];
   if (geoLocations) {
-    if (geoLocations.countries) geoLocations.countries.forEach(c => selectedPills.push({ type: 'country', key: c, name: c }));
-    if (geoLocations.cities) geoLocations.cities.forEach(c => selectedPills.push({ type: 'city', key: c.key, name: c.name || c.key }));
-    if (geoLocations.regions) geoLocations.regions.forEach(c => selectedPills.push({ type: 'region', key: c.key, name: c.name || c.key }));
-    if (geoLocations.zips) geoLocations.zips.forEach(c => selectedPills.push({ type: 'zip', key: c.key, name: c.name || c.key }));
+    if (geoLocations.countries) geoLocations.countries.forEach((c: any) => selectedPills.push({ type: 'country', key: c, name: c }));
+    if (geoLocations.cities) geoLocations.cities.forEach((c: any) => selectedPills.push({ type: 'city', key: c.key, name: c.name || c.key }));
+    if (geoLocations.regions) geoLocations.regions.forEach((c: any) => selectedPills.push({ type: 'region', key: c.key, name: c.name || c.key }));
+    if (geoLocations.zips) geoLocations.zips.forEach((c: any) => selectedPills.push({ type: 'zip', key: c.key, name: c.name || c.key }));
   }
 
   useEffect(() => {
@@ -1092,15 +1091,15 @@ function LocationSearch({ geoLocations, onChange }) {
     return () => clearTimeout(timer);
   }, [query]);
 
-  const handleSelect = (item) => {
+  const handleSelect = (item: any) => {
     const newGeo = { ...geoLocations, location_types: geoLocations?.location_types || ["home", "recent"] };
     
     if (item.type === "country") {
       newGeo.countries = [...(newGeo.countries || []), item.country_code];
       // Prevent overlap: Remove any cities/regions/zips that belong to this newly selected country
-      if (newGeo.cities) newGeo.cities = newGeo.cities.filter(c => c.country_code !== item.country_code);
-      if (newGeo.regions) newGeo.regions = newGeo.regions.filter(c => c.country_code !== item.country_code);
-      if (newGeo.zips) newGeo.zips = newGeo.zips.filter(c => c.country_code !== item.country_code);
+      if (newGeo.cities) newGeo.cities = newGeo.cities.filter((c: any) => c.country_code !== item.country_code);
+      if (newGeo.regions) newGeo.regions = newGeo.regions.filter((c: any) => c.country_code !== item.country_code);
+      if (newGeo.zips) newGeo.zips = newGeo.zips.filter((c: any) => c.country_code !== item.country_code);
     } else {
       const locObj = { key: item.key, name: item.name, country_code: item.country_code };
       if (item.type === "city") newGeo.cities = [...(newGeo.cities || []), locObj];
@@ -1109,7 +1108,7 @@ function LocationSearch({ geoLocations, onChange }) {
       
       // Prevent overlap: Remove the parent country if it is already targeted broadly
       if (item.country_code && newGeo.countries && newGeo.countries.includes(item.country_code)) {
-         newGeo.countries = newGeo.countries.filter(c => c !== item.country_code);
+         newGeo.countries = newGeo.countries.filter((c: any) => c !== item.country_code);
       }
     }
     
@@ -1124,22 +1123,22 @@ function LocationSearch({ geoLocations, onChange }) {
     setShowDropdown(false);
   };
 
-  const handleRemove = (pill) => {
+  const handleRemove = (pill: any) => {
     const newGeo = { ...geoLocations };
     if (pill.type === "country") {
-      newGeo.countries = newGeo.countries.filter(c => c !== pill.key);
+      newGeo.countries = newGeo.countries.filter((c: any) => c !== pill.key);
       if (newGeo.countries.length === 0) delete newGeo.countries;
     }
     if (pill.type === "city") {
-      newGeo.cities = newGeo.cities.filter(c => c.key !== pill.key);
+      newGeo.cities = newGeo.cities.filter((c: any) => c.key !== pill.key);
       if (newGeo.cities.length === 0) delete newGeo.cities;
     }
     if (pill.type === "region") {
-      newGeo.regions = newGeo.regions.filter(c => c.key !== pill.key);
+      newGeo.regions = newGeo.regions.filter((c: any) => c.key !== pill.key);
       if (newGeo.regions.length === 0) delete newGeo.regions;
     }
     if (pill.type === "zip") {
-      newGeo.zips = newGeo.zips.filter(c => c.key !== pill.key);
+      newGeo.zips = newGeo.zips.filter((c: any) => c.key !== pill.key);
       if (newGeo.zips.length === 0) delete newGeo.zips;
     }
     onChange(newGeo);
@@ -1161,7 +1160,7 @@ function LocationSearch({ geoLocations, onChange }) {
       
       {showDropdown && results.length > 0 && (
         <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", boxShadow: "0 4px 12px rgba(0,0,0,0.1)", zIndex: 50, maxHeight: 200, overflowY: "auto", marginTop: 4 }}>
-          {results.map(r => (
+          {results.map((r: any) => (
             <div 
               key={r.key} 
               onMouseDown={(e) => { e.preventDefault(); handleSelect(r); }}
@@ -1180,7 +1179,7 @@ function LocationSearch({ geoLocations, onChange }) {
       
       {selectedPills.length > 0 && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
-          {selectedPills.map(p => (
+          {selectedPills.map((p: any) => (
             <div key={`${p.type}-${p.key}`} style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--primary-light)", color: "var(--primary-dark)", padding: "4px 10px", borderRadius: "var(--radius-pill)", fontSize: 12, fontWeight: 600 }}>
               {p.type === 'country' ? '🌐' : p.type === 'city' ? '🏙️' : '🗺️'} {p.name}
               <button onClick={(e) => { e.preventDefault(); handleRemove(p); }} style={{ border: "none", background: "transparent", color: "var(--primary)", cursor: "pointer", fontSize: 14, padding: 0 }}>&times;</button>

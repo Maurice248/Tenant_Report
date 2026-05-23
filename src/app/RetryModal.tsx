@@ -4,10 +4,17 @@ import React, { useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { X, RefreshCw, MessageSquare } from 'lucide-react';
 
-export default function RetryModal({ isOpen, onOpenChange, onSubmit, loading }) {
+interface RetryModalProps {
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSubmit: (prompt: string) => void;
+  loading: boolean;
+}
+
+export default function RetryModal({ isOpen, onOpenChange, onSubmit, loading }: RetryModalProps) {
   const [prompt, setPrompt] = useState("");
 
-  const handleSubmit = (e) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSubmit(prompt);
     setPrompt("");

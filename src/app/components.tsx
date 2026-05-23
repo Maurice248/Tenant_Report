@@ -1,10 +1,14 @@
 "use client";
 
-// ============================================================
-// SHARED UI COMPONENTS — AUMATIC DASHBOARD
-// ============================================================
+import React from 'react';
 
-export function Badge({ text, color, bg }) {
+interface BadgeProps {
+  text: any;
+  color?: string;
+  bg?: string;
+}
+
+export function Badge({ text, color, bg }: BadgeProps) {
   return (
     <span
       style={{
@@ -25,7 +29,13 @@ export function Badge({ text, color, bg }) {
   );
 }
 
-export function Card({ children, style = {}, className = "" }) {
+interface CardProps {
+  children: React.ReactNode;
+  style?: React.CSSProperties;
+  className?: string;
+}
+
+export function Card({ children, style = {}, className = "" }: CardProps) {
   return (
     <div
       className={`animate-slide-up ${className}`}
@@ -52,7 +62,17 @@ export function Card({ children, style = {}, className = "" }) {
   );
 }
 
-export function MetricCard({ label, value, sub, color, bg, dot, icon }) {
+interface MetricCardProps {
+  label: any;
+  value: any;
+  sub?: any;
+  color?: string;
+  bg?: string;
+  dot?: boolean;
+  icon?: any;
+}
+
+export function MetricCard({ label, value, sub, color, bg, dot, icon }: MetricCardProps) {
   return (
     <div
       className="animate-scale-in"
@@ -124,7 +144,13 @@ export function MetricCard({ label, value, sub, color, bg, dot, icon }) {
   );
 }
 
-export function SectionTitle({ children, style = {}, action }) {
+interface SectionTitleProps {
+  children: React.ReactNode;
+  style?: React.CSSProperties;
+  action?: any;
+}
+
+export function SectionTitle({ children, style = {}, action }: SectionTitleProps) {
   return (
     <div style={{
       display: "flex", alignItems: "center",
@@ -142,7 +168,15 @@ export function SectionTitle({ children, style = {}, action }) {
   );
 }
 
-export function WorkflowStep({ step, label, sub, active, done }) {
+interface WorkflowStepProps {
+  step: any;
+  label: any;
+  sub?: any;
+  active?: boolean;
+  done?: boolean;
+}
+
+export function WorkflowStep({ step, label, sub, active, done }: WorkflowStepProps) {
   return (
     <div style={{
       display: "flex", alignItems: "flex-start", gap: 14,
@@ -180,7 +214,13 @@ export function WorkflowStep({ step, label, sub, active, done }) {
   );
 }
 
-export function EmptyState({ title, sub, icon }) {
+interface EmptyStateProps {
+  title: any;
+  sub: any;
+  icon?: any;
+}
+
+export function EmptyState({ title, sub, icon }: EmptyStateProps) {
   return (
     <div className="animate-fade-in" style={{ textAlign: "center", padding: "48px 20px" }}>
       <div style={{
@@ -206,12 +246,18 @@ export function EmptyState({ title, sub, icon }) {
   );
 }
 
-export function Spinner({ size = 16, color = "var(--primary)" }) {
+interface SpinnerProps {
+  size?: number;
+  color?: string;
+}
+
+export function Spinner({ size = 16, color = "var(--primary)" }: SpinnerProps) {
   return (
     <div
       className="animate-spin"
       style={{
-        width: size, height: size,
+        width: size,
+        height: size,
         border: `2px solid ${color}20`,
         borderTopColor: color,
         borderRadius: "50%",
@@ -222,7 +268,15 @@ export function Spinner({ size = 16, color = "var(--primary)" }) {
   );
 }
 
-export function PrimaryButton({ children, onClick, disabled, style = {}, size = "md" }) {
+interface PrimaryButtonProps {
+  children: React.ReactNode;
+  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
+  disabled?: boolean;
+  style?: React.CSSProperties;
+  size?: "sm" | "md";
+}
+
+export function PrimaryButton({ children, onClick, disabled, style = {}, size = "md" }: PrimaryButtonProps) {
   const pad = size === "sm" ? "9px 16px" : "13px 20px";
   const fs  = size === "sm" ? 13 : 14;
   return (
@@ -265,7 +319,14 @@ export function PrimaryButton({ children, onClick, disabled, style = {}, size = 
   );
 }
 
-export function SecondaryButton({ children, onClick, style = {}, size = "md" }) {
+interface SecondaryButtonProps {
+  children: React.ReactNode;
+  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
+  style?: React.CSSProperties;
+  size?: "sm" | "md";
+}
+
+export function SecondaryButton({ children, onClick, style = {}, size = "md" }: SecondaryButtonProps) {
   const pad = size === "sm" ? "8px 14px" : "12px 18px";
   const fs  = size === "sm" ? 12 : 13;
   return (

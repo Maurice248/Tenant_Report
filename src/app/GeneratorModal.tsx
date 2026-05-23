@@ -5,22 +5,31 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { X, Wand2, Music, Mic2, Monitor, MessageSquare, Tag } from 'lucide-react';
 import { Spinner } from './components';
 
-export default function GeneratorModal({ isOpen, onOpenChange, onSubmit, loading }) {
-  const [formData, setFormData] = useState({
-    category: "hair_transplant",
-    description: "",
-    videoStyle: "Highly Realistic 4k, real life",
-    language: "English",
-    voice: "KLoLpdGWK7agg0O2TJYg",
-    backgroundSong: "Inspirational - Sunrise Bloom"
-  });
+interface GeneratorModalProps {
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSubmit: (data: typeof initialFormData) => void;
+  loading: boolean;
+}
 
-  const handleChange = (e) => {
+const initialFormData = {
+  category: "hair_transplant",
+  description: "",
+  videoStyle: "Highly Realistic 4k, real life",
+  language: "English",
+  voice: "KLoLpdGWK7agg0O2TJYg",
+  backgroundSong: "Inspirational - Sunrise Bloom"
+};
+
+export default function GeneratorModal({ isOpen, onOpenChange, onSubmit, loading }: GeneratorModalProps) {
+  const [formData, setFormData] = useState(initialFormData);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSubmit(formData);
   };
