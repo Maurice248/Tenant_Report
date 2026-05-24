@@ -950,39 +950,7 @@ export default function Dashboard() {
     setIsSavingAd(false);
   }
 
-  async function handleRetryAdSubmit(ad) {
-    if (!ad || !retryPrompt) return;
-    setIsRetryingSubmit(true);
 
-    const adData = typeof ad["json data"] === "string" ? JSON.parse(ad["json data"]) : (ad["json data"] || {});
-
-    try {
-      const webhookUrl = process.env.NEXT_PUBLIC_N8N_RETRY_AD_URL || "https://n8n.srv881198.hstgr.cloud/webhook/3ba2e5c5-b680-48b8-a905-6386b74a28d9";
-      const res = await fetch(webhookUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt: retryPrompt,
-          ad_id: ad.id,
-          original_data: adData,
-          media_url: ad.text,
-          timestamp: new Date().toISOString()
-        }),
-      });
-
-      if (res.ok) {
-        addSbToast("Retry request sent successfully!");
-        setIsRetryingAd(false);
-        setRetryPrompt("");
-      } else {
-        addSbToast("Failed to send retry request", "error");
-      }
-    } catch (e) {
-      console.error("Retry error:", e);
-      addSbToast("Failed to reach retry webhook", "error");
-    }
-    setIsRetryingSubmit(false);
-  }
 
   async function handleRefreshAdVideos() {
     await fetchAdTableLinks();
@@ -1202,52 +1170,7 @@ export default function Dashboard() {
     }
   }
 
-  // ── Action 3: Launch Meta Ad ──
-  async function launchMetaAd() {
-    const result = await callWebhook({
-      action: "launch_meta_ad",
-      adData: adData,
-      budget: budget,
-      duration: duration,
-      timestamp: new Date().toISOString(),
-    }, setLaunchStatus);
-    // Optimistic: add to campaigns list regardless of n8n response
-    setCampaigns(prev => [...prev, {
-      id: `C${Date.now()}`,
-      name: adData?.topic || "New Campaign",
-      platform: "Meta",
-      budget: `€${budget}/day`,
-      duration: `${duration} days`,
-      status: "launching",
-      spend: "€0",
-      ctr: "—",
-      clicks: 0,
-      leads: 0,
-    }]);
-    if (result) setLaunchStatus("live");
-    setTab("campaigns");
-  }
 
-  // ── Action 4: Stop Campaign ──
-  async function stopCampaign(campaignId, campaignName) {
-    setStoppedIds(prev => [...prev, campaignId]); // optimistic
-    await callWebhook({
-      action: "stop_campaign",
-      campaignId: campaignId,
-      campaignName: campaignName,
-      timestamp: new Date().toISOString(),
-    }, setStopStatus);
-  }
-
-  // ── Action 5: Generate Report ──
-  async function generateReport() {
-    const result = await callWebhook({
-      action: "generate_report",
-      period: "manual",
-      timestamp: new Date().toISOString(),
-    }, setReportStatus);
-    if (result) setReportStatus("done");
-  }
 
 
 
