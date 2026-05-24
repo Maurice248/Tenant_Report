@@ -1084,6 +1084,9 @@ export default function Dashboard() {
       });
       if (res.ok) {
         addSbToast("Prompts successfully accepted!", "success");
+        addSbToast("Refreshing Supabase Ads previews...", "info");
+        await fetchAdTableLinks();
+        addSbToast("Ads previews successfully updated!", "success");
       } else {
         addSbToast("Failed to accept prompts. Please try again.", "error");
       }
