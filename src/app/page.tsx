@@ -1032,11 +1032,15 @@ export default function Dashboard() {
         }),
       });
       const data = await res.json();
-      const scenes = Array.isArray(data) ? data : [];
 
-      // Store scenes under shared key — all ad cards use the same result
-      const scenesMap = {};
-      config.items.forEach(item => { scenesMap[item.id] = scenes; });
+      // Store scenes under corresponding keys matching their itemIndex
+      const scenesMap: any = {};
+      config.items.forEach((item: any, idx: number) => {
+        const match = Array.isArray(data)
+          ? data.find((d: any) => d.itemIndex === idx) || data[idx]
+          : null;
+        scenesMap[item.id] = match?.scenes || [];
+      });
       setAdScenesMap(scenesMap);
       setAdStatus("done");
       addSbToast("Ad prompts generated! Click \"View Prompts\" on each ad.", "success");
