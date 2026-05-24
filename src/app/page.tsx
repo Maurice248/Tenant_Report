@@ -274,6 +274,12 @@ export default function Dashboard() {
   const [retryPrompt, setRetryPrompt] = useState("");
   const [isRetryingSubmit, setIsRetryingSubmit] = useState(false);
   const [acceptingPrompts, setAcceptingPrompts] = useState(false);
+  const [promptsAccepted, setPromptsAccepted] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("toga_prompts_accepted") === "true";
+    }
+    return false;
+  });
   const [selectedMetaCampaign, setSelectedMetaCampaign] = useState(null);
   const [launchAdCandidate, setLaunchAdCandidate] = useState(null);
 
@@ -1083,6 +1089,9 @@ export default function Dashboard() {
           await fetchAdTableLinks();
           addSbToast("Ads previews updated!", "success");
         }
+        // Mark as accepted (persists on refresh)
+        setPromptsAccepted(true);
+        if (typeof window !== "undefined") localStorage.setItem("toga_prompts_accepted", "true");
       } else {
         addSbToast("Failed to accept prompts. Please try again.", "error");
       }
@@ -3497,6 +3506,21 @@ export default function Dashboard() {
                         {adStatus === "generating" ? (
                           <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#0284c7", fontSize: 13, fontWeight: 700 }}>
                             <Spinner size={16} color="#0284c7" /> Generating prompts… please wait
+                          </div>
+                        ) : promptsAccepted ? (
+                          // ── COMPLETION BANNER (shows after accept, survives refresh) ──
+                          <div style={{
+                            display: "flex", alignItems: "center", gap: 10,
+                            padding: "10px 20px", borderRadius: "var(--radius-lg)",
+                            background: "linear-gradient(135deg, #dcfce7, #bbf7d0)",
+                            border: "1.5px solid #86efac",
+                            boxShadow: "0 2px 8px rgba(34,197,94,0.15)",
+                          }}>
+                            <span style={{ fontSize: 20 }}>✅</span>
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 800, color: "#15803d" }}>Ads Generation Completed</div>
+                              <div style={{ fontSize: 11, color: "#166534", marginTop: 1 }}>Your ad creatives are being processed. Check the Ad Previews section below.</div>
+                            </div>
                           </div>
                         ) : Object.values(adScenesMap).some(scenes => Array.isArray(scenes) && scenes.length > 0) ? (
                           <button

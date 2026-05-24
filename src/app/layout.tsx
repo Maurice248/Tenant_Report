@@ -11,9 +11,14 @@ const inter = Inter({
 });
 
 export const metadata = {
-  title: "HealPoint AI — Healthcare Ads Manager",
+  title: "Toga Health AI — Healthcare Ads Manager",
   description:
     "Professional AI-powered advertising and marketing automation for hospitals, clinics, and healthcare providers. Managed campaigns, competitor clinical analysis, and patient growth automation.",
+  icons: {
+    icon: "/toga-health-logo.png",
+    shortcut: "/toga-health-logo.png",
+    apple: "/toga-health-logo.png",
+  },
 };
 
 interface RootLayoutProps {
