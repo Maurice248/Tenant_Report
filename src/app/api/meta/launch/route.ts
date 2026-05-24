@@ -1,3 +1,6 @@
+import fs from "fs";
+import path from "path";
+
 // ── Helper to parse JSON with fallback ──
 async function fetchMetaJson(res) {
   const text = await res.text();
@@ -53,7 +56,27 @@ async function uploadMedia(link_data, isVideo, accessToken, adAccountId) {
       }
     }
 
-    return { video_id: videoId };
+    // Upload a fallback thumbnail (Toga logo) to get an image_hash
+    let imageHash = null;
+    try {
+      const logoPath = path.join(process.cwd(), "public", "toga-health-logo.png");
+      const logoBuffer = fs.readFileSync(logoPath);
+      const logoBlob = new Blob([logoBuffer]);
+      const thumbForm = new FormData();
+      thumbForm.append("source", logoBlob, "toga-health-logo.png");
+      thumbForm.append("access_token", accessToken);
+
+      const thumbRes = await fetch(`https://graph.facebook.com/v21.0/act_${adAccountId}/adimages`, {
+        method: "POST",
+        body: thumbForm,
+      });
+      const thumbData = await fetchMetaJson(thumbRes);
+      imageHash = thumbData.images?.["toga-health-logo.png"]?.hash;
+    } catch (err) {
+      console.log("Failed to upload fallback thumbnail:", err.message);
+    }
+
+    return { video_id: videoId, image_hash: imageHash };
   } else {
     // Image upload
     const mediaRes = await fetch(link_data);
@@ -155,7 +178,7 @@ async function createAdCreative(adAccountId, accessToken, isVideo, pageId, media
       page_id: pageId,
       video_data: {
         video_id: mediaPayload.video_id,
-        image_url: "https://images.unsplash.com/photo-1606811841689-23dfddce3e95?auto=format&fit=crop&w=1080&q=80",
+        ...(mediaPayload.image_hash ? { image_hash: mediaPayload.image_hash } : { image_url: "https://togahh.com/toga-health-logo.png" }),
         title: headline,
         message: primaryText,
         link_description: headline,
