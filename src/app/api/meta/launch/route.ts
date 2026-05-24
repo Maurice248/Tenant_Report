@@ -1,6 +1,8 @@
 import fs from "fs";
 import path from "path";
 
+export const maxDuration = 60; // Allow Vercel to run up to 60s for video polling
+
 // ── Helper to parse JSON with fallback ──
 async function fetchMetaJson(res) {
   const text = await res.text();
@@ -41,19 +43,25 @@ async function uploadMedia(link_data, isVideo, accessToken, adAccountId) {
     if (!videoId) throw new Error("Failed to upload video to Meta: No ID returned.");
 
     // Poll until video is ready
-    for (let i = 0; i < 5; i++) {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+    let isReady = false;
+    for (let i = 0; i < 15; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 3000));
       try {
         const statusRes = await fetch(
           `https://graph.facebook.com/v21.0/${videoId}?fields=status&access_token=${accessToken}`
         );
         const statusData = await fetchMetaJson(statusRes);
         if (statusData.status?.video_status === "ready") {
+          isReady = true;
           break;
         }
       } catch (err) {
         console.log("Polling video status error:", err.message);
       }
+    }
+
+    if (!isReady) {
+      console.warn(`Video ${videoId} is still processing after 45 seconds. Attempting to proceed, but it may fail with 1885252.`);
     }
 
     // Upload a fallback thumbnail (Toga logo) to get an image_hash
