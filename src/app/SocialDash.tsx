@@ -42,21 +42,9 @@ export default function SocialDash() {
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const prevStatusRef = useRef<string | undefined>(undefined); // tracks previous status to detect transitions
 
-  // ── Restore progress from localStorage on page load ──
+  // ── Clear progress from localStorage on page load (so refresh removes it) ──
   useEffect(() => {
-    const savedStartTime = localStorage.getItem('sd_generation_start');
-    if (savedStartTime) {
-      const elapsed = (Date.now() - parseInt(savedStartTime)) / 1000;
-      const MAX_TIME = 360;
-      if (elapsed < MAX_TIME) {
-        const restoredProgress = Math.min((elapsed / MAX_TIME) * 100, 98);
-        setIsGenerating(true);
-        setProgress(restoredProgress);
-      } else {
-        // Timed out — clear stale storage
-        localStorage.removeItem('sd_generation_start');
-      }
-    }
+    localStorage.removeItem('sd_generation_start');
   }, []);
 
   useEffect(() => {
@@ -133,7 +121,7 @@ export default function SocialDash() {
       status !== "Generating images..." &&
       status !== "Images will be generated soon!"
     ) {
-      if (!isGenerating) {
+      if (!isGenerating && !isFirstLoad) {
         setIsGenerating(true);
         setProgress(0);
         localStorage.setItem('sd_generation_start', Date.now().toString());
