@@ -125,6 +125,56 @@ async function fetchPageId(accessToken) {
   return pageId;
 }
 
+// ── STEP 1c: Fetch Campaign Objective (For existing campaigns) ──
+async function fetchCampaignObjective(campaignId, accessToken) {
+  const res = await fetch(
+    `https://graph.facebook.com/v21.0/${campaignId}?fields=objective&access_token=${accessToken}`
+  );
+  const data = await fetchMetaJson(res);
+  return data.objective;
+}
+
+// ── STEP 1d: Get or Create Pixel ID (Self-healing discover / create fallback) ──
+async function getOrCreatePixelId(accessToken, adAccountId) {
+  const url = `https://graph.facebook.com/v21.0/act_${adAccountId}/adspixels?access_token=${accessToken}`;
+  const res = await fetch(url);
+  const data = await fetchMetaJson(res);
+
+  if (data.data && data.data.length > 0) {
+    return data.data[0].id;
+  }
+
+  console.log("No pixels found. Attempting programmatic creation of Toga Health AI Pixel...");
+  try {
+    const createRes = await fetch(
+      `https://graph.facebook.com/v21.0/act_${adAccountId}/adspixels`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Toga Health AI Pixel",
+          access_token: accessToken,
+        }),
+      }
+    );
+    const createData = await fetchMetaJson(createRes);
+    if (createData.id) {
+      console.log(`Successfully created pixel: ${createData.id}`);
+      return createData.id;
+    }
+  } catch (err: any) {
+    console.error("Failed programmatic pixel creation:", err.message);
+    throw new Error(
+      `Tracking Pixel Required: The campaign objective or optimization goal requires a tracking pixel. ` +
+      `No pixels were found on Ad Account ${adAccountId}, and programmatic creation failed. ` +
+      `To fix this: (1) Go to Meta Events Manager, create a Pixel/Dataset, assign it to Ad Account ${adAccountId}, and retry. ` +
+      `Or (2) Change the Campaign Objective in the UI to 'Traffic' (OUTCOME_TRAFFIC), which does not require a pixel.`
+    );
+  }
+
+  throw new Error("Unable to locate or create a Meta Tracking Pixel.");
+}
+
 // ── STEP 2: Campaign ──
 async function createCampaign(existingCampaignId, adAccountId, accessToken, campaignName, objective, specialAdCats, isCbo, budgetType, dailyBudget, lifetimeBudget) {
   if (existingCampaignId) return existingCampaignId;
@@ -151,26 +201,32 @@ async function createCampaign(existingCampaignId, adAccountId, accessToken, camp
 }
 
 // ── STEP 3: Ad Set ──
-async function createAdSet(adAccountId, accessToken, adSetName, campaignId, isCbo, budgetType, dailyBudget, lifetimeBudget, startTime, stopTime, targeting, dsaFields) {
+async function createAdSet(adAccountId, accessToken, adSetName, campaignId, isCbo, budgetType, dailyBudget, lifetimeBudget, startTime, stopTime, targeting, dsaFields, optimizationGoal, promotedObject) {
+  const bodyPayload: any = {
+    name: adSetName,
+    campaign_id: campaignId,
+    ...(!isCbo ? (budgetType === "DAILY" ? { daily_budget: dailyBudget } : { lifetime_budget: lifetimeBudget }) : {}),
+    start_time: startTime,
+    ...(stopTime ? { stop_time: stopTime } : {}),
+    billing_event: "IMPRESSIONS",
+    optimization_goal: optimizationGoal,
+    bid_strategy: "LOWEST_COST_WITHOUT_CAP",
+    targeting,
+    ...dsaFields,
+    status: "PAUSED",
+    access_token: accessToken,
+  };
+
+  if (promotedObject) {
+    bodyPayload.promoted_object = promotedObject;
+  }
+
   const adSetRes = await fetch(
     `https://graph.facebook.com/v21.0/act_${adAccountId}/adsets`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: adSetName,
-        campaign_id: campaignId,
-        ...(!isCbo ? (budgetType === "DAILY" ? { daily_budget: dailyBudget } : { lifetime_budget: lifetimeBudget }) : {}),
-        start_time: startTime,
-        ...(stopTime ? { stop_time: stopTime } : {}),
-        billing_event: "IMPRESSIONS",
-        optimization_goal: "LINK_CLICKS",
-        bid_strategy: "LOWEST_COST_WITHOUT_CAP",
-        targeting,
-        ...dsaFields,
-        status: "PAUSED",
-        access_token: accessToken,
-      }),
+      body: JSON.stringify(bodyPayload),
     }
   );
   const adSetData = await fetchMetaJson(adSetRes);
@@ -230,19 +286,25 @@ async function createAdCreative(adAccountId, accessToken, isVideo, pageId, media
 }
 
 // ── STEP 5: Ad ──
-async function createAd(adAccountId, accessToken, adName, adSetId, creativeId) {
+async function createAd(adAccountId, accessToken, adName, adSetId, creativeId, trackingSpecs) {
+  const bodyPayload: any = {
+    name: adName,
+    adset_id: adSetId,
+    creative: { creative_id: creativeId },
+    status: "PAUSED",
+    access_token: accessToken,
+  };
+
+  if (trackingSpecs) {
+    bodyPayload.tracking_specs = trackingSpecs;
+  }
+
   const adRes = await fetch(
     `https://graph.facebook.com/v21.0/act_${adAccountId}/ads`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: adName,
-        adset_id: adSetId,
-        creative: { creative_id: creativeId },
-        status: "PAUSED",
-        access_token: accessToken,
-      }),
+      body: JSON.stringify(bodyPayload),
     }
   );
   const adFinalData = await fetchMetaJson(adRes);
@@ -276,7 +338,16 @@ export async function POST(request) {
       (ad?.type || "").toLowerCase() === "video";
 
     // ── Resolve config values ──
-    const objective       = campaign?.objective        || "OUTCOME_TRAFFIC";
+    let objective = campaign?.objective || "OUTCOME_TRAFFIC";
+    if (existingCampaignId) {
+      try {
+        objective = await fetchCampaignObjective(existingCampaignId, accessToken);
+        console.log(`Fetched existing campaign objective: ${objective}`);
+      } catch (err: any) {
+        console.warn(`Failed to fetch campaign objective for ${existingCampaignId}:`, err.message);
+      }
+    }
+
     const campaignName    = campaign?.name             || `[DRAFT] ${objective}_${Date.now()}`;
     const specialAdCats   = (campaign?.special_ad_categories || []).filter((c: string) => c && c !== "NONE");
     const isCbo           = campaign?.is_adset_budget_sharing_enabled || false;
@@ -351,6 +422,40 @@ export async function POST(request) {
       dsa_payor: dsaPayor,
     } : {};
 
+    // Dynamic Optimization Goal and Pixel requirements
+    const userGoal = ad_set?.optimization_goal || "LINK_CLICKS";
+    const isPixelRequired = 
+      objective === "OUTCOME_SALES" || 
+      objective === "OUTCOME_LEADS" || 
+      userGoal === "OFFSITE_CONVERSIONS";
+
+    let promotedObject: any = null;
+    let trackingSpecs: any = null;
+    let optimizationGoal = userGoal;
+
+    if (isPixelRequired) {
+      const pixelId = await getOrCreatePixelId(accessToken, adAccountId);
+      console.log(`Using pixel ID: ${pixelId} for objective ${objective}`);
+      
+      const customEvent = objective === "OUTCOME_SALES" ? "PURCHASE" : "LEAD";
+      promotedObject = {
+        pixel_id: pixelId,
+        custom_event_type: customEvent,
+      };
+
+      trackingSpecs = [
+        {
+          "action.type": ["offsite_conversion"],
+          "fb_pixel": [pixelId],
+        }
+      ];
+
+      // Ensure optimization goal is conversion-compatible if pixel is required
+      if (optimizationGoal !== "OFFSITE_CONVERSIONS" && optimizationGoal !== "LINK_CLICKS") {
+        optimizationGoal = "OFFSITE_CONVERSIONS";
+      }
+    }
+
     // ── Execute Concurrent Tasks: Media Upload & Page ID Fetch ──
     const [mediaPayload, pageId] = await Promise.all([
       uploadMedia(link_data, isVideo, accessToken, adAccountId),
@@ -366,7 +471,7 @@ export async function POST(request) {
     const adSetId = await createAdSet(
       adAccountId, accessToken, adSetName, campaignId, isCbo, 
       budgetType, dailyBudget, lifetimeBudget, startTime, stopTime, 
-      targeting, dsaFields
+      targeting, dsaFields, optimizationGoal, promotedObject
     );
 
     const creativeId = await createAdCreative(
@@ -375,7 +480,7 @@ export async function POST(request) {
     );
 
     const adId = await createAd(
-      adAccountId, accessToken, adName, adSetId, creativeId
+      adAccountId, accessToken, adName, adSetId, creativeId, trackingSpecs
     );
 
     return Response.json({
