@@ -16,8 +16,6 @@ import {
   LogOut,
   LogIn,
   ShieldCheck,
-  Settings,
-  Bell
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useRouter } from "next/navigation";
@@ -1445,62 +1443,28 @@ export default function Dashboard() {
       >
         {/* Brand */}
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <img
+            src="/toga-health-logo.png"
+            alt="Toga Health AI"
+            style={{
+              width: 44, height: 44,
+              borderRadius: "var(--radius-md)",
+              objectFit: "contain",
+              background: "#fff",
+              flexShrink: 0,
+              boxShadow: "0 2px 8px rgba(0,0,0,0.10)",
+            }}
+          />
           <div style={{
-            width: 40, height: 40,
-            borderRadius: "var(--radius-md)",
-            background: "linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            color: "#fff", fontSize: 20, fontWeight: 800,
-            boxShadow: "0 4px 12px rgba(37,99,235,0.25)",
-            flexShrink: 0,
+            fontSize: 20, fontWeight: 800, letterSpacing: "-0.03em",
+            color: "var(--text)", lineHeight: 1.1,
           }}>
-            A
-          </div>
-          <div>
-            <div style={{
-              fontSize: 20, fontWeight: 800, letterSpacing: "-0.03em",
-              color: "var(--text)", lineHeight: 1.1,
-            }}>
-              Aumatic AI
-            </div>
-            <div style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500, marginTop: 2 }}>
-              Ads & Outreach Platform
-            </div>
+            Toga Health AI
           </div>
         </div>
 
         {/* Right side */}
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {/* Icon buttons */}
-          <button
-            style={{
-              width: 36, height: 36, borderRadius: "var(--radius-md)",
-              border: "1px solid var(--border)", background: "var(--card-bg)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              color: "var(--text-muted)", cursor: "pointer",
-              transition: "all 0.15s",
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--surface)"; e.currentTarget.style.color = "var(--text)"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "var(--card-bg)"; e.currentTarget.style.color = "var(--text-muted)"; }}
-          >
-            <Bell size={16} />
-          </button>
-          <button
-            style={{
-              width: 36, height: 36, borderRadius: "var(--radius-md)",
-              border: "1px solid var(--border)", background: "var(--card-bg)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              color: "var(--text-muted)", cursor: "pointer",
-              transition: "all 0.15s",
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--surface)"; e.currentTarget.style.color = "var(--text)"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "var(--card-bg)"; e.currentTarget.style.color = "var(--text-muted)"; }}
-          >
-            <Settings size={16} />
-          </button>
-
-          {/* Divider */}
-          <div style={{ width: 1, height: 24, background: "var(--border)", margin: "0 4px" }} />
 
           {/* User / Auth */}
           {user ? (
