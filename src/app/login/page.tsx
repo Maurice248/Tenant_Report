@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { 
   Stethoscope, 
@@ -22,8 +22,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [errorStatus, setErrorStatus] = useState(null);
-  const [successStatus, setSuccessStatus] = useState(null);
+  const [errorStatus, setErrorStatus] = useState<string | null>(null);
+  const [successStatus, setSuccessStatus] = useState<string | null>(null);
 
   // Clear messages after 5 seconds
   useEffect(() => {
@@ -36,7 +36,7 @@ export default function LoginPage() {
     }
   }, [errorStatus, successStatus]);
 
-  const handleAuth = async (e) => {
+  const handleAuth = async (e: FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setErrorStatus(null);
@@ -65,8 +65,8 @@ export default function LoginPage() {
       setTimeout(() => {
         router.push("/");
       }, 500);
-    } catch (error) {
-      console.error("Local Session Error:", error.message);
+    } catch (error: any) {
+      console.error("Local Session Error:", error?.message);
       setErrorStatus("An error occurred during local authentication.");
     } finally {
       setLoading(false);
@@ -74,59 +74,241 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-6 relative overflow-hidden font-sans">
+    <div style={{
+      minHeight: "100vh",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "#F8FAFC",
+      padding: "24px",
+      position: "relative",
+      overflow: "hidden",
+      fontFamily: "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+    }}>
       {/* Decorative background components */}
-      <div className="absolute rounded-full filter blur-[80px] z-1 opacity-40 w-[400px] h-[400px] bg-blue-600 -top-[100px] -right-[100px]"></div>
-      <div className="absolute rounded-full filter blur-[80px] z-1 opacity-40 w-[300px] h-[300px] bg-cyan-600 -bottom-[50px] -left-[50px]"></div>
+      <div style={{
+        position: "absolute",
+        borderRadius: "50%",
+        filter: "blur(80px)",
+        zIndex: 1,
+        opacity: 0.15,
+        width: "400px",
+        height: "400px",
+        backgroundColor: "#3B82F6",
+        top: "-100px",
+        right: "-100px"
+      }}></div>
+      <div style={{
+        position: "absolute",
+        borderRadius: "50%",
+        filter: "blur(80px)",
+        zIndex: 1,
+        opacity: 0.15,
+        width: "300px",
+        height: "300px",
+        backgroundColor: "#06B6D4",
+        bottom: "-50px",
+        left: "-50px"
+      }}></div>
 
-      <div className="w-full max-w-[460px] bg-white/95 backdrop-blur-[10px] rounded-[24px] shadow-xl border border-slate-200 relative z-10 overflow-hidden">
-        <div className="p-10 pb-6 text-center bg-gradient-to-b from-blue-50/50 to-transparent">
-          <div className="w-16 h-16 bg-white text-blue-600 rounded-[18px] flex items-center justify-center mx-auto mb-5 shadow-md border border-slate-100">
+      <div style={{
+        width: "100%",
+        maxWidth: "440px",
+        backgroundColor: "#FFFFFF",
+        borderRadius: "20px",
+        boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05), 0 0 0 1px rgba(15, 23, 42, 0.08)",
+        position: "relative",
+        zIndex: 10,
+        overflow: "hidden"
+      }}>
+        <div style={{
+          padding: "40px 40px 24px 40px",
+          textAlign: "center",
+          background: "linear-gradient(to bottom, #EFF6FF, transparent)"
+        }}>
+          <div style={{
+            width: "64px",
+            height: "64px",
+            backgroundColor: "#FFFFFF",
+            color: "#2563EB",
+            borderRadius: "16px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            margin: "0 auto 20px auto",
+            boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05)",
+            border: "1px solid #E2E8F0"
+          }}>
             <Stethoscope size={28} />
           </div>
-          <h1 className="text-3xl font-extrabold text-slate-900 mb-3 tracking-tight">Togahh AI</h1>
-          <div className="flex justify-center">
-            <span className="inline-block px-3 py-1 bg-white border border-slate-200 rounded-full text-[11px] font-bold text-blue-600 uppercase tracking-wider">Clinical Platform v2.4</span>
+          <h1 style={{
+            fontSize: "28px",
+            fontWeight: 800,
+            color: "#0F172A",
+            marginBottom: "12px",
+            letterSpacing: "-0.025em",
+            lineHeight: 1.2
+          }}>Togahh AI</h1>
+          <div style={{ display: "flex", justifyContent: "center" }}>
+            <span style={{
+              display: "inline-block",
+              padding: "4px 12px",
+              backgroundColor: "#EFF6FF",
+              border: "1px solid #DBEAFE",
+              borderRadius: "9999px",
+              fontSize: "11px",
+              fontWeight: 700,
+              color: "#2563EB",
+              textTransform: "uppercase",
+              letterSpacing: "0.05em"
+            }}>Clinical Platform v2.4</span>
           </div>
         </div>
 
-        <div className="px-10 pb-8">
-          <h2 className="text-xl font-bold text-slate-900 text-center mb-2">Administrator Login</h2>
-          <p className="text-sm text-slate-500 text-center mb-8 leading-relaxed">
+        <div style={{ padding: "0 40px 32px 40px" }}>
+          <h2 style={{
+            fontSize: "20px",
+            fontWeight: 700,
+            color: "#0F172A",
+            textAlign: "center",
+            marginBottom: "8px"
+          }}>Administrator Login</h2>
+          <p style={{
+            fontSize: "14px",
+            color: "#64748B",
+            textAlign: "center",
+            marginBottom: "28px",
+            lineHeight: "1.5"
+          }}>
             Sign in to access your advertising and content dashboards.
           </p>
 
-          <form onSubmit={handleAuth} className="flex flex-col gap-5">
-            <div className="flex flex-col gap-2">
-              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider pl-1">Corporate Email</label>
-              <div className="relative">
-                <Mail className="absolute left-[14px] top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
+          <form onSubmit={handleAuth} style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "20px"
+          }}>
+            <div style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "8px"
+            }}>
+              <label style={{
+                fontSize: "11px",
+                fontWeight: 700,
+                color: "#64748B",
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+                paddingLeft: "4px"
+              }}>Corporate Email</label>
+              <div style={{
+                position: "relative",
+                display: "flex",
+                alignItems: "center"
+              }}>
+                <div style={{
+                  position: "absolute",
+                  left: "14px",
+                  color: "#94A3B8",
+                  pointerEvents: "none",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center"
+                }}>
+                  <Mail size={18} />
+                </div>
                 <input
                   type="email"
                   placeholder="name@hospital.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full py-3.5 pl-11 pr-4 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 transition-all focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
+                  style={{
+                    width: "100%",
+                    padding: "12px 16px 12px 44px",
+                    backgroundColor: "#FFFFFF",
+                    border: "1px solid #CBD5E1",
+                    borderRadius: "10px",
+                    fontSize: "14px",
+                    color: "#0F172A",
+                    outline: "none",
+                    transition: "all 0.15s ease",
+                    boxSizing: "border-box",
+                    height: "46px"
+                  }}
+                  className="focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
                   required
                 />
               </div>
             </div>
 
-            <div className="flex flex-col gap-2">
-              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider pl-1">Security Credentials</label>
-              <div className="relative">
-                <Lock className="absolute left-[14px] top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
+            <div style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "8px"
+            }}>
+              <label style={{
+                fontSize: "11px",
+                fontWeight: 700,
+                color: "#64748B",
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+                paddingLeft: "4px"
+              }}>Security Credentials</label>
+              <div style={{
+                position: "relative",
+                display: "flex",
+                alignItems: "center"
+              }}>
+                <div style={{
+                  position: "absolute",
+                  left: "14px",
+                  color: "#94A3B8",
+                  pointerEvents: "none",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center"
+                }}>
+                  <Lock size={18} />
+                </div>
                 <input
                   type={showPassword ? "text" : "password"}
                   placeholder="••••••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full py-3.5 pl-11 pr-10 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 transition-all focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
+                  style={{
+                    width: "100%",
+                    padding: "12px 40px 12px 44px",
+                    backgroundColor: "#FFFFFF",
+                    border: "1px solid #CBD5E1",
+                    borderRadius: "10px",
+                    fontSize: "14px",
+                    color: "#0F172A",
+                    outline: "none",
+                    transition: "all 0.15s ease",
+                    boxSizing: "border-box",
+                    height: "46px"
+                  }}
+                  className="focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
                   required
                 />
                 <button
                   type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 bg-transparent border-none text-slate-400 cursor-pointer flex items-center justify-center p-1 rounded-md transition-all hover:text-blue-600 hover:bg-blue-50"
+                  style={{
+                    position: "absolute",
+                    right: "12px",
+                    backgroundColor: "transparent",
+                    border: "none",
+                    color: "#94A3B8",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "4px",
+                    borderRadius: "6px",
+                    transition: "all 0.15s ease"
+                  }}
+                  className="hover:text-blue-600 hover:bg-blue-50"
                   onClick={() => setShowPassword(!showPassword)}
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -134,16 +316,39 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <button type="submit" className="w-full p-4 bg-blue-600 text-white rounded-xl text-sm font-bold cursor-pointer transition-all hover:bg-blue-700 hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:translate-y-0 shadow-md" disabled={loading}>
+            <button 
+              type="submit" 
+              style={{
+                width: "100%",
+                padding: "14px",
+                backgroundColor: "#2563EB",
+                color: "#FFFFFF",
+                borderRadius: "10px",
+                fontSize: "14px",
+                fontWeight: 700,
+                border: "none",
+                cursor: "pointer",
+                transition: "all 0.15s ease",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px",
+                boxShadow: "0 4px 6px -1px rgba(37, 99, 235, 0.2), 0 2px 4px -2px rgba(37, 99, 235, 0.2)",
+                marginTop: "8px",
+                height: "48px"
+              }}
+              className="hover:bg-blue-700 hover:-translate-y-0.5 active:translate-y-0 hover:shadow-lg disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:translate-y-0 shadow-md" 
+              disabled={loading}
+            >
               {loading ? (
-                <div className="flex items-center justify-center gap-2">
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
                   <div className="w-4.5 h-4.5 border-3 border-white/30 border-t-white rounded-full animate-spin"></div> Processing...
                 </div>
               ) : (
-                <div className="flex items-center justify-center gap-2">
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
                   <ShieldCheck size={18} />
                   Secure Access
-                  <ArrowRight size={16} className="ml-1" />
+                  <ArrowRight size={16} />
                 </div>
               )}
             </button>
@@ -151,31 +356,83 @@ export default function LoginPage() {
 
           {/* Status Messages */}
           {errorStatus && (
-            <div className="mt-6 p-3 px-4 rounded-xl flex items-center gap-3 text-sm font-medium bg-red-50 text-red-600 border border-red-100 animate-shake">
+            <div style={{
+              marginTop: "20px",
+              padding: "12px 16px",
+              borderRadius: "10px",
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              fontSize: "13px",
+              fontWeight: 500,
+              backgroundColor: "#FEF2F2",
+              color: "#DC2626",
+              border: "1px solid #FEE2E2"
+            }} className="animate-shake">
               <AlertCircle size={16} />
               <span>{errorStatus}</span>
             </div>
           )}
           
           {successStatus && (
-            <div className="mt-6 p-3 px-4 rounded-xl flex items-center gap-3 text-sm font-medium bg-green-50 text-green-600 border border-green-100">
+            <div style={{
+              marginTop: "20px",
+              padding: "12px 16px",
+              borderRadius: "10px",
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              fontSize: "13px",
+              fontWeight: 500,
+              backgroundColor: "#ECFDF5",
+              color: "#059669",
+              border: "1px solid #D1FAE5"
+            }}>
               <CheckCircle2 size={16} />
               <span>{successStatus}</span>
             </div>
           )}
         </div>
 
-        <div className="px-10 pb-10 text-center">
-          <div className="flex items-center gap-4 mb-6 after:content-[''] after:flex-1 after:h-[1px] after:bg-slate-100 before:content-[''] before:flex-1 before:h-[1px] before:bg-slate-100">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Personnel Access Only</span>
+        <div style={{
+          padding: "0 40px 40px 40px",
+          textAlign: "center"
+        }}>
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "16px",
+            marginBottom: "20px"
+          }}>
+            <div style={{ flex: 1, height: "1px", backgroundColor: "#E2E8F0" }}></div>
+            <span style={{
+              fontSize: "11px",
+              fontWeight: 700,
+              color: "#94A3B8",
+              textTransform: "uppercase",
+              letterSpacing: "0.05em"
+            }}>Personnel Access Only</span>
+            <div style={{ flex: 1, height: "1px", backgroundColor: "#E2E8F0" }}></div>
           </div>
-          <p className="text-sm text-slate-500">
+          <p style={{
+            fontSize: "13px",
+            color: "#64748B",
+            margin: 0
+          }}>
             Restricted to authorized administrator accounts only.
           </p>
         </div>
       </div>
       
-      <div className="mt-8 text-center text-xs text-slate-400 opacity-80 relative z-10">
+      <div style={{
+        marginTop: "32px",
+        textAlign: "center",
+        fontSize: "12px",
+        color: "#94A3B8",
+        opacity: 0.8,
+        position: "relative",
+        zIndex: 10
+      }}>
         <p>© 2026 Togahh AI Marketing Systems. Restricted Administrative Access.</p>
       </div>
     </div>
