@@ -10,7 +10,9 @@ async function fetchMetaJson(res) {
   if (!res.ok) {
     const msg = parsed.error?.message || "Unknown Meta API error";
     const subcode = parsed.error?.error_subcode ? ` (Subcode: ${parsed.error.error_subcode})` : "";
-    throw new Error(`Meta API Error: ${msg}${subcode}`);
+    const userTitle = parsed.error?.error_user_title ? ` - ${parsed.error.error_user_title}` : "";
+    const userMsg = parsed.error?.error_user_msg ? `: ${parsed.error.error_user_msg}` : "";
+    throw new Error(`Meta API Error: ${msg}${subcode}${userTitle}${userMsg} | Full: ${JSON.stringify(parsed.error)}`);
   }
   return parsed;
 }
@@ -308,6 +310,9 @@ export async function POST(request) {
       age_min: ageMin,
       age_max: ageMax,
       ...(gender !== 0 ? { genders: [gender] } : {}),
+      targeting_automation: {
+        advantage_audience: 0,
+      },
     };
 
     const dsaFields = isEuTargeted ? {
