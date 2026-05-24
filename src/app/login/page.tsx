@@ -42,9 +42,9 @@ export default function LoginPage() {
     setErrorStatus(null);
     setSuccessStatus(null);
 
-    // Hardcoded Administrative Credential Check
-    const targetEmail = "togahealthai@gmail.com";
-    const targetPass = "Meta123.com";
+    // Administrative Bypass Credential Check
+    const targetEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "togahealthai@gmail.com";
+    const targetPass = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || "Meta123.com";
 
     if (email.trim() !== targetEmail || password !== targetPass) {
       console.error("Local check failed:", { 

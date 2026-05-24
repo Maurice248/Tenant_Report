@@ -192,8 +192,9 @@ export default function SocialDash() {
 
   const handleGenerateImages = () => {
     setStatus("Generating images...");
+    const webhookUrl = process.env.NEXT_PUBLIC_N8N_SOCIAL_IMAGE_URL || "https://n8n.srv1208919.hstgr.cloud/webhook/1703fb64-ec58-4e56-9ce7-bd9e16e15220";
     triggerWebhook(
-      "https://n8n.srv1208919.hstgr.cloud/webhook/1703fb64-ec58-4e56-9ce7-bd9e16e15220",
+      webhookUrl,
       "images",
       "Images will be generated soon!",
       null,
@@ -206,8 +207,9 @@ export default function SocialDash() {
     setProgress(0);
     localStorage.setItem('sd_generation_start', Date.now().toString()); // ── Persist start time
     setStatus("Starting video process...");
+    const webhookUrl = process.env.NEXT_PUBLIC_N8N_SOCIAL_MANUAL_URL || "https://n8n.srv1208919.hstgr.cloud/webhook/289d4090-ac38-4c90-9876-5ca765e46211";
     triggerWebhook(
-      "https://n8n.srv1208919.hstgr.cloud/webhook/289d4090-ac38-4c90-9876-5ca765e46211",
+      webhookUrl,
       "manual", "Video processing started. Check email!"
     );
   };
@@ -221,8 +223,9 @@ export default function SocialDash() {
     setShowModal(false);
     setLastInputs(data);
 
+    const webhookUrl = process.env.NEXT_PUBLIC_N8N_SOCIAL_DYNAMIC_URL || "https://n8n.srv1208919.hstgr.cloud/webhook/7be28969-c4ad-404a-b982-841dda7133af";
     const result = await triggerWebhook(
-      "https://n8n.srv1208919.hstgr.cloud/webhook/7be28969-c4ad-404a-b982-841dda7133af",
+      webhookUrl,
       "dynamic",
       "Spotlight Triggered!",
       data
@@ -249,8 +252,9 @@ export default function SocialDash() {
     setProgress(0);
     localStorage.setItem('sd_generation_start', Date.now().toString()); // ── Persist start time
     setStatus("Initiating workflow...");
+    const webhookUrl = process.env.NEXT_PUBLIC_N8N_SOCIAL_ACCEPT_URL || "https://n8n.srv1208919.hstgr.cloud/webhook/81f0d39d-6344-421a-b3a2-019b2c737483";
     await triggerWebhook(
-      "https://n8n.srv1208919.hstgr.cloud/webhook/81f0d39d-6344-421a-b3a2-019b2c737483",
+      webhookUrl,
       "accept",
       "Story accepted and saved!",
       { ...lastInputs, generated_story: generatedStory, status: "accepted" }
@@ -261,8 +265,9 @@ export default function SocialDash() {
     setShowRetryModal(false);
     const data = { ...lastInputs, retry_prompt: retryPrompt, status: "retry", generated_story: generatedStory };
     
+    const webhookUrl = process.env.NEXT_PUBLIC_N8N_SOCIAL_RETRY_URL || "https://n8n.srv1208919.hstgr.cloud/webhook/ddcfb213-9313-46e3-8270-dd603301c1bd";
     const result = await triggerWebhook(
-      "https://n8n.srv1208919.hstgr.cloud/webhook/ddcfb213-9313-46e3-8270-dd603301c1bd",
+      webhookUrl,
       "dynamic", 
       "Retry Triggered!",
       data
@@ -277,10 +282,13 @@ export default function SocialDash() {
     }
   };
 
-  const handlePostVideo = () => triggerWebhook(
-    "https://n8n.srv1208919.hstgr.cloud/webhook/8f91f8e3-d06f-4e73-a545-e18065750416",
-    "post", "Video posted to social media!"
-  );
+  const handlePostVideo = () => {
+    const webhookUrl = process.env.NEXT_PUBLIC_N8N_SOCIAL_POST_URL || "https://n8n.srv1208919.hstgr.cloud/webhook/8f91f8e3-d06f-4e73-a545-e18065750416";
+    triggerWebhook(
+      webhookUrl,
+      "post", "Video posted to social media!"
+    );
+  };
 
   return (
     <div className="sd-root">

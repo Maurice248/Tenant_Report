@@ -957,7 +957,8 @@ export default function Dashboard() {
     const adData = typeof ad["json data"] === "string" ? JSON.parse(ad["json data"]) : (ad["json data"] || {});
 
     try {
-      const res = await fetch("https://n8n.srv881198.hstgr.cloud/webhook/3ba2e5c5-b680-48b8-a905-6386b74a28d9", {
+      const webhookUrl = process.env.NEXT_PUBLIC_N8N_RETRY_AD_URL || "https://n8n.srv881198.hstgr.cloud/webhook/3ba2e5c5-b680-48b8-a905-6386b74a28d9";
+      const res = await fetch(webhookUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1023,7 +1024,8 @@ export default function Dashboard() {
 
     try {
       // ONE single webhook call with all ad configs bundled together
-      const res = await fetch("https://n8n.srv881198.hstgr.cloud/webhook/generate_ad", {
+      const webhookUrl = process.env.NEXT_PUBLIC_N8N_GENERATE_AD_URL || "https://n8n.srv881198.hstgr.cloud/webhook/generate_ad";
+      const res = await fetch(webhookUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1070,7 +1072,8 @@ export default function Dashboard() {
         }))
       };
 
-      const res = await fetch("https://n8n.srv881198.hstgr.cloud/webhook/3be958fe-3d6e-4ccf-8d72-5a9a0bb2d932", {
+      const webhookUrl = process.env.NEXT_PUBLIC_N8N_ACCEPT_PROMPTS_URL || "https://n8n.srv881198.hstgr.cloud/webhook/3be958fe-3d6e-4ccf-8d72-5a9a0bb2d932";
+      const res = await fetch(webhookUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -3139,7 +3142,8 @@ export default function Dashboard() {
                                       addSbToast(`Generating Video ${idx + 1} ideas via webhook...`);
                                       console.log("Sending to Webhook:", item);
                                       try {
-                                        const res = await fetch("https://n8n.srv881198.hstgr.cloud/webhook/5dd8a76d-f4e4-45b5-808a-c784057d29b1", {
+                                        const webhookUrl = process.env.NEXT_PUBLIC_N8N_SINGLE_IDEA_URL || "https://n8n.srv881198.hstgr.cloud/webhook/5dd8a76d-f4e4-45b5-808a-c784057d29b1";
+                                        const res = await fetch(webhookUrl, {
                                           method: "POST",
                                           headers: { "Content-Type": "application/json" },
                                           body: JSON.stringify(item),
@@ -3257,7 +3261,8 @@ export default function Dashboard() {
                                       addSbToast(`Generating Image ${idx + 1} ideas via webhook...`);
                                       console.log("Sending to Webhook:", item);
                                       try {
-                                        const res = await fetch("https://n8n.srv881198.hstgr.cloud/webhook/5dd8a76d-f4e4-45b5-808a-c784057d29b1", {
+                                        const webhookUrl = process.env.NEXT_PUBLIC_N8N_SINGLE_IDEA_URL || "https://n8n.srv881198.hstgr.cloud/webhook/5dd8a76d-f4e4-45b5-808a-c784057d29b1";
+                                        const res = await fetch(webhookUrl, {
                                           method: "POST",
                                           headers: { "Content-Type": "application/json" },
                                           body: JSON.stringify(item),
