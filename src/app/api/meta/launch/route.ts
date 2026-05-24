@@ -118,7 +118,7 @@ async function createCampaign(existingCampaignId, adAccountId, accessToken, camp
 }
 
 // ── STEP 3: Ad Set ──
-async function createAdSet(adAccountId, accessToken, adSetName, campaignId, isCbo, budgetType, dailyBudget, lifetimeBudget, startTime, stopTime, targeting, dsaBeneficiary, dsaPayor) {
+async function createAdSet(adAccountId, accessToken, adSetName, campaignId, isCbo, budgetType, dailyBudget, lifetimeBudget, startTime, stopTime, targeting, dsaFields) {
   const adSetRes = await fetch(
     `https://graph.facebook.com/v21.0/act_${adAccountId}/adsets`,
     {
@@ -134,8 +134,7 @@ async function createAdSet(adAccountId, accessToken, adSetName, campaignId, isCb
         optimization_goal: "LINK_CLICKS",
         bid_strategy: "LOWEST_COST_WITHOUT_CAP",
         targeting,
-        dsa_beneficiary: dsaBeneficiary,
-        dsa_payor: dsaPayor,
+        ...dsaFields,
         status: "PAUSED",
         access_token: accessToken,
       }),
@@ -246,7 +245,7 @@ export async function POST(request) {
     // ── Resolve config values ──
     const objective       = campaign?.objective        || "OUTCOME_TRAFFIC";
     const campaignName    = campaign?.name             || `[DRAFT] ${objective}_${Date.now()}`;
-    const specialAdCats   = campaign?.special_ad_categories || ["NONE"];
+    const specialAdCats   = (campaign?.special_ad_categories || []).filter((c: string) => c && c !== "NONE");
     const isCbo           = campaign?.is_adset_budget_sharing_enabled || false;
     
     // Budget & Schedule
@@ -299,15 +298,22 @@ export async function POST(request) {
       cleanGeo.countries = ["US"];
     }
 
-    const targeting = {
+    // EU countries require DSA fields — only include them when targeting EU
+    const EU_COUNTRIES = new Set(["AT","BE","BG","CY","CZ","DE","DK","EE","ES","FI","FR","GR","HR","HU","IE","IT","LT","LU","LV","MT","NL","PL","PT","RO","SE","SI","SK"]);
+    const targetedCountries: string[] = cleanGeo.countries || [];
+    const isEuTargeted = targetedCountries.some((c: string) => EU_COUNTRIES.has(c));
+
+    const targeting: any = {
       geo_locations: cleanGeo,
       age_min: ageMin,
       age_max: ageMax,
       ...(gender !== 0 ? { genders: [gender] } : {}),
-      targeting_automation: {
-        advantage_audience: 0,
-      },
     };
+
+    const dsaFields = isEuTargeted ? {
+      dsa_beneficiary: dsaBeneficiary,
+      dsa_payor: dsaPayor,
+    } : {};
 
     // ── Execute Concurrent Tasks: Media Upload & Page ID Fetch ──
     const [mediaPayload, pageId] = await Promise.all([
@@ -324,7 +330,7 @@ export async function POST(request) {
     const adSetId = await createAdSet(
       adAccountId, accessToken, adSetName, campaignId, isCbo, 
       budgetType, dailyBudget, lifetimeBudget, startTime, stopTime, 
-      targeting, dsaBeneficiary, dsaPayor
+      targeting, dsaFields
     );
 
     const creativeId = await createAdCreative(
