@@ -40,6 +40,7 @@ export default function SocialDash() {
   const [lastInputs, setLastInputs] = useState<any>(null);
   const [progress, setProgress] = useState<number>(0);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [generationType, setGenerationType] = useState<'video' | 'images' | null>(null);
   const prevStatusRef = useRef<string | undefined>(undefined); // tracks previous status to detect transitions
   const hasTriggeredInSession = useRef<boolean>(false);
 
@@ -78,11 +79,11 @@ export default function SocialDash() {
     return () => { socialSupabase.removeChannel(channel); };
   }, []);
 
-  // Timer logic for progress bar (max 6 minutes = 360s)
+  // Timer logic for progress bar (max 6 minutes = 360s for video, 60s for images)
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isGenerating) {
-      const MAX_TIME = 360; // seconds
+      const MAX_TIME = generationType === 'images' ? 60 : 360; // seconds
       interval = setInterval(() => {
         setProgress((prev) => {
           if (prev >= 98) {
@@ -96,7 +97,7 @@ export default function SocialDash() {
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isGenerating]);
+  }, [isGenerating, generationType]);
 
   // Monitor status to trigger refresh and progress completion
   useEffect(() => {
@@ -109,6 +110,7 @@ export default function SocialDash() {
       localStorage.removeItem('sd_generation_start');
       setProgress(100);
       setIsGenerating(false);
+      setGenerationType(null);
       handleRefreshPreview();
       if (progress > 0 && progress < 100) {
         showToast("Process completed successfully!", "success");
@@ -124,6 +126,7 @@ export default function SocialDash() {
     ) {
       if (!isGenerating && hasTriggeredInSession.current) {
         setIsGenerating(true);
+        setGenerationType('video');
         setProgress(0);
         localStorage.setItem('sd_generation_start', Date.now().toString());
       }
@@ -179,16 +182,32 @@ export default function SocialDash() {
     }
   };
 
-  const handleGenerateImages = () => {
+  const handleGenerateImages = async () => {
     setStatus("Generating images...");
+    setIsGenerating(true);
+    setGenerationType('images');
+    setProgress(0);
+    hasTriggeredInSession.current = true;
+
     const webhookUrl = process.env.NEXT_PUBLIC_N8N_SOCIAL_IMAGE_URL || "https://n8n.srv1208919.hstgr.cloud/webhook/1703fb64-ec58-4e56-9ce7-bd9e16e15220";
-    triggerWebhook(
+    const result = await triggerWebhook(
       webhookUrl,
       "images",
-      "Images will be generated soon!",
+      "Images generated successfully!",
       null,
       "GET"
     );
+
+    if (result) {
+      setProgress(100);
+      setTimeout(() => {
+        setIsGenerating(false);
+        setGenerationType(null);
+      }, 1000);
+    } else {
+      setIsGenerating(false);
+      setGenerationType(null);
+    }
   };
 
   const handleManualTrigger = () => {
@@ -238,18 +257,32 @@ export default function SocialDash() {
 
   const handleAcceptStory = async () => {
     setGeneratedStory(null); // Clear immediately as requested
-    setIsGenerating(true);   // Show timeline immediately
-    setProgress(0);
-    hasTriggeredInSession.current = true;
-    localStorage.setItem('sd_generation_start', Date.now().toString()); // ── Persist start time
-    setStatus("Initiating workflow...");
+    
     const webhookUrl = process.env.NEXT_PUBLIC_N8N_SOCIAL_ACCEPT_URL || "https://n8n.srv1208919.hstgr.cloud/webhook/81f0d39d-6344-421a-b3a2-019b2c737483";
-    await triggerWebhook(
+    const result = await triggerWebhook(
       webhookUrl,
       "accept",
       "Story accepted and saved!",
       { ...lastInputs, generated_story: generatedStory, status: "accepted" }
     );
+
+    console.log("[UI] handleAcceptStory result:", result);
+
+    const isAccepted = Array.isArray(result)
+      ? (result[0]?.body?.status === "accepted" || result[0]?.status === "accepted" || (result[0]?.body && result[0].body.status === "accepted") || (result[0] && result[0].status === "accepted"))
+      : (result?.body?.status === "accepted" || result?.status === "accepted" || (result?.body && result.body.status === "accepted") || (result && result.status === "accepted"));
+
+    if (isAccepted) {
+      console.log("[UI] Story successfully accepted by webhook. Initiating video progress loader...");
+      setIsGenerating(true);   // Show timeline now
+      setGenerationType('video');
+      setProgress(0);
+      hasTriggeredInSession.current = true;
+      localStorage.setItem('sd_generation_start', Date.now().toString()); // ── Persist start time
+      setStatus("Initiating workflow...");
+    } else {
+      console.warn("[UI] Accept webhook did not return accepted status or failed. Loader will not be shown.");
+    }
   };
 
   const handleRetrySubmit = async (retryPrompt: string) => {
@@ -380,7 +413,9 @@ export default function SocialDash() {
                 <div className="sd-card-icon" style={{ background: '#f0fdfa', color: '#0d9488' }}>
                   <Zap size={20} />
                 </div>
-                <h2 className="sd-card-title">Generation in Progress</h2>
+                <h2 className="sd-card-title">
+                  {generationType === 'images' ? 'Image Generation in Progress' : 'Video Generation in Progress'}
+                </h2>
               </div>
               <div className="sd-card-inner">
                 <div className="sd-timeline-header">
@@ -391,7 +426,9 @@ export default function SocialDash() {
                   <div className="sd-timeline-progress" style={{ width: `${progress}%` }} />
                 </div>
                 <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '8px' }}>
-                  System is currently processing your request. The preview will update automatically.
+                  {generationType === 'images'
+                    ? 'System is currently generating your social images. This may take up to a minute.'
+                    : 'System is currently processing your request. The preview will update automatically.'}
                 </p>
               </div>
             </div>
