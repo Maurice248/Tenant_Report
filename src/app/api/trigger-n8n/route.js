@@ -11,12 +11,12 @@ if (dns.setDefaultResultOrder) {
 // ============================================================
 
 const WEBHOOKS = {
-  competitor_analysis:  "https://n8n.srv881198.hstgr.cloud/webhook/meta_ads_scraper",
-  generate_ad:          "https://n8n.srv881198.hstgr.cloud/webhook/generate_ad",
-  launch_meta_ad:       "https://n8n.srv881198.hstgr.cloud/webhook/launch_ad",
-  stop_campaign:        "https://n8n.srv881198.hstgr.cloud/webhook/stop_campaign",
-  generate_report:      "https://n8n.srv881198.hstgr.cloud/webhook/generate_report",
-  generate_social_post: "https://n8n.srv881198.hstgr.cloud/webhook/social_post",
+  competitor_analysis:  process.env.N8N_COMPETITOR_ANALYSIS_URL || "https://n8n.srv881198.hstgr.cloud/webhook/meta_ads_scraper",
+  generate_ad:          process.env.NEXT_PUBLIC_N8N_GENERATE_AD_URL || "https://n8n.srv881198.hstgr.cloud/webhook/generate_ad",
+  launch_meta_ad:       process.env.N8N_LAUNCH_CAMPAIGN_URL || "https://n8n.srv881198.hstgr.cloud/webhook/launch_ad",
+  stop_campaign:        process.env.N8N_STOP_CAMPAIGN_URL || "https://n8n.srv881198.hstgr.cloud/webhook/stop_campaign",
+  generate_report:      process.env.N8N_GENERATE_REPORT_URL || "https://n8n.srv881198.hstgr.cloud/webhook/generate_report",
+  generate_social_post: process.env.N8N_GENERATE_SOCIAL_POST_URL || "https://n8n.srv881198.hstgr.cloud/webhook/social_post",
 };
 
 export async function POST(request) {
