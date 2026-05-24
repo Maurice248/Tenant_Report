@@ -220,6 +220,8 @@ export default function Dashboard() {
   const [adScenesGenerating, setAdScenesGenerating] = useState({}); // { [itemId]: boolean }
   const [scenesModal, setScenesModal] = useState({ open: false, scenes: [], adLabel: "", itemId: null });
   const [editedScenes, setEditedScenes] = useState([]);     // editable copy of scenes in modal
+  const [failedPrompts, setFailedPrompts] = useState<Array<{ taskId: string; prompt: string; failMsg: string }>>([]);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // Approval queue
   const [scheduledAds, setScheduledAds] = useState([]);
@@ -1029,6 +1031,7 @@ export default function Dashboard() {
 
   async function handleAcceptPrompts() {
     setAcceptingPrompts(true);
+    setFailedPrompts([]); // Clear any previous errors
     addSbToast("Sending accepted prompts to webhook...");
     try {
       // Enrich createTabAdsConfig.items with their corresponding audioKey
@@ -1054,10 +1057,34 @@ export default function Dashboard() {
         }),
       });
       if (res.ok) {
-        addSbToast("Prompts successfully accepted!", "success");
-        addSbToast("Refreshing Supabase Ads previews...", "info");
-        await fetchAdTableLinks();
-        addSbToast("Ads previews successfully updated!", "success");
+        try {
+          const resData = await res.json();
+          console.log("Accept prompts webhook response:", resData);
+          const responseObj = Array.isArray(resData) ? resData[0] : resData;
+          if (responseObj && responseObj.failCount > 0 && Array.isArray(responseObj.data)) {
+            // Parse failures from the n8n response
+            const failures = responseObj.data.filter((task: any) => task.state === "fail");
+            setFailedPrompts(failures.map((f: any) => ({
+              taskId: f.taskId || "",
+              prompt: f.prompt || "",
+              failMsg: f.failMsg || "Generation failed — content may have been flagged as sensitive."
+            })));
+            addSbToast(`${responseObj.failCount} video generation task(s) failed. Open the affected ad card to fix the prompt.`, "error");
+          } else {
+            setFailedPrompts([]);
+            addSbToast("All prompts successfully accepted!", "success");
+            addSbToast("Refreshing Supabase Ads previews...", "info");
+            await fetchAdTableLinks();
+            addSbToast("Ads previews updated!", "success");
+          }
+        } catch {
+          // If JSON parse fails, treat as success
+          setFailedPrompts([]);
+          addSbToast("Prompts successfully accepted!", "success");
+          addSbToast("Refreshing Supabase Ads previews...", "info");
+          await fetchAdTableLinks();
+          addSbToast("Ads previews updated!", "success");
+        }
       } else {
         addSbToast("Failed to accept prompts. Please try again.", "error");
       }
@@ -1066,6 +1093,23 @@ export default function Dashboard() {
     } finally {
       setAcceptingPrompts(false);
     }
+  }
+
+  /** Returns true if any scene in this ad slot matched a failed generation task */
+  function doesSlotHaveError(itemId: any): boolean {
+    if (failedPrompts.length === 0) return false;
+    const scenes: any[] = adScenesMap[itemId] || [];
+    if (scenes.length === 0) return false;
+    return scenes.some((scene: any) =>
+      failedPrompts.some((fail) => {
+        const scenario = (scene.video_scenario || "").trim();
+        const failPrompt = (fail.prompt || "").trim();
+        return (
+          (scenario && failPrompt.length > 10 && (failPrompt.includes(scenario.slice(0, 60)) || scenario.includes(failPrompt.slice(0, 60)))) ||
+          fail.taskId === scene.taskId
+        );
+      })
+    );
   }
 
   function formatSbDate(iso) {
@@ -2989,15 +3033,19 @@ export default function Dashboard() {
                       return (
                         <div key={item.id} style={{
                           borderRadius: 14,
-                          background: isVideo ? "#f0f9ff" : "#fffbeb",
-                          border: `2px solid ${isVideo ? "#bae6fd" : "#fde68a"}`,
+                          background: doesSlotHaveError(item.id) ? "#fff1f2" : isVideo ? "#f0f9ff" : "#fffbeb",
+                          border: doesSlotHaveError(item.id) ? "2px solid #ef4444" : `2px solid ${isVideo ? "#bae6fd" : "#fde68a"}`,
                           overflow: "hidden",
-                          boxShadow: isVideo ? "0 4px 16px rgba(2,132,199,0.08)" : "0 4px 16px rgba(217,119,6,0.08)"
+                          boxShadow: doesSlotHaveError(item.id)
+                            ? "0 4px 20px rgba(239,68,68,0.18)"
+                            : isVideo ? "0 4px 16px rgba(2,132,199,0.08)" : "0 4px 16px rgba(217,119,6,0.08)"
                         }}>
                           {/* Config card header */}
                           <div style={{
                             padding: "14px 20px",
-                            background: isVideo ? "linear-gradient(135deg, #0284c7, #38bdf8)" : "linear-gradient(135deg, #b45309, #d97706)",
+                            background: doesSlotHaveError(item.id)
+                              ? "linear-gradient(135deg, #dc2626, #ef4444)"
+                              : isVideo ? "linear-gradient(135deg, #0284c7, #38bdf8)" : "linear-gradient(135deg, #b45309, #d97706)",
                             display: "flex", alignItems: "center", gap: 10,
                           }}>
                             <span style={{ fontSize: 22 }}>{isVideo ? "🎬" : "🖼️"}</span>
@@ -3337,16 +3385,22 @@ export default function Dashboard() {
                               style={{
                                 marginTop: 16, width: "100%", padding: "13px 0", borderRadius: "var(--radius-md)",
                                 border: "none", fontFamily: "inherit", cursor: "pointer",
-                                background: isVideo ? "linear-gradient(135deg, #0284c7, #38bdf8)" : "linear-gradient(135deg, #b45309, #d97706)",
+                                background: doesSlotHaveError(item.id)
+                                  ? "linear-gradient(135deg, #dc2626, #ef4444)"
+                                  : isVideo ? "linear-gradient(135deg, #0284c7, #38bdf8)" : "linear-gradient(135deg, #b45309, #d97706)",
                                 color: "#fff", fontSize: 12, fontWeight: 700,
                                 display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                                boxShadow: isVideo ? "0 4px 12px rgba(2,132,199,0.35)" : "0 4px 12px rgba(217,119,6,0.35)",
+                                boxShadow: doesSlotHaveError(item.id)
+                                  ? "0 4px 12px rgba(220,38,38,0.40)"
+                                  : isVideo ? "0 4px 12px rgba(2,132,199,0.35)" : "0 4px 12px rgba(217,119,6,0.35)",
                                 transition: "transform 0.15s",
                               }}
                               onMouseEnter={e => e.currentTarget.style.transform = "translateY(-2px)"}
                               onMouseLeave={e => e.currentTarget.style.transform = "translateY(0)"}
                             >
-                              🎬 View Image &amp; Video Prompts &nbsp;·&nbsp; {adScenesMap[item.id].length} scenes
+                              {doesSlotHaveError(item.id)
+                                ? "⚠️ Generation failed — click to fix prompt"
+                                : <>🎬 View Image &amp; Video Prompts &nbsp;·&nbsp; {adScenesMap[item.id].length} scenes</>}
                             </button>
                           ) : null}
                           </div>
@@ -4914,9 +4968,33 @@ export default function Dashboard() {
       </div>
 
       {/* ── Scenes Prompt Modal ── */}
-      {scenesModal.open && (
+      {scenesModal.open && (() => {
+        // Determine which scenes inside this modal are flagged as failed
+        const modalFailures = failedPrompts.filter((fail) =>
+          editedScenes.some((scene: any) => {
+            const scenario = (scene.video_scenario || "").trim();
+            const failPrompt = (fail.prompt || "").trim();
+            return (
+              (scenario && failPrompt.length > 10 && (failPrompt.includes(scenario.slice(0, 60)) || scenario.includes(failPrompt.slice(0, 60)))) ||
+              fail.taskId === scene.taskId
+            );
+          })
+        );
+        const hasFailuresInModal = modalFailures.length > 0;
+        const headerBg = hasFailuresInModal
+          ? "linear-gradient(135deg, #dc2626, #ef4444)"
+          : "linear-gradient(135deg, #0284c7, #0ea5e9)";
+
+        return (
         <div
-          onClick={() => setScenesModal({ open: false, scenes: [], adLabel: "", itemId: null })}
+          onClick={() => {
+            if (hasUnsavedChanges) {
+              addSbToast("You have unsaved changes. Click \"Save Changes\" before closing.", "error");
+              return;
+            }
+            setHasUnsavedChanges(false);
+            setScenesModal({ open: false, scenes: [], adLabel: "", itemId: null });
+          }}
           style={{
             position: "fixed", inset: 0, zIndex: 9999,
             background: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)",
@@ -4928,30 +5006,37 @@ export default function Dashboard() {
             style={{
               background: "#fff", borderRadius: 18, width: "100%", maxWidth: 980,
               maxHeight: "88vh", overflow: "hidden", display: "flex", flexDirection: "column",
-              boxShadow: "0 32px 80px rgba(0,0,0,0.35)",
+              boxShadow: hasFailuresInModal ? "0 32px 80px rgba(220,38,38,0.35)" : "0 32px 80px rgba(0,0,0,0.35)",
+              border: hasFailuresInModal ? "2px solid #ef4444" : "none",
             }}
           >
             {/* Modal Header */}
             <div style={{
               padding: "18px 24px", display: "flex", alignItems: "center", justifyContent: "space-between",
-              background: "linear-gradient(135deg, #0284c7, #0ea5e9)",
+              background: headerBg,
             }}>
               <div style={{ fontSize: 15, fontWeight: 800, color: "#fff", display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 20 }}>🎬</span>
+                <span style={{ fontSize: 20 }}>{hasFailuresInModal ? "⚠️" : "🎬"}</span>
                 {scenesModal.adLabel} — Image &amp; Video Prompts
                 <span style={{ fontSize: 11, background: "rgba(255,255,255,0.2)", padding: "3px 10px", borderRadius: 20, fontWeight: 600 }}>
                   {editedScenes.length} scenes
                 </span>
-                <span style={{ fontSize: 10, background: "rgba(255,255,255,0.15)", padding: "2px 8px", borderRadius: 20, color: "#e0f2fe" }}>
-                  ✏️ Editable
-                </span>
+                {hasFailuresInModal && (
+                  <span style={{ fontSize: 10, background: "rgba(255,255,255,0.25)", padding: "2px 8px", borderRadius: 20, color: "#fff", fontWeight: 700 }}>
+                    {modalFailures.length} FAILED
+                  </span>
+                )}
+                {!hasFailuresInModal && (
+                  <span style={{ fontSize: 10, background: "rgba(255,255,255,0.15)", padding: "2px 8px", borderRadius: 20, color: "#e0f2fe" }}>
+                    ✏️ Editable
+                  </span>
+                )}
               </div>
               <div style={{ display: "flex", gap: 8 }}>
                 {/* Save button */}
                 <button
                   onClick={() => {
                     if (scenesModal.itemId) {
-                      // Save edited scenes back to adScenesMap for all items that share this data
                       setAdScenesMap(prev => {
                         const updated = { ...prev };
                         Object.keys(updated).forEach(k => {
@@ -4962,20 +5047,50 @@ export default function Dashboard() {
                         return updated;
                       });
                     }
+                    setHasUnsavedChanges(false);
                     setScenesModal({ open: false, scenes: [], adLabel: "", itemId: null });
                   }}
                   style={{
-                    background: "#fff", border: "none", color: "#0284c7",
+                    background: "#fff", border: "none",
+                    color: hasFailuresInModal ? "#dc2626" : "#0284c7",
                     borderRadius: 8, padding: "7px 16px", cursor: "pointer", fontSize: 13, fontWeight: 800,
                     boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
                   }}
-                >✓ Save Changes</button>
+                >{hasUnsavedChanges ? "💾 Save Changes *" : "✓ Save Changes"}</button>
                 <button
-                  onClick={() => setScenesModal({ open: false, scenes: [], adLabel: "", itemId: null })}
+                  onClick={() => {
+                    if (hasUnsavedChanges) {
+                      addSbToast("You have unsaved changes. Click \"Save Changes\" before closing.", "error");
+                      return;
+                    }
+                    setHasUnsavedChanges(false);
+                    setScenesModal({ open: false, scenes: [], adLabel: "", itemId: null });
+                  }}
                   style={{ background: "rgba(255,255,255,0.2)", border: "none", color: "#fff", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontSize: 13, fontWeight: 700 }}
                 >✕ Close</button>
               </div>
             </div>
+
+            {/* ── Failure Warning Banner ── */}
+            {hasFailuresInModal && (
+              <div style={{
+                background: "#fef2f2", borderBottom: "2px solid #fecaca",
+                padding: "12px 24px", display: "flex", flexDirection: "column", gap: 8
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 800, color: "#dc2626" }}>
+                  <span style={{ fontSize: 18 }}>⚠️</span>
+                  {modalFailures.length} scene(s) failed to generate. Edit the highlighted video scenario prompt and save.
+                </div>
+                {modalFailures.map((fail, fi) => (
+                  <div key={fi} style={{
+                    background: "#fff", border: "1px solid #fecaca", borderRadius: 8,
+                    padding: "8px 14px", fontSize: 11, color: "#991b1b", lineHeight: 1.6
+                  }}>
+                    <span style={{ fontWeight: 700 }}>Error:</span> {fail.failMsg}
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Column headers */}
             <div style={{ display: "grid", gridTemplateColumns: "44px 1fr 1fr", padding: "10px 20px", background: "#f8fafc", borderBottom: "1.5px solid #e2e8f0" }}>
@@ -4986,71 +5101,124 @@ export default function Dashboard() {
 
             {/* Editable scenes rows */}
             <div style={{ overflowY: "auto", flex: 1 }}>
-              {editedScenes.map((scene, i) => (
-                <div key={i} style={{ display: "grid", gridTemplateColumns: "44px 1fr 1fr", borderBottom: "1px solid #f1f5f9", background: i % 2 === 0 ? "#fff" : "#f8fafc" }}>
-                  {/* Scene number */}
-                  <div style={{ padding: "16px 8px", display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 18 }}>
-                    <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, borderRadius: "50%", background: "#0284c7", color: "#fff", fontSize: 11, fontWeight: 800 }}>{scene.scene}</span>
-                  </div>
+              {editedScenes.map((scene: any, i: number) => {
+                // Check if this specific scene is a failed one
+                const sceneIsFailed = failedPrompts.some((fail) => {
+                  const scenario = (scene.video_scenario || "").trim();
+                  const failPrompt = (fail.prompt || "").trim();
+                  return (
+                    (scenario && failPrompt.length > 10 && (failPrompt.includes(scenario.slice(0, 60)) || scenario.includes(failPrompt.slice(0, 60)))) ||
+                    fail.taskId === scene.taskId
+                  );
+                });
+                const sceneFailMsg = sceneIsFailed
+                  ? (failedPrompts.find((fail) => {
+                      const scenario = (scene.video_scenario || "").trim();
+                      const failPrompt = (fail.prompt || "").trim();
+                      return (scenario && failPrompt.length > 10 && (failPrompt.includes(scenario.slice(0, 60)) || scenario.includes(failPrompt.slice(0, 60)))) || fail.taskId === scene.taskId;
+                    })?.failMsg || "Generation failed.")
+                  : "";
 
-                  {/* Image Prompt — editable */}
-                  <div style={{ padding: "12px 12px 12px 0", borderRight: "1px solid #e2e8f0" }}>
-                    {scene.script_line && (
-                      <div style={{ fontSize: 10, fontWeight: 700, color: "#0284c7", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.04em" }}>{scene.script_line}</div>
+                return (
+                  <div key={i} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                    {/* Failed scene warning sub-header */}
+                    {sceneIsFailed && (
+                      <div style={{
+                        padding: "6px 20px", background: "#fef2f2", borderBottom: "1px solid #fecaca",
+                        fontSize: 11, fontWeight: 700, color: "#dc2626",
+                        display: "flex", alignItems: "center", gap: 6
+                      }}>
+                        <span>⚠️ Scene {scene.scene} failed:</span>
+                        <span style={{ fontWeight: 500 }}>{sceneFailMsg}</span>
+                      </div>
                     )}
-                    <textarea
-                      value={scene.prompt_clean || scene.prompt || ""}
-                      onChange={e => setEditedScenes(prev => {
-                        const arr = [...prev];
-                        arr[i] = { ...arr[i], prompt_clean: e.target.value, prompt: e.target.value };
-                        return arr;
-                      })}
-                      rows={5}
-                      style={{
-                        width: "100%", fontSize: 11, color: "#334155", lineHeight: 1.75,
-                        border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "10px 12px",
-                        resize: "vertical", fontFamily: "inherit", outline: "none",
-                        background: "#f8fafc", transition: "border 0.15s",
-                      }}
-                      onFocus={e => e.target.style.borderColor = "#0284c7"}
-                      onBlur={e => e.target.style.borderColor = "#e2e8f0"}
-                    />
-                  </div>
+                    <div style={{
+                      display: "grid", gridTemplateColumns: "44px 1fr 1fr",
+                      background: sceneIsFailed ? "#fff5f5" : i % 2 === 0 ? "#fff" : "#f8fafc"
+                    }}>
+                      {/* Scene number */}
+                      <div style={{ padding: "16px 8px", display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 18 }}>
+                        <span style={{
+                          display: "inline-flex", alignItems: "center", justifyContent: "center",
+                          width: 24, height: 24, borderRadius: "50%",
+                          background: sceneIsFailed ? "#ef4444" : "#0284c7",
+                          color: "#fff", fontSize: 11, fontWeight: 800
+                        }}>{scene.scene}</span>
+                      </div>
 
-                  {/* Video Scenario — editable */}
-                  <div style={{ padding: "12px 12px" }}>
-                    <textarea
-                      value={scene.video_scenario || ""}
-                      onChange={e => setEditedScenes(prev => {
-                        const arr = [...prev];
-                        arr[i] = { ...arr[i], video_scenario: e.target.value };
-                        return arr;
-                      })}
-                      rows={5}
-                      style={{
-                        width: "100%", fontSize: 11, color: "#6d28d9", lineHeight: 1.75,
-                        border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "10px 12px",
-                        resize: "vertical", fontFamily: "inherit", outline: "none",
-                        background: "#f5f3ff", transition: "border 0.15s",
-                      }}
-                      onFocus={e => e.target.style.borderColor = "#7c3aed"}
-                      onBlur={e => e.target.style.borderColor = "#e2e8f0"}
-                    />
-                    {scene.emotion_type && (
-                      <span style={{
-                        marginTop: 6, display: "inline-block", fontSize: 10, padding: "2px 8px", borderRadius: 20, fontWeight: 700, border: "1px solid",
-                        background: scene.emotion_type === "happy" ? "#f0fdf4" : scene.emotion_type === "sad" ? "#eff6ff" : "#fafafa",
-                        color: scene.emotion_type === "happy" ? "#15803d" : scene.emotion_type === "sad" ? "#1d4ed8" : "#64748b",
-                        borderColor: scene.emotion_type === "happy" ? "#bbf7d0" : scene.emotion_type === "sad" ? "#bfdbfe" : "#e2e8f0",
-                      }}>{scene.emotion_type}</span>
-                    )}
+                      {/* Image Prompt — editable */}
+                      <div style={{ padding: "12px 12px 12px 0", borderRight: "1px solid #e2e8f0" }}>
+                        {scene.script_line && (
+                          <div style={{
+                            fontSize: 10, fontWeight: 700, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.04em",
+                            color: sceneIsFailed ? "#dc2626" : "#0284c7"
+                          }}>{scene.script_line}</div>
+                        )}
+                        <textarea
+                          value={scene.prompt_clean || scene.prompt || ""}
+                          onChange={e => {
+                            setEditedScenes((prev: any[]) => {
+                              const arr = [...prev];
+                              arr[i] = { ...arr[i], prompt_clean: e.target.value, prompt: e.target.value };
+                              return arr;
+                            });
+                            setHasUnsavedChanges(true);
+                          }}
+                          rows={5}
+                          style={{
+                            width: "100%", fontSize: 11, color: "#334155", lineHeight: 1.75,
+                            border: sceneIsFailed ? "1.5px solid #f87171" : "1.5px solid #e2e8f0",
+                            borderRadius: 8, padding: "10px 12px",
+                            resize: "vertical", fontFamily: "inherit", outline: "none",
+                            background: sceneIsFailed ? "#fff1f2" : "#f8fafc", transition: "border 0.15s",
+                          }}
+                          onFocus={e => e.target.style.borderColor = sceneIsFailed ? "#ef4444" : "#0284c7"}
+                          onBlur={e => e.target.style.borderColor = sceneIsFailed ? "#f87171" : "#e2e8f0"}
+                        />
+                      </div>
+
+                      {/* Video Scenario — editable */}
+                      <div style={{ padding: "12px 12px" }}>
+                        <textarea
+                          value={scene.video_scenario || ""}
+                          onChange={e => {
+                            setEditedScenes((prev: any[]) => {
+                              const arr = [...prev];
+                              arr[i] = { ...arr[i], video_scenario: e.target.value };
+                              return arr;
+                            });
+                            setHasUnsavedChanges(true);
+                          }}
+                          rows={5}
+                          style={{
+                            width: "100%", fontSize: 11, lineHeight: 1.75,
+                            color: sceneIsFailed ? "#991b1b" : "#6d28d9",
+                            border: sceneIsFailed ? "1.5px solid #f87171" : "1.5px solid #e2e8f0",
+                            borderRadius: 8, padding: "10px 12px",
+                            resize: "vertical", fontFamily: "inherit", outline: "none",
+                            background: sceneIsFailed ? "#fff1f2" : "#f5f3ff", transition: "border 0.15s",
+                          }}
+                          onFocus={e => e.target.style.borderColor = sceneIsFailed ? "#ef4444" : "#7c3aed"}
+                          onBlur={e => e.target.style.borderColor = sceneIsFailed ? "#f87171" : "#e2e8f0"}
+                        />
+                        {scene.emotion_type && (
+                          <span style={{
+                            marginTop: 6, display: "inline-block", fontSize: 10, padding: "2px 8px", borderRadius: 20, fontWeight: 700, border: "1px solid",
+                            background: scene.emotion_type === "happy" ? "#f0fdf4" : scene.emotion_type === "sad" ? "#eff6ff" : "#fafafa",
+                            color: scene.emotion_type === "happy" ? "#15803d" : scene.emotion_type === "sad" ? "#1d4ed8" : "#64748b",
+                            borderColor: scene.emotion_type === "happy" ? "#bbf7d0" : scene.emotion_type === "sad" ? "#bfdbfe" : "#e2e8f0",
+                          }}>{scene.emotion_type}</span>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
     </div>
   );
