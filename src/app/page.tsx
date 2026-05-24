@@ -4680,56 +4680,6 @@ export default function Dashboard() {
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Retry Overlay */}
-              {isRetryingAd && (
-                <div style={{
-                  position: "absolute", inset: 0, zIndex: 10,
-                  background: "rgba(255,255,255,0.9)", backdropFilter: "blur(8px)",
-                  display: "flex", alignItems: "center", justifyContent: "center", padding: 40
-                }}>
-                  <div style={{ width: "100%", maxWidth: 500, background: "#fff", padding: 30, borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-lg)", border: "1px solid var(--border)" }}>
-                    <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 12, color: "var(--text)" }}>Retry Generation</div>
-                    <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 20 }}>
-                      Provide specific instructions for the AI to improve this creative.
-                    </div>
-                    <textarea
-                      autoFocus
-                      placeholder="e.g. Make it more cinematic and focus on the artist's hands..."
-                      value={retryPrompt}
-                      onChange={(e) => setRetryPrompt(e.target.value)}
-                      style={{
-                        width: "100%", minHeight: 120, padding: 15, borderRadius: "var(--radius-md)",
-                        border: "1px solid var(--border)", background: "var(--surface)",
-                        fontSize: 14, outline: "none", color: "var(--text)", resize: "none", marginBottom: 20,
-                        fontFamily: "inherit"
-                      }}
-                    />
-                    <div style={{ display: "flex", gap: 12 }}>
-                      <button
-                        onClick={() => setIsRetryingAd(false)}
-                        style={{
-                          flex: 1, padding: "12px", borderRadius: "var(--radius-md)", border: "1px solid var(--border)",
-                          background: "var(--surface)", color: "var(--text)", fontWeight: 600, cursor: "pointer"
-                        }}
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={() => handleRetryAdSubmit(ad)}
-                        disabled={!retryPrompt || isRetryingSubmit}
-                        style={{
-                          flex: 1, padding: "12px", borderRadius: "var(--radius-md)", border: "none",
-                          background: "var(--primary)", color: "#fff", fontWeight: 700, cursor: (retryPrompt && !isRetryingSubmit) ? "pointer" : "not-allowed",
-                          opacity: (retryPrompt && !isRetryingSubmit) ? 1 : 0.6
-                        }}
-                      >
-                        {isRetryingSubmit ? <Spinner size={14} /> : "Submit Retry →"}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {/* Header */}
               <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-light)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -4762,16 +4712,6 @@ export default function Dashboard() {
                         }}
                       >
                         ✎ Edit
-                      </button>
-                      <button
-                        onClick={() => setIsRetryingAd(true)}
-                        style={{
-                          padding: "5px 12px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)",
-                          background: "var(--surface)", color: "var(--amber-dark)", fontSize: 11, fontWeight: 600, cursor: "pointer",
-                          display: "flex", alignItems: "center", gap: 4
-                        }}
-                      >
-                        ↻ Retry
                       </button>
                     </>
                   )}
