@@ -41,6 +41,7 @@ export default function SocialDash() {
   const [progress, setProgress] = useState<number>(0);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const prevStatusRef = useRef<string | undefined>(undefined); // tracks previous status to detect transitions
+  const hasTriggeredInSession = useRef<boolean>(false);
 
   // ── Clear progress from localStorage on page load (so refresh removes it) ──
   useEffect(() => {
@@ -121,7 +122,7 @@ export default function SocialDash() {
       status !== "Generating images..." &&
       status !== "Images will be generated soon!"
     ) {
-      if (!isGenerating && !isFirstLoad) {
+      if (!isGenerating && hasTriggeredInSession.current) {
         setIsGenerating(true);
         setProgress(0);
         localStorage.setItem('sd_generation_start', Date.now().toString());
@@ -193,6 +194,7 @@ export default function SocialDash() {
   const handleManualTrigger = () => {
     setIsGenerating(true);
     setProgress(0);
+    hasTriggeredInSession.current = true;
     localStorage.setItem('sd_generation_start', Date.now().toString()); // ── Persist start time
     setStatus("Starting video process...");
     const webhookUrl = process.env.NEXT_PUBLIC_N8N_SOCIAL_MANUAL_URL || "https://n8n.srv1208919.hstgr.cloud/webhook/289d4090-ac38-4c90-9876-5ca765e46211";
@@ -238,6 +240,7 @@ export default function SocialDash() {
     setGeneratedStory(null); // Clear immediately as requested
     setIsGenerating(true);   // Show timeline immediately
     setProgress(0);
+    hasTriggeredInSession.current = true;
     localStorage.setItem('sd_generation_start', Date.now().toString()); // ── Persist start time
     setStatus("Initiating workflow...");
     const webhookUrl = process.env.NEXT_PUBLIC_N8N_SOCIAL_ACCEPT_URL || "https://n8n.srv1208919.hstgr.cloud/webhook/81f0d39d-6344-421a-b3a2-019b2c737483";
