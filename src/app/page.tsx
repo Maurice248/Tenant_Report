@@ -216,6 +216,7 @@ export default function Dashboard() {
 
   // Ad scenes (generated prompts per ad item)
   const [adScenesMap, setAdScenesMap] = useState({});       // { [itemId]: scenesArray }
+  const [adAudioKeysMap, setAdAudioKeysMap] = useState<any>({}); // { [itemId]: audioKey }
   const [adScenesGenerating, setAdScenesGenerating] = useState({}); // { [itemId]: boolean }
   const [scenesModal, setScenesModal] = useState({ open: false, scenes: [], adLabel: "", itemId: null });
   const [editedScenes, setEditedScenes] = useState([]);     // editable copy of scenes in modal
@@ -1035,13 +1036,16 @@ export default function Dashboard() {
 
       // Store scenes under corresponding keys matching their itemIndex
       const scenesMap: any = {};
+      const audioKeysMap: any = {};
       config.items.forEach((item: any, idx: number) => {
         const match = Array.isArray(data)
           ? data.find((d: any) => d.itemIndex === idx) || data[idx]
           : null;
         scenesMap[item.id] = match?.scenes || [];
+        audioKeysMap[item.id] = match?.audioKey || "";
       });
       setAdScenesMap(scenesMap);
+      setAdAudioKeysMap(audioKeysMap);
       setAdStatus("done");
       addSbToast("Ad prompts generated! Click \"View Prompts\" on each ad.", "success");
     } catch (e) {
@@ -1057,14 +1061,25 @@ export default function Dashboard() {
     setAcceptingPrompts(true);
     addSbToast("Sending accepted prompts to webhook...");
     try {
+      // Enrich createTabAdsConfig.items with their corresponding audioKey
+      const enrichedConfig = {
+        ...createTabAdsConfig,
+        items: (createTabAdsConfig.items || []).map((item: any) => ({
+          ...item,
+          audioKey: adAudioKeysMap[item.id] || ""
+        }))
+      };
+
       const res = await fetch("https://n8n.srv881198.hstgr.cloud/webhook/3be958fe-3d6e-4ccf-8d72-5a9a0bb2d932", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           report_id: analysisData?.id || crypto.randomUUID(),
           report_data: analysisData,
-          ads_config: createTabAdsConfig,
-          generated_prompts: adScenesMap
+          ads_config: enrichedConfig,
+          generated_prompts: adScenesMap,
+          audioKeys: adAudioKeysMap,
+          audio_keys: adAudioKeysMap
         }),
       });
       if (res.ok) {
