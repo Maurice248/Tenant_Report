@@ -10,7 +10,7 @@ export async function POST(request) {
   try {
     const { campaignId, campaignData, adSetId, adSetData } = await request.json();
 
-    const results = {};
+    const results: any = {};
 
     // 1. Update Campaign
     if (campaignId && campaignData && Object.keys(campaignData).length > 0) {

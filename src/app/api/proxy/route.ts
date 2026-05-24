@@ -15,7 +15,7 @@ export async function POST(request) {
     // 5-minute timeout for long n8n workflows
     const timeout = setTimeout(() => controller.abort(), 300_000);
 
-    const fetchOptions = {
+    const fetchOptions: any = {
       method: method,
       headers: {
         'Content-Type': 'application/json',

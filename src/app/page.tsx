@@ -1346,6 +1346,46 @@ export default function Dashboard() {
         padding: "0 24px 4rem",
       }}
     >
+      {acceptingPrompts && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 9999,
+          background: "rgba(15, 23, 42, 0.85)", backdropFilter: "blur(12px)",
+          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+          color: "#fff", padding: 20
+        }} className="animate-in fade-in duration-300">
+          <div style={{
+            background: "var(--card-bg, #1e293b)", border: "1px solid var(--border, #334155)",
+            padding: "40px 30px", borderRadius: "var(--radius-lg, 16px)", maxWidth: 500, width: "100%",
+            textAlign: "center", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 20
+          }} className="animate-in zoom-in-95 duration-300">
+            <div style={{
+              width: 80, height: 80, borderRadius: "50%", background: "rgba(34, 197, 94, 0.1)",
+              display: "flex", alignItems: "center", justifyContent: "center", border: "2px dashed #22c55e",
+              animation: "spin 8s linear infinite"
+            }}>
+              <span style={{ fontSize: 36 }}>🎬</span>
+            </div>
+            <div>
+              <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8, color: "var(--text, #fff)" }}>
+                Generating Final Ad Creatives
+              </h3>
+              <p style={{ fontSize: 13, color: "var(--text-muted, #94a3b8)", lineHeight: "1.6" }}>
+                AI is now rendering your high-definition video files, generating authentic voiceovers, and uploading final assets to Supabase storage.
+              </p>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, background: "rgba(34, 197, 94, 0.05)", padding: "10px 20px", borderRadius: "var(--radius-md, 8px)", border: "1.5px solid rgba(34, 197, 94, 0.15)", width: "100%", justifyContent: "center" }}>
+              <Spinner size={16} color="#22c55e" />
+              <span style={{ fontSize: 12, fontWeight: 600, color: "#22c55e", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                Running n8n Workflow...
+              </span>
+            </div>
+            <p style={{ fontSize: 11, color: "var(--text-dim, #64748b)" }}>
+              Please do not close this window. Your dashboard will refresh automatically upon completion.
+            </p>
+          </div>
+        </div>
+      )}
       {/* ── HEADER ── */}
       <div
         style={{

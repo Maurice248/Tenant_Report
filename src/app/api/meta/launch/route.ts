@@ -274,7 +274,7 @@ export async function POST(request) {
       location_types: ["home", "recent"],
     };
     
-    const cleanGeo = { location_types: rawGeo.location_types || ["home", "recent"] };
+    const cleanGeo: any = { location_types: rawGeo.location_types || ["home", "recent"] };
     let hasLocation = false;
     
     if (rawGeo.countries && rawGeo.countries.length > 0) { 
