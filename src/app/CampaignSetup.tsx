@@ -140,6 +140,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }: Camp
   const [launchStep, setLaunchStep] = useState<number>(0);
   const [launchError, setLaunchError] = useState<string>("");
   const [launchSuccess, setLaunchSuccess] = useState<boolean>(false);
+  const [hasLaunchedThisSegment, setHasLaunchedThisSegment] = useState<boolean>(false);
 
   const fetchCampaigns = useCallback(async () => {
     setLoading(true);
@@ -202,6 +203,10 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }: Camp
   }, [selectedAd]);
 
   useEffect(() => {
+    setHasLaunchedThisSegment(false);
+  }, [selectedId, selectedAd]);
+
+  useEffect(() => {
     try {
       const parsed = typeof configJson === "string" ? JSON.parse(configJson) : { ...config };
       let changed = false;
@@ -230,6 +235,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }: Camp
       const parsed = JSON.parse(raw);
       setConfig(parsed);
       setJsonError("");
+      setHasLaunchedThisSegment(false);
     } catch (e: any) {
       setJsonError(e.message);
     }
@@ -239,6 +245,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }: Camp
     const next = { ...config, [section]: { ...config[section], [key]: value } };
     setConfig(next);
     setConfigJson(JSON.stringify(next, null, 2));
+    setHasLaunchedThisSegment(false);
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -285,6 +292,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }: Camp
     };
     setConfig(nextConfig);
     setConfigJson(JSON.stringify(nextConfig, null, 2));
+    setHasLaunchedThisSegment(false);
   };
 
   const handleFullLaunch = async () => {
@@ -314,6 +322,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }: Camp
       if (res.ok) {
         setLaunchStep(5);
         setLaunchSuccess(true);
+        setHasLaunchedThisSegment(true);
         await fetchCampaigns();
       } else {
         let errMsg = data.error || "Launch failed";
@@ -375,10 +384,10 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }: Camp
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3" style={{ marginBottom: 32, padding: "0 8px" }}>
         <div>
           <SectionTitle style={{ marginBottom: 6, fontSize: 24, color: "var(--text)" }}>
-            Clinical Campaign Assembly
+            Facebook Ad Campaign Assembly
           </SectionTitle>
           <div style={{ fontSize: 14, color: "var(--text-muted)", letterSpacing: "0.01em" }}>
-            Design precision treatment pathways and launch structured clinical recruitment draft pipelines.
+            Design precision campaign structures and launch structured Meta Ads draft pipelines.
           </div>
         </div>
         {selectedId && (
@@ -794,32 +803,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }: Camp
                 </div>
               </div>
 
-              <div className="col-span-1 sm:col-span-2 p-4 sm:p-5 bg-slate-50 rounded-2xl border border-slate-200 mt-2">
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-                  <SectionTitle style={{ fontSize: 13, marginBottom: 0, color: "var(--primary-dark)", letterSpacing: "0.05em" }}>DSA TRANSPARENCY</SectionTitle>
-                  <Badge text="Meta Compliance" color="var(--primary)" bg="var(--primary-light)" />
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <FieldGroup label="DSA Beneficiary">
-                    <input 
-                      type="text" 
-                      value={config.ad_set?.dsa_beneficiary || ""} 
-                      onChange={(e) => setField("ad_set", "dsa_beneficiary", e.target.value)} 
-                      placeholder="e.g. HealPoint Health"
-                      style={inputStyle} 
-                    />
-                  </FieldGroup>
-                  <FieldGroup label="DSA Payor">
-                    <input 
-                      type="text" 
-                      value={config.ad_set?.dsa_payor || ""} 
-                      onChange={(e) => setField("ad_set", "dsa_payor", e.target.value)} 
-                      placeholder="e.g. HealPoint Health"
-                      style={inputStyle} 
-                    />
-                  </FieldGroup>
-                </div>
-              </div>
+
 
             </div>
           </Card>
@@ -905,18 +889,18 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }: Camp
                 display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40, flexShrink: 0,
                 boxShadow: "inset 0 2px 4px rgba(0,0,0,0.05)"
               }}>
-                {launchSuccess ? "⚕️" : (selectedId ? "💉" : "💠")}
+                {launchSuccess ? "✨" : (selectedId ? "📥" : "🚀")}
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 26, fontWeight: 900, marginBottom: 10, color: "var(--text)", letterSpacing: "-0.02em" }}>
-                  {launchSuccess ? "Clinical Deployment Verified" : (selectedId ? `Append Protocol to: ${selectedCampaign?.name}` : "Launch New Clinical Operations")}
+                  {launchSuccess ? "Ads Successfully Launched on Facebook" : (selectedId ? `Inject Ads to Campaign: ${selectedCampaign?.name}` : "Launch Ads on Facebook")}
                 </div>
                 <div style={{ fontSize: 16, color: "var(--text-muted)", marginBottom: 32, lineHeight: 1.6 }}>
                   {launchSuccess
-                    ? "The treatment pathway has been synchronized with the advertising network. Draft logs available in Meta Ads Manager."
+                    ? "The ad campaign and assets have been successfully published. Draft logs are available in Meta Ads Manager."
                     : selectedId
-                      ? `Targeting protocols and clinical creatives will be injected into the existing ${selectedCampaign?.name} hierarchy.`
-                      : "Initialize a top-level hospital campaign and set up the automated patient recruitment funnel."}
+                      ? `Selected ad sets and creatives will be injected into the existing ${selectedCampaign?.name} hierarchy.`
+                      : "Deploy this campaign, ad sets, and creative assets directly to Meta Ads Manager."}
                 </div>
 
                 {launching ? (
@@ -924,10 +908,10 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }: Camp
                     <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20 }}>
                       <Spinner size={18} />
                       <span style={{ fontSize: 15, fontWeight: 800, color: "var(--primary-dark)", letterSpacing: "0.02em" }}>
-                        {launchStep === 1 ? "Syncing Patient Data & Media Assets..." :
-                          launchStep === 2 ? "Compiling Medical Schema..." :
-                            launchStep === 3 ? "Building Treatment Path AdSets..." :
-                              "Finalizing Patient Outreach Logic..."}
+                        {launchStep === 1 ? "Uploading Media Assets & Ad Copy..." :
+                          launchStep === 2 ? "Compiling Ad Campaign Schema..." :
+                            launchStep === 3 ? "Building Targeting AdSets..." :
+                              "Finalizing Meta Ad Delivery Logic..."}
                       </span>
                     </div>
                     <div style={{ height: 8, background: "var(--border-light)", borderRadius: 10, overflow: "hidden" }}>
@@ -937,20 +921,26 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }: Camp
                 ) : launchSuccess ? (
                   <div className="flex flex-col sm:flex-row gap-4">
                     <PrimaryButton onClick={() => window.open(`https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${process.env.NEXT_PUBLIC_META_AD_ACCOUNT_ID}`, "_blank")} style={{ background: "var(--secondary)", padding: "18px 36px", fontSize: 16 }}>
-                      Review Protocol ↗
+                      Review on Meta Ads Manager ↗
                     </PrimaryButton>
-                    <button onClick={() => setLaunchSuccess(false)} style={{ padding: "18px 36px", borderRadius: "var(--radius-md)", border: "2px solid var(--border)", background: "#fff", cursor: "pointer", fontSize: 16, fontWeight: 700, transition: "all 0.2s" }}>
-                      Queue Another Segment
+                    <button 
+                      onClick={() => {
+                        setLaunchSuccess(false);
+                        setHasLaunchedThisSegment(false);
+                      }} 
+                      style={{ padding: "18px 36px", borderRadius: "var(--radius-md)", border: "2px solid var(--border)", background: "#fff", cursor: "pointer", fontSize: 16, fontWeight: 700, transition: "all 0.2s" }}
+                    >
+                      Queue Another Campaign Setup
                     </button>
                   </div>
                 ) : (
                   <div className="flex flex-col sm:flex-row gap-4">
                     <PrimaryButton
                       onClick={handleFullLaunch}
-                      disabled={launching}
-                      style={{ background: selectedId ? "var(--amber)" : "var(--primary)", padding: "18px 48px", fontSize: 16, fontWeight: 800, letterSpacing: "0.03em" }}
+                      disabled={launching || hasLaunchedThisSegment}
+                      style={{ background: hasLaunchedThisSegment ? "var(--green)" : (selectedId ? "var(--amber)" : "var(--primary)"), padding: "18px 48px", fontSize: 16, fontWeight: 800, letterSpacing: "0.03em" }}
                     >
-                      {selectedId ? "Execute Protocol Injection →" : "Authorize Clinical Deployment →"}
+                      {hasLaunchedThisSegment ? "Launched Successfully ✓" : (selectedId ? "Inject Ads to Facebook Campaign →" : "Launch Ads on Facebook →")}
                     </PrimaryButton>
                   </div>
                 )}

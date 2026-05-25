@@ -1392,9 +1392,9 @@ export default function Dashboard() {
       style={{
         fontFamily: "var(--font-sans)",
         color: "var(--text)",
-        maxWidth: 1440,
-        margin: "0 auto",
-        padding: "0 24px 4rem",
+        minHeight: "100vh",
+        display: "flex",
+        background: "var(--background)",
       }}
     >
       {acceptingPrompts && (
@@ -1437,26 +1437,33 @@ export default function Dashboard() {
           </div>
         </div>
       )}
-      {/* ── HEADER ── */}
-      <div
+
+      {/* ── LEFT SIDEBAR ── */}
+      <aside
         style={{
+          width: 260,
+          background: "var(--card-bg)",
+          borderRight: "1px solid var(--border)",
+          padding: "24px 16px",
           display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          flexWrap: "wrap",
-          gap: 16,
-          padding: "20px 0 18px",
-          borderBottom: "1px solid var(--border)",
-          marginBottom: 24,
+          flexDirection: "column",
+          gap: 24,
+          flexShrink: 0,
+          position: "sticky",
+          top: 0,
+          height: "100vh",
+          overflowY: "auto",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+          zIndex: 100,
         }}
       >
         {/* Brand */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, paddingBottom: 16, borderBottom: "1px solid var(--border-light)" }}>
           <img
             src="/toga-health-logo.png"
             alt="Toga Health AI"
             style={{
-              width: 44, height: 44,
+              width: 38, height: 38,
               borderRadius: "var(--radius-md)",
               objectFit: "contain",
               background: "#fff",
@@ -1465,101 +1472,120 @@ export default function Dashboard() {
             }}
           />
           <div style={{
-            fontSize: 20, fontWeight: 800, letterSpacing: "-0.03em",
+            fontSize: 18, fontWeight: 800, letterSpacing: "-0.03em",
             color: "var(--text)", lineHeight: 1.1,
           }}>
             Toga Health AI
           </div>
         </div>
 
-        {/* Right side */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        {/* Navigation Tabs */}
+        <nav
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+            flex: 1,
+          }}
+        >
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              style={{
+                ...tabStyle(t.id),
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "flex-start",
+                gap: 10,
+                padding: "10px 14px",
+                borderRadius: "var(--radius-md)",
+                border: "none",
+                fontSize: 13,
+                fontWeight: tab === t.id ? 700 : 500,
+                textAlign: "left",
+                cursor: "pointer",
+                background: tab === t.id ? "var(--primary-light)" : "transparent",
+                color: tab === t.id ? "var(--primary-dark)" : "var(--text-muted)",
+                transition: "all 0.18s ease",
+                boxShadow: tab === t.id ? "0 1px 3px rgba(37,99,235,0.12)" : "none",
+              }}
+              onClick={() => {
+                if (t.externalLink) {
+                  window.open(t.externalLink, "_blank", "noopener,noreferrer");
+                } else {
+                  setTab(t.id);
+                }
+              }}
+            >
+              <span style={{ fontSize: 14, opacity: 0.85 }}>{t.icon}</span>
+              <span style={{ whiteSpace: "nowrap" }}>{t.label}</span>
+            </button>
+          ))}
+        </nav>
 
-          {/* User / Auth */}
+        {/* Sidebar Footer (User Profile & Sign Out) */}
+        <div style={{ borderTop: "1px solid var(--border-light)", paddingTop: 16 }}>
           {user ? (
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{
-                width: 34, height: 34, borderRadius: "50%",
-                background: "var(--primary-light)", border: "2px solid var(--primary-mid)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                color: "var(--primary)",
-              }}>
-                <User size={16} />
-              </div>
-              <div style={{ lineHeight: 1.3 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)" }}>Admin</div>
-                <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{user.email}</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{
+                  width: 32, height: 32, borderRadius: "50%",
+                  background: "var(--primary-light)", border: "2px solid var(--primary-mid)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  color: "var(--primary)", flexShrink: 0
+                }}>
+                  <User size={14} />
+                </div>
+                <div style={{ lineHeight: 1.2, minWidth: 0 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Admin</div>
+                  <div style={{ fontSize: 10, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{user.email}</div>
+                </div>
               </div>
               <button
                 onClick={handleSignOut}
                 style={{
-                  padding: "7px 12px", borderRadius: "var(--radius-md)",
+                  padding: "9px 12px", borderRadius: "var(--radius-md)",
                   border: "1px solid var(--border)", background: "var(--card-bg)",
                   color: "var(--red)", fontSize: 12, fontWeight: 600,
-                  cursor: "pointer", display: "flex", alignItems: "center", gap: 5,
-                  transition: "all 0.15s", fontFamily: "inherit",
+                  cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                  transition: "all 0.15s", fontFamily: "inherit", width: "100%"
                 }}
                 onMouseEnter={(e) => { e.currentTarget.style.background = "var(--red-light)"; e.currentTarget.style.borderColor = "var(--red)"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = "var(--card-bg)"; e.currentTarget.style.borderColor = "var(--border)"; }}
               >
-                <LogOut size={14} /> Sign Out
+                <LogOut size={13} /> Sign Out
               </button>
             </div>
           ) : (
             <button
               onClick={() => router.push("/login")}
               style={{
-                padding: "9px 18px", borderRadius: "var(--radius-md)",
+                padding: "9px 12px", borderRadius: "var(--radius-md)",
                 border: "none", background: "var(--primary)",
-                color: "#fff", fontSize: 13, fontWeight: 700,
-                cursor: "pointer", display: "flex", alignItems: "center", gap: 7,
+                color: "#fff", fontSize: 12, fontWeight: 700,
+                cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
                 boxShadow: "0 4px 12px rgba(37,99,235,0.25)",
-                transition: "all 0.15s", fontFamily: "inherit",
+                transition: "all 0.15s", fontFamily: "inherit", width: "100%"
               }}
               onMouseEnter={(e) => { e.currentTarget.style.background = "var(--primary-dark)"; e.currentTarget.style.boxShadow = "0 6px 16px rgba(37,99,235,0.35)"; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = "var(--primary)"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(37,99,235,0.25)"; }}
             >
-              <LogIn size={15} /> Sign In
+              <LogIn size={13} /> Sign In
             </button>
           )}
         </div>
-      </div>
+      </aside>
 
-      {/* ── NAV TABS ── */}
-      <div
-        className="tab-nav"
+      {/* ── RIGHT MAIN CONTENT ── */}
+      <main
         style={{
-          display: "flex",
-          gap: 4,
-          padding: "6px",
-          background: "var(--card-bg)",
-          borderRadius: "var(--radius-lg)",
-          marginBottom: 28,
-          border: "1px solid var(--border)",
-          boxShadow: "var(--shadow-xs)",
-          overflowX: "auto",
-          position: "sticky",
-          top: 16,
-          zIndex: 100,
+          flex: 1,
+          padding: "24px 32px 4rem",
+          minWidth: 0,
+          overflowY: "auto",
         }}
       >
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            style={tabStyle(t.id)}
-            onClick={() => {
-              if (t.externalLink) {
-                window.open(t.externalLink, "_blank", "noopener,noreferrer");
-              } else {
-                setTab(t.id);
-              }
-            }}
-          >
-            <span style={{ fontSize: 13, opacity: 0.75 }}>{t.icon}</span>
-            <span style={{ whiteSpace: "nowrap" }}>{t.label}</span>
-          </button>
-        ))}
-      </div>
 
       {/* ═══════════════════════════════════════════════════════
           OVERVIEW
@@ -5208,6 +5234,7 @@ export default function Dashboard() {
         );
       })()}
 
+      </main>
     </div>
   );
 }

@@ -19,6 +19,7 @@ import { Badge, Spinner } from './components';
 import { socialSupabase } from '../lib/socialSupabase';
 import GeneratorModal from './GeneratorModal';
 import RetryModal from './RetryModal';
+import ImagePromptModal from './ImagePromptModal';
 
 const medicalBlue = "#0284c7";
 const medicalTeal = "#0d9488";
@@ -36,6 +37,7 @@ export default function SocialDash() {
   const [status, setStatus] = useState<string>("Loading...");
   const [showModal, setShowModal] = useState<boolean>(false);
   const [showRetryModal, setShowRetryModal] = useState<boolean>(false);
+  const [showImageModal, setShowImageModal] = useState<boolean>(false);
   const [generatedStory, setGeneratedStory] = useState<string | null>(null);
   const [lastInputs, setLastInputs] = useState<any>(null);
   const [progress, setProgress] = useState<number>(0);
@@ -182,7 +184,12 @@ export default function SocialDash() {
     }
   };
 
-  const handleGenerateImages = async () => {
+  const handleGenerateImages = () => {
+    setShowImageModal(true);
+  };
+
+  const handleImagePromptSubmit = async (prompt: string) => {
+    setShowImageModal(false);
     setStatus("Generating images...");
     setIsGenerating(true);
     setGenerationType('images');
@@ -194,8 +201,8 @@ export default function SocialDash() {
       webhookUrl,
       "images",
       "Images generated successfully!",
-      null,
-      "GET"
+      { prompt, text: prompt },
+      "POST"
     );
 
     if (result) {
@@ -556,6 +563,13 @@ export default function SocialDash() {
         onOpenChange={setShowRetryModal}
         onSubmit={handleRetrySubmit}
         loading={loading === 'dynamic'}
+      />
+
+      <ImagePromptModal 
+        isOpen={showImageModal}
+        onOpenChange={setShowImageModal}
+        onSubmit={handleImagePromptSubmit}
+        loading={loading === 'images'}
       />
     </div>
   );
