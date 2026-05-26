@@ -25,6 +25,15 @@ export default function LoginPage() {
   const [errorStatus, setErrorStatus] = useState<string | null>(null);
   const [successStatus, setSuccessStatus] = useState<string | null>(null);
 
+  // Forgot Password States
+  const [forgotPasswordMode, setForgotPasswordMode] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+
+  // Reset Password States
+  const [isResetMode, setIsResetMode] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+
   // Clear messages after 5 seconds
   useEffect(() => {
     if (errorStatus || successStatus) {
@@ -36,38 +45,146 @@ export default function LoginPage() {
     }
   }, [errorStatus, successStatus]);
 
+  // Check for recovery access tokens in URL hash (Supabase password reset redirect)
+  useEffect(() => {
+    const checkRecovery = () => {
+      const hash = window.location.hash;
+      if (hash && (hash.includes("type=recovery") || hash.includes("access_token="))) {
+        setIsResetMode(true);
+        setForgotPasswordMode(false);
+        setSuccessStatus("Secure password reset session activated. Please enter your new password below.");
+      }
+    };
+    checkRecovery();
+  }, []);
+
   const handleAuth = async (e: FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setErrorStatus(null);
     setSuccessStatus(null);
 
-    // Administrative Bypass Credential Check
-    const targetEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "togahealthai@gmail.com";
-    const targetPass = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || "Meta123.com";
-
-    if (email.trim() !== targetEmail || password !== targetPass) {
-      console.error("Local check failed:", { 
-        emailMatch: email.trim() === targetEmail, 
-        passMatch: password === targetPass 
-      });
-      setErrorStatus("Invalid administrator credentials. Access restricted.");
+    // Enforce single-user email policy
+    const singleUserEmail = "togahealthai@gmail.com";
+    if (email.trim().toLowerCase() !== singleUserEmail) {
+      setErrorStatus("Access restricted. Only the single authorized administrator account can access this system.");
       setLoading(false);
       return;
     }
 
     try {
-      // Local Session Implementation (Bypassing Supabase Auth)
-      localStorage.setItem("toga_auth_session", "true");
-      localStorage.setItem("toga_user_email", email.trim());
-      
-      setSuccessStatus("Authentication successful. Redirecting...");
-      setTimeout(() => {
-        router.push("/");
-      }, 500);
+      // Authenticate directly with Supabase Auth
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: password
+      });
+
+      if (error) {
+        setErrorStatus(error.message || "Invalid administrator credentials. Access restricted.");
+        setLoading(false);
+        return;
+      }
+
+      if (data?.user) {
+        // Enforce email check again just to be double-safe
+        if (data.user.email?.toLowerCase() !== singleUserEmail) {
+          await supabase.auth.signOut();
+          setErrorStatus("Access restricted. Unapproved administrator account.");
+          setLoading(false);
+          return;
+        }
+
+        // Establish session compatibly with the homepage
+        localStorage.setItem("toga_auth_session", "true");
+        localStorage.setItem("toga_user_email", data.user.email);
+        
+        setSuccessStatus("Authentication successful. Redirecting...");
+        setTimeout(() => {
+          router.push("/");
+        }, 500);
+      }
     } catch (error: any) {
-      console.error("Local Session Error:", error?.message);
-      setErrorStatus("An error occurred during local authentication.");
+      console.error("Supabase Auth Error:", error?.message);
+      setErrorStatus("An unexpected error occurred during authentication.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (e: FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setErrorStatus(null);
+    setSuccessStatus(null);
+
+    const singleUserEmail = "togahealthai@gmail.com";
+    if (forgotEmail.trim().toLowerCase() !== singleUserEmail) {
+      setErrorStatus("Access restricted. You can only request reset links for the single authorized administrator email.");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail.trim(), {
+        redirectTo: `${window.location.origin}/login`
+      });
+
+      if (error) {
+        setErrorStatus(error.message || "Failed to send password reset link.");
+      } else {
+        setSuccessStatus("Secure password reset link has been sent. Please check your email!");
+      }
+    } catch (error: any) {
+      console.error("Supabase Reset Error:", error?.message);
+      setErrorStatus("An unexpected error occurred.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e: FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setErrorStatus(null);
+    setSuccessStatus(null);
+
+    if (newPassword !== confirmNewPassword) {
+      setErrorStatus("Passwords do not match.");
+      setLoading(false);
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setErrorStatus("Password must be at least 6 characters long.");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+
+      if (error) {
+        setErrorStatus(error.message || "Failed to update your password.");
+      } else {
+        setSuccessStatus("Password updated successfully! Redirecting you to login...");
+        
+        // Log out of the recovery session so they can login normally
+        await supabase.auth.signOut();
+        
+        setTimeout(() => {
+          setIsResetMode(false);
+          setForgotPasswordMode(false);
+          setNewPassword("");
+          setConfirmNewPassword("");
+          // Clear hash to prevent reloading loop
+          window.history.replaceState(null, "", window.location.pathname);
+        }, 2000);
+      }
+    } catch (error: any) {
+      console.error("Supabase Update Password Error:", error?.message);
+      setErrorStatus("An unexpected error occurred.");
     } finally {
       setLoading(false);
     }
@@ -167,230 +284,507 @@ export default function LoginPage() {
         </div>
 
         <div style={{ padding: "0 40px 32px 40px" }}>
-          <h2 style={{
-            fontSize: "20px",
-            fontWeight: 700,
-            color: "#0F172A",
-            textAlign: "center",
-            marginBottom: "8px"
-          }}>Administrator Login</h2>
-          <p style={{
-            fontSize: "14px",
-            color: "#64748B",
-            textAlign: "center",
-            marginBottom: "28px",
-            lineHeight: "1.5"
-          }}>
-            Sign in to access your advertising and content dashboards.
-          </p>
-
-          <form onSubmit={handleAuth} style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "20px"
-          }}>
-            <div style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "8px"
-            }}>
-              <label style={{
-                fontSize: "11px",
+          {isResetMode ? (
+            /* ─── RESET PASSWORD FORM ─── */
+            <>
+              <h2 style={{
+                fontSize: "20px",
                 fontWeight: 700,
+                color: "#0F172A",
+                textAlign: "center",
+                marginBottom: "8px"
+              }}>Reset Password</h2>
+              <p style={{
+                fontSize: "14px",
                 color: "#64748B",
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-                paddingLeft: "4px"
-              }}>Corporate Email</label>
-              <div style={{
-                position: "relative",
+                textAlign: "center",
+                marginBottom: "28px",
+                lineHeight: "1.5"
+              }}>
+                Create a secure new password for your administrator account.
+              </p>
+
+              <form onSubmit={handleResetPassword} style={{
                 display: "flex",
-                alignItems: "center"
+                flexDirection: "column",
+                gap: "20px"
               }}>
                 <div style={{
-                  position: "absolute",
-                  left: "14px",
-                  color: "#94A3B8",
-                  pointerEvents: "none",
                   display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center"
+                  flexDirection: "column",
+                  gap: "8px"
                 }}>
-                  <Mail size={18} />
+                  <label style={{
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    color: "#64748B",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                    paddingLeft: "4px"
+                  }}>New Password</label>
+                  <div style={{
+                    position: "relative",
+                    display: "flex",
+                    alignItems: "center"
+                  }}>
+                    <div style={{
+                      position: "absolute",
+                      left: "14px",
+                      color: "#94A3B8",
+                      pointerEvents: "none",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center"
+                    }}>
+                      <Lock size={18} />
+                    </div>
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      placeholder="••••••••••••"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "12px 40px 12px 44px",
+                        backgroundColor: "#FFFFFF",
+                        border: "1px solid #CBD5E1",
+                        borderRadius: "10px",
+                        fontSize: "14px",
+                        color: "#0F172A",
+                        outline: "none",
+                        transition: "all 0.15s ease",
+                        boxSizing: "border-box",
+                        height: "46px"
+                      }}
+                      className="focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
+                      required
+                    />
+                  </div>
                 </div>
-                <input
-                  type="email"
-                  placeholder="name@hospital.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "12px 16px 12px 44px",
-                    backgroundColor: "#FFFFFF",
-                    border: "1px solid #CBD5E1",
-                    borderRadius: "10px",
-                    fontSize: "14px",
-                    color: "#0F172A",
-                    outline: "none",
-                    transition: "all 0.15s ease",
-                    boxSizing: "border-box",
-                    height: "46px"
-                  }}
-                  className="focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
-                  required
-                />
-              </div>
-            </div>
 
-            <div style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "8px"
-            }}>
-              <label style={{
-                fontSize: "11px",
-                fontWeight: 700,
-                color: "#64748B",
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-                paddingLeft: "4px"
-              }}>Security Credentials</label>
-              <div style={{
-                position: "relative",
-                display: "flex",
-                alignItems: "center"
-              }}>
                 <div style={{
-                  position: "absolute",
-                  left: "14px",
-                  color: "#94A3B8",
-                  pointerEvents: "none",
                   display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center"
+                  flexDirection: "column",
+                  gap: "8px"
                 }}>
-                  <Lock size={18} />
+                  <label style={{
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    color: "#64748B",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                    paddingLeft: "4px"
+                  }}>Confirm New Password</label>
+                  <div style={{
+                    position: "relative",
+                    display: "flex",
+                    alignItems: "center"
+                  }}>
+                    <div style={{
+                      position: "absolute",
+                      left: "14px",
+                      color: "#94A3B8",
+                      pointerEvents: "none",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center"
+                    }}>
+                      <Lock size={18} />
+                    </div>
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      placeholder="••••••••••••"
+                      value={confirmNewPassword}
+                      onChange={(e) => setConfirmNewPassword(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "12px 40px 12px 44px",
+                        backgroundColor: "#FFFFFF",
+                        border: "1px solid #CBD5E1",
+                        borderRadius: "10px",
+                        fontSize: "14px",
+                        color: "#0F172A",
+                        outline: "none",
+                        transition: "all 0.15s ease",
+                        boxSizing: "border-box",
+                        height: "46px"
+                      }}
+                      className="focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
+                      required
+                    />
+                  </div>
                 </div>
-                <input
-                  type={showPassword ? "text" : "password"}
-                  placeholder="••••••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+
+                <button 
+                  type="submit" 
                   style={{
                     width: "100%",
-                    padding: "12px 40px 12px 44px",
-                    backgroundColor: "#FFFFFF",
-                    border: "1px solid #CBD5E1",
+                    padding: "14px",
+                    backgroundColor: "#2563EB",
+                    color: "#FFFFFF",
                     borderRadius: "10px",
                     fontSize: "14px",
-                    color: "#0F172A",
-                    outline: "none",
-                    transition: "all 0.15s ease",
-                    boxSizing: "border-box",
-                    height: "46px"
-                  }}
-                  className="focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
-                  required
-                />
-                <button
-                  type="button"
-                  style={{
-                    position: "absolute",
-                    right: "12px",
-                    backgroundColor: "transparent",
+                    fontWeight: 700,
                     border: "none",
-                    color: "#94A3B8",
                     cursor: "pointer",
+                    transition: "all 0.15s ease",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    padding: "4px",
-                    borderRadius: "6px",
-                    transition: "all 0.15s ease"
+                    gap: "8px",
+                    boxShadow: "0 4px 6px -1px rgba(37, 99, 235, 0.2), 0 2px 4px -2px rgba(37, 99, 235, 0.2)",
+                    marginTop: "8px",
+                    height: "48px"
                   }}
-                  className="hover:text-blue-600 hover:bg-blue-50"
-                  onClick={() => setShowPassword(!showPassword)}
+                  className="hover:bg-blue-700 hover:-translate-y-0.5 active:translate-y-0 hover:shadow-lg disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:translate-y-0 shadow-md" 
+                  disabled={loading}
                 >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  {loading ? "Updating Password..." : "Update Password"}
                 </button>
-              </div>
-            </div>
-
-            <button 
-              type="submit" 
-              style={{
-                width: "100%",
-                padding: "14px",
-                backgroundColor: "#2563EB",
-                color: "#FFFFFF",
-                borderRadius: "10px",
-                fontSize: "14px",
+              </form>
+            </>
+          ) : forgotPasswordMode ? (
+            /* ─── FORGOT PASSWORD FORM ─── */
+            <>
+              <h2 style={{
+                fontSize: "20px",
                 fontWeight: 700,
-                border: "none",
-                cursor: "pointer",
-                transition: "all 0.15s ease",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "8px",
-                boxShadow: "0 4px 6px -1px rgba(37, 99, 235, 0.2), 0 2px 4px -2px rgba(37, 99, 235, 0.2)",
-                marginTop: "8px",
-                height: "48px"
-              }}
-              className="hover:bg-blue-700 hover:-translate-y-0.5 active:translate-y-0 hover:shadow-lg disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:translate-y-0 shadow-md" 
-              disabled={loading}
-            >
-              {loading ? (
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
-                  <div className="w-4.5 h-4.5 border-3 border-white/30 border-t-white rounded-full animate-spin"></div> Processing...
-                </div>
-              ) : (
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
-                  <ShieldCheck size={18} />
-                  Secure Access
-                  <ArrowRight size={16} />
-                </div>
-              )}
-            </button>
-          </form>
+                color: "#0F172A",
+                textAlign: "center",
+                marginBottom: "8px"
+              }}>Forgot Password</h2>
+              <p style={{
+                fontSize: "14px",
+                color: "#64748B",
+                textAlign: "center",
+                marginBottom: "28px",
+                lineHeight: "1.5"
+              }}>
+                Enter the administrator email to receive a secure recovery link.
+              </p>
 
-          {/* Status Messages */}
-          {errorStatus && (
-            <div style={{
-              marginTop: "20px",
-              padding: "12px 16px",
-              borderRadius: "10px",
-              display: "flex",
-              alignItems: "center",
-              gap: "12px",
-              fontSize: "13px",
-              fontWeight: 500,
-              backgroundColor: "#FEF2F2",
-              color: "#DC2626",
-              border: "1px solid #FEE2E2"
-            }} className="animate-shake">
-              <AlertCircle size={16} />
-              <span>{errorStatus}</span>
-            </div>
-          )}
-          
-          {successStatus && (
-            <div style={{
-              marginTop: "20px",
-              padding: "12px 16px",
-              borderRadius: "10px",
-              display: "flex",
-              alignItems: "center",
-              gap: "12px",
-              fontSize: "13px",
-              fontWeight: 500,
-              backgroundColor: "#ECFDF5",
-              color: "#059669",
-              border: "1px solid #D1FAE5"
-            }}>
-              <CheckCircle2 size={16} />
-              <span>{successStatus}</span>
-            </div>
+              <form onSubmit={handleForgotPassword} style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "20px"
+              }}>
+                <div style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "8px"
+                }}>
+                  <label style={{
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    color: "#64748B",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                    paddingLeft: "4px"
+                  }}>Corporate Email</label>
+                  <div style={{
+                    position: "relative",
+                    display: "flex",
+                    alignItems: "center"
+                  }}>
+                    <div style={{
+                      position: "absolute",
+                      left: "14px",
+                      color: "#94A3B8",
+                      pointerEvents: "none",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center"
+                    }}>
+                      <Mail size={18} />
+                    </div>
+                    <input
+                      type="email"
+                      placeholder="togahealthai@gmail.com"
+                      value={forgotEmail}
+                      onChange={(e) => setForgotEmail(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "12px 16px 12px 44px",
+                        backgroundColor: "#FFFFFF",
+                        border: "1px solid #CBD5E1",
+                        borderRadius: "10px",
+                        fontSize: "14px",
+                        color: "#0F172A",
+                        outline: "none",
+                        transition: "all 0.15s ease",
+                        boxSizing: "border-box",
+                        height: "46px"
+                      }}
+                      className="focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <button 
+                  type="submit" 
+                  style={{
+                    width: "100%",
+                    padding: "14px",
+                    backgroundColor: "#2563EB",
+                    color: "#FFFFFF",
+                    borderRadius: "10px",
+                    fontSize: "14px",
+                    fontWeight: 700,
+                    border: "none",
+                    cursor: "pointer",
+                    transition: "all 0.15s ease",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                    boxShadow: "0 4px 6px -1px rgba(37, 99, 235, 0.2), 0 2px 4px -2px rgba(37, 99, 235, 0.2)",
+                    marginTop: "8px",
+                    height: "48px"
+                  }}
+                  className="hover:bg-blue-700 hover:-translate-y-0.5 active:translate-y-0 hover:shadow-lg disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:translate-y-0 shadow-md" 
+                  disabled={loading}
+                >
+                  {loading ? "Sending..." : "Send Reset Link"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForgotPasswordMode(false);
+                    setErrorStatus(null);
+                    setSuccessStatus(null);
+                  }}
+                  style={{
+                    fontSize: "13px",
+                    color: "#2563EB",
+                    fontWeight: 600,
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    marginTop: "4px"
+                  }}
+                  className="hover:underline"
+                >
+                  Back to Login
+                </button>
+              </form>
+            </>
+          ) : (
+            /* ─── STANDARD LOGIN FORM ─── */
+            <>
+              <h2 style={{
+                fontSize: "20px",
+                fontWeight: 700,
+                color: "#0F172A",
+                textAlign: "center",
+                marginBottom: "8px"
+              }}>Administrator Login</h2>
+              <p style={{
+                fontSize: "14px",
+                color: "#64748B",
+                textAlign: "center",
+                marginBottom: "28px",
+                lineHeight: "1.5"
+              }}>
+                Sign in to access your advertising and content dashboards.
+              </p>
+
+              <form onSubmit={handleAuth} style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "20px"
+              }}>
+                <div style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "8px"
+                }}>
+                  <label style={{
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    color: "#64748B",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                    paddingLeft: "4px"
+                  }}>Corporate Email</label>
+                  <div style={{
+                    position: "relative",
+                    display: "flex",
+                    alignItems: "center"
+                  }}>
+                    <div style={{
+                      position: "absolute",
+                      left: "14px",
+                      color: "#94A3B8",
+                      pointerEvents: "none",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center"
+                    }}>
+                      <Mail size={18} />
+                    </div>
+                    <input
+                      type="email"
+                      placeholder="togahealthai@gmail.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "12px 16px 12px 44px",
+                        backgroundColor: "#FFFFFF",
+                        border: "1px solid #CBD5E1",
+                        borderRadius: "10px",
+                        fontSize: "14px",
+                        color: "#0F172A",
+                        outline: "none",
+                        transition: "all 0.15s ease",
+                        boxSizing: "border-box",
+                        height: "46px"
+                      }}
+                      className="focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "8px"
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+                    <label style={{
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      color: "#64748B",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.05em",
+                      paddingLeft: "4px",
+                      flex: 1
+                    }}>Security Credentials</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setForgotPasswordMode(true);
+                        setForgotEmail(email); // Autofill email if typed
+                        setErrorStatus(null);
+                        setSuccessStatus(null);
+                      }}
+                      style={{
+                        fontSize: "11px",
+                        color: "#2563EB",
+                        fontWeight: 700,
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em"
+                      }}
+                      className="hover:underline"
+                    >
+                      Forgot Password?
+                    </button>
+                  </div>
+                  <div style={{
+                    position: "relative",
+                    display: "flex",
+                    alignItems: "center"
+                  }}>
+                    <div style={{
+                      position: "absolute",
+                      left: "14px",
+                      color: "#94A3B8",
+                      pointerEvents: "none",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center"
+                    }}>
+                      <Lock size={18} />
+                    </div>
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      placeholder="••••••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "12px 40px 12px 44px",
+                        backgroundColor: "#FFFFFF",
+                        border: "1px solid #CBD5E1",
+                        borderRadius: "10px",
+                        fontSize: "14px",
+                        color: "#0F172A",
+                        outline: "none",
+                        transition: "all 0.15s ease",
+                        boxSizing: "border-box",
+                        height: "46px"
+                      }}
+                      className="focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
+                      required
+                    />
+                    <button
+                      type="button"
+                      style={{
+                        position: "absolute",
+                        right: "12px",
+                        backgroundColor: "transparent",
+                        border: "none",
+                        color: "#94A3B8",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        padding: "4px",
+                        borderRadius: "6px",
+                        transition: "all 0.15s ease"
+                      }}
+                      className="hover:text-blue-600 hover:bg-blue-50"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                </div>
+
+                <button 
+                  type="submit" 
+                  style={{
+                    width: "100%",
+                    padding: "14px",
+                    backgroundColor: "#2563EB",
+                    color: "#FFFFFF",
+                    borderRadius: "10px",
+                    fontSize: "14px",
+                    fontWeight: 700,
+                    border: "none",
+                    cursor: "pointer",
+                    transition: "all 0.15s ease",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                    boxShadow: "0 4px 6px -1px rgba(37, 99, 235, 0.2), 0 2px 4px -2px rgba(37, 99, 235, 0.2)",
+                    marginTop: "8px",
+                    height: "48px"
+                  }}
+                  className="hover:bg-blue-700 hover:-translate-y-0.5 active:translate-y-0 hover:shadow-lg disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:translate-y-0 shadow-md" 
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+                      <div className="w-4.5 h-4.5 border-3 border-white/30 border-t-white rounded-full animate-spin"></div> Processing...
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+                      <ShieldCheck size={18} />
+                      Secure Access
+                      <ArrowRight size={16} />
+                    </div>
+                  )}
+                </button>
+              </form>
+            </>
           )}
         </div>
 
@@ -423,7 +817,7 @@ export default function LoginPage() {
           </p>
         </div>
       </div>
-      
+
       <div style={{
         marginTop: "32px",
         textAlign: "center",
@@ -438,5 +832,3 @@ export default function LoginPage() {
     </div>
   );
 }
-
-
