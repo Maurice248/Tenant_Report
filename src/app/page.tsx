@@ -5323,39 +5323,40 @@ export default function Dashboard() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: 'rgba(15, 23, 42, 0.45)',
-            backdropFilter: 'blur(8px)',
-            WebkitBackdropFilter: 'blur(8px)',
-            animation: 'fadeIn 0.2s ease-out'
+            background: 'rgba(15, 23, 42, 0.6)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            animation: 'fadeIn 0.25s ease-out'
           }}
         >
           <div 
             style={{
               background: '#ffffff',
               borderRadius: '16px',
-              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04), 0 0 0 1px rgba(239, 68, 68, 0.1)',
+              border: '2px solid #fca5a5',
+              borderTop: '6px solid #dc2626',
+              boxShadow: '0 0 30px rgba(239, 68, 68, 0.25), 0 20px 25px -5px rgba(0, 0, 0, 0.15)',
               width: '100%',
               maxWidth: '480px',
               padding: '24px',
               margin: '20px',
-              borderTop: '4px solid #ef4444',
-              animation: 'scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+              animation: 'scaleIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
             }}
           >
             <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
               <div 
                 style={{
-                  background: '#fef2f2',
+                  background: '#fee2e2',
                   borderRadius: '50%',
                   padding: '10px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: '#ef4444',
+                  color: '#dc2626',
                   flexShrink: 0
                 }}
               >
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
                   <line x1="12" y1="9" x2="12" y2="13"/>
                   <line x1="12" y1="17" x2="12.01" y2="17"/>
@@ -5365,10 +5366,11 @@ export default function Dashboard() {
                 <h3 
                   style={{
                     fontSize: '16px',
-                    fontWeight: 700,
-                    color: '#1e293b',
+                    fontWeight: 800,
+                    color: '#b91c1c',
                     margin: '0 0 8px 0',
-                    lineHeight: '1.25'
+                    lineHeight: '1.25',
+                    letterSpacing: '-0.01em'
                   }}
                 >
                   Workflow Execution Error
@@ -5376,11 +5378,12 @@ export default function Dashboard() {
                 <p 
                   style={{
                     fontSize: '13px',
-                    color: '#64748b',
+                    color: '#475569',
                     margin: '0 0 20px 0',
                     lineHeight: '1.5',
                     wordBreak: 'break-word',
-                    whiteSpace: 'pre-wrap'
+                    whiteSpace: 'pre-wrap',
+                    fontWeight: 500
                   }}
                 >
                   {errorNotification}
@@ -5398,24 +5401,25 @@ export default function Dashboard() {
                   setErrorNotificationTime(null);
                 }}
                 style={{
-                  padding: '8px 16px',
-                  borderRadius: '8px',
+                  padding: '10px 20px',
+                  borderRadius: '10px',
                   fontSize: '13px',
-                  fontWeight: 600,
-                  color: '#475569',
-                  background: '#f1f5f9',
+                  fontWeight: 700,
+                  color: '#ffffff',
+                  background: 'linear-gradient(135deg, #ef4444, #dc2626)',
                   border: 'none',
                   cursor: 'pointer',
                   transition: 'all 0.15s ease',
-                  outline: 'none'
+                  outline: 'none',
+                  boxShadow: '0 4px 12px rgba(239, 68, 68, 0.3)'
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = '#e2e8f0';
-                  e.currentTarget.style.color = '#1e293b';
+                  e.currentTarget.style.transform = 'translateY(-1px)';
+                  e.currentTarget.style.boxShadow = '0 6px 16px rgba(239, 68, 68, 0.45)';
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.background = '#f1f5f9';
-                  e.currentTarget.style.color = '#475569';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.3)';
                 }}
               >
                 Dismiss Error
