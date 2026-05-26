@@ -1182,6 +1182,12 @@ export default function Dashboard() {
     return `${day} ${mon} ${d.getFullYear()}`;
   }
 
+  function formatSbTime(iso) {
+    if (!iso) return "00:00";
+    const d = new Date(iso);
+    return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
+  }
+
   function truncateSb(str, len = 200) {
     if (!str) return "";
     return str.length > len ? str.slice(0, len) + "..." : str;
@@ -1841,7 +1847,7 @@ export default function Dashboard() {
             height: "fit-content", boxShadow: "var(--shadow-sm)"
           }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", borderBottom: "1px solid var(--border)", paddingBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
-              <span>📜</span> Analysis History
+              <span>📜</span> Previous Runs
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: "70vh", overflowY: "auto", paddingRight: 4 }}>
               {[...sbRows].reverse().map((row) => {
@@ -1851,7 +1857,7 @@ export default function Dashboard() {
                     padding: 12, borderRadius: "var(--radius-md)", border: "0.5px solid var(--border-light)",
                     background: "var(--surface)", transition: "transform 0.15s, border-color 0.15s"
                   }} onMouseEnter={(e) => e.currentTarget.style.borderColor = "var(--primary)"} onMouseLeave={(e) => e.currentTarget.style.borderColor = "var(--border-light)"}>
-                    <div style={{ fontWeight: 600, color: "var(--text)", fontSize: 11, marginBottom: 2 }}>{report.topic || "Untitled Run"}</div>
+                    <div style={{ fontWeight: 600, color: "var(--text)", fontSize: 11, marginBottom: 2 }}>{report.topic || `Run at ${formatSbTime(row.created_at)}`}</div>
                     <div style={{ fontSize: 9, color: "var(--text-muted)", marginBottom: 10, display: "flex", alignItems: "center", gap: 4 }}>
                       <span>📅</span> {formatSbDate(row.created_at)}
                     </div>
