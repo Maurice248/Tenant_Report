@@ -237,6 +237,7 @@ export default function Dashboard() {
   // ── Supabase reports state ──
   const [sbRows, setSbRows] = useState([]);
   const [errorNotification, setErrorNotification] = useState<string | null>(null);
+  const [errorNotificationTime, setErrorNotificationTime] = useState<string | null>(null);
 
   // ── Poll for global n8n errors ──
   useEffect(() => {
@@ -244,11 +245,41 @@ export default function Dashboard() {
 
     const checkErrors = async () => {
       try {
-        const res = await fetch('/api/notifications/error');
-        if (res.ok) {
-          const data = await res.json();
-          if (data && data.message && active) {
-            setErrorNotification(data.message);
+        let { data, error } = await supabase
+          .from("Error Alerts")
+          .select("Error, created_at")
+          .eq("id", 1)
+          .single();
+
+        if (error) {
+          const { data: altData, error: altError } = await supabase
+            .from("error_alerts")
+            .select("Error, created_at")
+            .eq("id", 1)
+            .single();
+          if (!altError && altData) {
+            data = altData;
+            error = null;
+          }
+        }
+
+        if (data && active) {
+          const errMsg = data.Error || "";
+          const createdAt = data.created_at || "";
+
+          if (!errMsg) {
+            setErrorNotification(null);
+            setErrorNotificationTime(null);
+            return;
+          }
+
+          const lastSeenTime = localStorage.getItem("toga_last_seen_error_time");
+          if (lastSeenTime !== createdAt) {
+            setErrorNotification(errMsg);
+            setErrorNotificationTime(createdAt);
+          } else {
+            setErrorNotification(null);
+            setErrorNotificationTime(null);
           }
         }
       } catch (err) {
@@ -5359,13 +5390,12 @@ export default function Dashboard() {
             
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
               <button
-                onClick={async () => {
-                  setErrorNotification(null);
-                  try {
-                    await fetch('/api/notifications/error', { method: 'DELETE' });
-                  } catch (err) {
-                    console.error("[UI] Failed to clear error on server:", err);
+                onClick={() => {
+                  if (errorNotificationTime) {
+                    localStorage.setItem("toga_last_seen_error_time", errorNotificationTime);
                   }
+                  setErrorNotification(null);
+                  setErrorNotificationTime(null);
                 }}
                 style={{
                   padding: '8px 16px',
