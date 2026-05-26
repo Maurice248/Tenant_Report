@@ -341,6 +341,30 @@ export default function Dashboard() {
   const [metaReportsError, setMetaReportsError] = useState("");
   const [selectedCampaignForReports, setSelectedCampaignForReports] = useState(null);
 
+  function resetCreateTabWorkspace() {
+    setCreateTabAdsConfig({
+      totalAds: 1,
+      videoCount: 1,
+      imageCount: 0,
+      items: [
+        { id: Date.now(), type: "video", duration: "28 seconds", audioStyle: "Background Music", videoStyle: "Bold & Colorful", idea: "", character: "male", voiceId: "rTOopItG6FIkKMIVxsl5" }
+      ]
+    });
+    setAdScenesMap({});
+    setAdAudioKeysMap({});
+    setAdStatus("idle");
+    setPromptsAccepted(false);
+    setFailedPrompts([]);
+    setSentIdeaIds({});
+    setGeneratedIdeas({});
+    setWebhookError("");
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("toga_prompts_accepted");
+      localStorage.removeItem("toga_ad_status");
+      localStorage.removeItem("toga_ad_data");
+    }
+  }
+
   const addSbToast = useCallback((message, type = "success") => {
     const id = Date.now();
     setSbToasts((prev) => [...prev, { id, message, type }]);
@@ -767,7 +791,7 @@ export default function Dashboard() {
           if (isFullyDone) {
             setIsStatusPolling(false);
             setAdStatus("idle");
-            addSbToast("Ads generation completed!", "success");
+            addSbToast("Ads Generation Completed! Your ad creatives are being processed. Check the Ad Previews section below.", "success");
           }
         }
       }, 3000);
@@ -1111,6 +1135,8 @@ export default function Dashboard() {
             addSbToast("Refreshing Supabase Ads previews...", "info");
             await fetchAdTableLinks();
             addSbToast("Ads previews updated!", "success");
+            resetCreateTabWorkspace();
+            setIsStatusPolling(true);
           }
         } catch {
           // If JSON parse fails, treat as success
@@ -1119,10 +1145,9 @@ export default function Dashboard() {
           addSbToast("Refreshing Supabase Ads previews...", "info");
           await fetchAdTableLinks();
           addSbToast("Ads previews updated!", "success");
+          resetCreateTabWorkspace();
+          setIsStatusPolling(true);
         }
-        // Mark as accepted (persists on refresh)
-        setPromptsAccepted(true);
-        if (typeof window !== "undefined") localStorage.setItem("toga_prompts_accepted", "true");
       } else {
         addSbToast("Failed to accept prompts. Please try again.", "error");
       }
@@ -3563,21 +3588,6 @@ export default function Dashboard() {
                         {adStatus === "generating" ? (
                           <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#0284c7", fontSize: 13, fontWeight: 700 }}>
                             <Spinner size={16} color="#0284c7" /> Generating prompts… please wait
-                          </div>
-                        ) : promptsAccepted ? (
-                          // ── COMPLETION BANNER (shows after accept, survives refresh) ──
-                          <div style={{
-                            display: "flex", alignItems: "center", gap: 10,
-                            padding: "10px 20px", borderRadius: "var(--radius-lg)",
-                            background: "linear-gradient(135deg, #dcfce7, #bbf7d0)",
-                            border: "1.5px solid #86efac",
-                            boxShadow: "0 2px 8px rgba(34,197,94,0.15)",
-                          }}>
-                            <span style={{ fontSize: 20 }}>✅</span>
-                            <div>
-                              <div style={{ fontSize: 13, fontWeight: 800, color: "#15803d" }}>Ads Generation Completed</div>
-                              <div style={{ fontSize: 11, color: "#166534", marginTop: 1 }}>Your ad creatives are being processed. Check the Ad Previews section below.</div>
-                            </div>
                           </div>
                         ) : Object.values(adScenesMap).some(scenes => Array.isArray(scenes) && scenes.length > 0) ? (
                           <button
