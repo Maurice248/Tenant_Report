@@ -36,7 +36,7 @@ const TABS = [
 
   { id: "reports", label: "Reports", icon: "◧" },
   { id: "social-dash", label: "Social-Dash", icon: "🎨" },
-  { id: "newsletter", label: "Newsletter", icon: "📰", externalLink: "https://newsletter-main-jet.vercel.app/newsletter/generate" },
+  { id: "newsletter", label: "Newsletter", icon: "📰", externalLink: "https://newsletter-weld-rho.vercel.app/newsletter/generate" },
   { id: "outreach", label: "Outreach", icon: "✉️", externalLink: "https://togaah-outreach-kc5r.vercel.app" },
 ];
 
