@@ -24,6 +24,27 @@ import ImagePromptModal from './ImagePromptModal';
 const medicalBlue = "#0284c7";
 const medicalTeal = "#0d9488";
 
+const findScenesRecursively = (obj: any): any[] => {
+  if (!obj) return [];
+  let allScenes: any[] = [];
+  
+  if (Array.isArray(obj)) {
+    for (const item of obj) {
+      allScenes = allScenes.concat(findScenesRecursively(item));
+    }
+  } else if (typeof obj === 'object') {
+    if (obj.scenes && Array.isArray(obj.scenes)) {
+      allScenes = allScenes.concat(obj.scenes);
+    }
+    for (const key in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, key) && key !== 'scenes') {
+        allScenes = allScenes.concat(findScenesRecursively(obj[key]));
+      }
+    }
+  }
+  return allScenes;
+};
+
 interface ToastState {
   message: string;
   type: string;
@@ -39,6 +60,8 @@ export default function SocialDash() {
   const [showRetryModal, setShowRetryModal] = useState<boolean>(false);
   const [showImageModal, setShowImageModal] = useState<boolean>(false);
   const [generatedStory, setGeneratedStory] = useState<string | null>(null);
+  const [generatedScenes, setGeneratedScenes] = useState<any[]>([]);
+  const [acceptedStory, setAcceptedStory] = useState<string | null>(null);
   const [lastInputs, setLastInputs] = useState<any>(null);
   const [progress, setProgress] = useState<number>(0);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
@@ -101,37 +124,16 @@ export default function SocialDash() {
     };
   }, [isGenerating, generationType]);
 
-  // Monitor status to trigger refresh and progress completion
+  // Monitor status to trigger video preview refresh only (completely decoupled from prompt/image loading progress)
   useEffect(() => {
     const isDone = status?.toLowerCase().includes("successfully") || status?.toLowerCase().includes("completed");
     const prevIsDone = prevStatusRef.current?.toLowerCase().includes("successfully") || prevStatusRef.current?.toLowerCase().includes("completed");
     const isFirstLoad = prevStatusRef.current === undefined;
 
     if (isDone && !isFirstLoad && !prevIsDone) {
-      // ✅ Status genuinely JUST changed to done — real completion
-      localStorage.removeItem('sd_generation_start');
-      setProgress(100);
-      setIsGenerating(false);
-      setGenerationType(null);
+      // ✅ Status changed to done (e.g. video created successfully) — refresh preview
       handleRefreshPreview();
-      if (progress > 0 && progress < 100) {
-        showToast("Process completed successfully!", "success");
-      }
-    } else if (!isDone &&
-      status &&
-      status !== "Waiting for Data..." &&
-      status !== "Status Error" &&
-      status !== "Connection Error" &&
-      status !== "Loading..." &&
-      status !== "Generating images..." &&
-      status !== "Images will be generated soon!"
-    ) {
-      if (!isGenerating && hasTriggeredInSession.current) {
-        setIsGenerating(true);
-        setGenerationType('video');
-        setProgress(0);
-        localStorage.setItem('sd_generation_start', Date.now().toString());
-      }
+      showToast("Video preview updated!", "success");
     }
 
     prevStatusRef.current = status; // always update after checking
@@ -232,12 +234,14 @@ export default function SocialDash() {
 
   const handleDynamicTrigger = () => {
     setShowModal(true);
+    setGeneratedScenes([]);
   };
 
   const handleModalSubmit = async (data: any) => {
     console.log("[UI] Modal submitted with data:", data);
     setShowModal(false);
     setLastInputs(data);
+    setGeneratedScenes([]);
 
     const webhookUrl = process.env.NEXT_PUBLIC_N8N_SOCIAL_DYNAMIC_URL || "https://n8n.srv1208919.hstgr.cloud/webhook/7be28969-c4ad-404a-b982-841dda7133af";
     const result = await triggerWebhook(
@@ -263,37 +267,80 @@ export default function SocialDash() {
   };
 
   const handleAcceptStory = async () => {
+    const backupStory = generatedStory;
     setGeneratedStory(null); // Clear immediately as requested
+    setGeneratedScenes([]);
+    setAcceptedStory(null); // Clear any previous accepted story
     
+    // Start progress bar loader immediately on click
+    setIsGenerating(true);
+    setGenerationType('video');
+    setProgress(0);
+    hasTriggeredInSession.current = true;
+    localStorage.setItem('sd_generation_start', Date.now().toString()); // ── Persist start time
+    setStatus("Accepting story and generating prompts...");
+
     const webhookUrl = process.env.NEXT_PUBLIC_N8N_SOCIAL_ACCEPT_URL || "https://n8n.srv1208919.hstgr.cloud/webhook/81f0d39d-6344-421a-b3a2-019b2c737483";
     const result = await triggerWebhook(
       webhookUrl,
       "accept",
       "Story accepted and saved!",
-      { ...lastInputs, generated_story: generatedStory, status: "accepted" }
+      { ...lastInputs, generated_story: backupStory, status: "accepted" }
     );
 
     console.log("[UI] handleAcceptStory result:", result);
 
-    const isAccepted = Array.isArray(result)
-      ? (result[0]?.body?.status === "accepted" || result[0]?.status === "accepted" || (result[0]?.body && result[0].body.status === "accepted") || (result[0] && result[0].status === "accepted"))
-      : (result?.body?.status === "accepted" || result?.status === "accepted" || (result?.body && result.body.status === "accepted") || (result && result.status === "accepted"));
+    const scenes = findScenesRecursively(result) || [];
 
-    if (isAccepted) {
-      console.log("[UI] Story successfully accepted by webhook. Initiating video progress loader...");
-      setIsGenerating(true);   // Show timeline now
-      setGenerationType('video');
-      setProgress(0);
-      hasTriggeredInSession.current = true;
-      localStorage.setItem('sd_generation_start', Date.now().toString()); // ── Persist start time
-      setStatus("Initiating workflow...");
+    const isAccepted = (scenes && scenes.length > 0) || (
+      Array.isArray(result)
+        ? (result[0]?.body?.status === "accepted" || result[0]?.status === "accepted" || (result[0]?.body && result[0].body.status === "accepted") || (result[0] && result[0].status === "accepted"))
+        : (result?.body?.status === "accepted" || result?.status === "accepted" || (result?.body && result.body.status === "accepted") || (result && result.status === "accepted"))
+    );
+
+    if (isAccepted && scenes && scenes.length > 0) {
+      console.log("[UI] Story accepted, scenes returned directly from webhook response. Rendering.");
+      setGeneratedScenes(scenes);
+      setAcceptedStory(backupStory); // Retain accepted story text
+      setProgress(100);
+      setTimeout(() => {
+        setIsGenerating(false);   // Turn off loader since prompts are ready on UI
+        setGenerationType(null);
+      }, 1000);
     } else {
-      console.warn("[UI] Accept webhook did not return accepted status or failed. Loader will not be shown.");
+      if (isAccepted) {
+        console.warn("[UI] Story accepted but no scenes returned in webhook response. Decoupling progress check.");
+      } else {
+        console.warn("[UI] Accept webhook failed or was rejected.");
+      }
+      setIsGenerating(false);
+      setGenerationType(null);
+    }
+  };
+
+  const handleConfirmPrompts = async () => {
+    const webhookUrl = "https://n8n.srv1208919.hstgr.cloud/webhook/c44e7bac-b0db-43a7-96d3-8b2a3f483885";
+    console.log("[UI] Confirming prompts to:", webhookUrl);
+    const result = await triggerWebhook(
+      webhookUrl,
+      "confirm",
+      "Prompts confirmed and sent!",
+      {
+        story: acceptedStory,
+        scenes: generatedScenes,
+        status: "confirmed"
+      },
+      "POST"
+    );
+
+    if (result) {
+      console.log("[UI] Prompts confirmed successfully:", result);
     }
   };
 
   const handleRetrySubmit = async (retryPrompt: string) => {
     setShowRetryModal(false);
+    setGeneratedScenes([]);
     const data = { ...lastInputs, retry_prompt: retryPrompt, status: "retry", generated_story: generatedStory };
     
     const webhookUrl = process.env.NEXT_PUBLIC_N8N_SOCIAL_RETRY_URL || "https://n8n.srv1208919.hstgr.cloud/webhook/ddcfb213-9313-46e3-8270-dd603301c1bd";
@@ -414,7 +461,7 @@ export default function SocialDash() {
           </div>
 
           {/* ---- Generation Progress Timeline ---- */}
-          {isGenerating && (
+          {isGenerating && generatedScenes.length === 0 && (
             <div className="sd-action-card sd-action-card-success animate-fade-in">
               <div className="sd-card-head">
                 <div className="sd-card-icon" style={{ background: '#f0fdfa', color: '#0d9488' }}>
@@ -483,6 +530,154 @@ export default function SocialDash() {
                     {loading === 'accept' 
                       ? <><Spinner size={14} color="white" /> Processing...</> 
                       : <><CheckCircle2 size={14} /> Accept Story</>}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {generatedScenes && generatedScenes.length > 0 && (
+            <div className="sd-action-card sd-action-card-success animate-fade-in" style={{ paddingBottom: 0 }}>
+              <div className="sd-card-head" style={{ borderBottom: '1px solid #dcfce7', paddingBottom: 16 }}>
+                <div className="sd-card-icon" style={{ background: '#f0fdf4', color: '#16a34a' }}>
+                  <ImageIcon size={20} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <h2 className="sd-card-title">Generated Ad Scenes</h2>
+                  <p style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                    Inspect and edit your scaled image and video scenario prompts.
+                  </p>
+                </div>
+                <Badge text={`${generatedScenes.length} scenes`} color="#16a34a" bg="#f0fdf4" />
+              </div>
+              <div className="sd-card-inner" style={{ padding: 0, background: '#ffffff' }}>
+                <div style={{ display: "grid", gridTemplateColumns: "44px 1.1fr 1.3fr 1.3fr", padding: "10px 20px", background: "#f8fafc", borderBottom: "1.5px solid #e2e8f0" }}>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: "#94a3b8", textTransform: "uppercase" }}>#</div>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: "#16a34a", textTransform: "uppercase", letterSpacing: "0.05em", paddingRight: 16 }}>📖 Voiceover Storyline</div>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: "#0284c7", textTransform: "uppercase", letterSpacing: "0.05em", paddingRight: 16 }}>🖼️ Image Prompt</div>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: "#7c3aed", textTransform: "uppercase", letterSpacing: "0.05em", paddingLeft: 16 }}>🎬 Video Scenario</div>
+                </div>
+
+                <div style={{ overflowY: "auto", maxHeight: "450px" }}>
+                  {generatedScenes.map((scene: any, i: number) => (
+                    <div key={i} style={{ display: "grid", gridTemplateColumns: "44px 1.1fr 1.3fr 1.3fr", borderBottom: "1px solid #f1f5f9", background: i % 2 === 0 ? "#fff" : "#f8fafc" }}>
+                      {/* Scene number */}
+                      <div style={{ padding: "16px 8px", display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 18 }}>
+                        <span style={{
+                          display: "inline-flex", alignItems: "center", justifyContent: "center",
+                          width: 24, height: 24, borderRadius: "50%",
+                          background: "#0284c7",
+                          color: "#fff", fontSize: 11, fontWeight: 800
+                        }}>{scene.scene}</span>
+                      </div>
+
+                      {/* Storyline / Story Sentence — editable */}
+                      <div style={{ padding: "12px 12px 12px 0", borderRight: "1px solid #e2e8f0" }}>
+                        <textarea
+                          value={scene.story_sentence || ""}
+                          onChange={(e) => {
+                            setGeneratedScenes((prev: any[]) => {
+                              const arr = [...prev];
+                              arr[i] = { ...arr[i], story_sentence: e.target.value };
+                              return arr;
+                            });
+                          }}
+                          rows={4}
+                          style={{
+                            width: "100%", fontSize: 11, color: "#15803d", fontWeight: 500, lineHeight: 1.75,
+                            border: "1.5px solid #dcfce7",
+                            borderRadius: 8, padding: "10px 12px",
+                            resize: "vertical", fontFamily: "inherit", outline: "none",
+                            background: "#f0fdf4", transition: "border 0.15s",
+                          }}
+                          onFocus={e => e.target.style.borderColor = "#16a34a"}
+                          onBlur={e => e.target.style.borderColor = "#dcfce7"}
+                          placeholder="No voiceover storyline sentence..."
+                        />
+                      </div>
+
+                      {/* Image Prompt — editable */}
+                      <div style={{ padding: "12px 12px 12px 12px", borderRight: "1px solid #e2e8f0" }}>
+                        <textarea
+                          value={scene.prompt || ""}
+                          onChange={(e) => {
+                            setGeneratedScenes((prev: any[]) => {
+                              const arr = [...prev];
+                              arr[i] = { ...arr[i], prompt: e.target.value };
+                              return arr;
+                            });
+                          }}
+                          rows={4}
+                          style={{
+                            width: "100%", fontSize: 11, color: "#334155", lineHeight: 1.75,
+                            border: "1.5px solid #e2e8f0",
+                            borderRadius: 8, padding: "10px 12px",
+                            resize: "vertical", fontFamily: "inherit", outline: "none",
+                            background: "#f8fafc", transition: "border 0.15s",
+                          }}
+                          onFocus={e => e.target.style.borderColor = "#0284c7"}
+                          onBlur={e => e.target.style.borderColor = "#e2e8f0"}
+                          placeholder="No image prompt..."
+                        />
+                      </div>
+
+                      {/* Video Scenario — editable */}
+                      <div style={{ padding: "12px 12px" }}>
+                        <textarea
+                          value={scene.video_scenario || ""}
+                          onChange={(e) => {
+                            setGeneratedScenes((prev: any[]) => {
+                              const arr = [...prev];
+                              arr[i] = { ...arr[i], video_scenario: e.target.value };
+                              return arr;
+                            });
+                          }}
+                          rows={4}
+                          style={{
+                            width: "100%", fontSize: 11, lineHeight: 1.75,
+                            color: "#6d28d9",
+                            border: "1.5px solid #e2e8f0",
+                            borderRadius: 8, padding: "10px 12px",
+                            resize: "vertical", fontFamily: "inherit", outline: "none",
+                            background: "#f5f3ff", transition: "border 0.15s",
+                          }}
+                          onFocus={e => e.target.style.borderColor = "#7c3aed"}
+                          onBlur={e => e.target.style.borderColor = "#e2e8f0"}
+                          placeholder="No video scenario..."
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Footer bar with Confirm Prompts button */}
+                <div style={{
+                  padding: "14px 20px",
+                  borderTop: "1.5px solid #e2e8f0",
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  background: "#f8fafc",
+                  borderBottomLeftRadius: 12,
+                  borderBottomRightRadius: 12
+                }}>
+                  <button
+                    className="sd-btn-primary"
+                    style={{
+                      width: "auto",
+                      padding: "10px 24px",
+                      background: `linear-gradient(135deg, ${medicalBlue}, ${medicalTeal})`,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      borderRadius: 8
+                    }}
+                    onClick={handleConfirmPrompts}
+                    disabled={loading === 'confirm'}
+                  >
+                    {loading === 'confirm' ? (
+                      <><Spinner size={14} color="white" /> Confirming...</>
+                    ) : (
+                      <><CheckCircle2 size={14} /> Confirm Prompts</>
+                    )}
                   </button>
                 </div>
               </div>
