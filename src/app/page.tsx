@@ -239,48 +239,49 @@ export default function Dashboard() {
   const [errorNotification, setErrorNotification] = useState<string | null>(null);
   const [errorNotificationTime, setErrorNotificationTime] = useState<string | null>(null);
 
-  // ── Poll for global n8n errors ──
+  // ── Poll for global n8n errors directly from Supabase (RLS disabled) ──
   useEffect(() => {
     let active = true;
 
+    // Clear any stale localStorage value that used the old timetz format (no date prefix)
+    // The new format is a full timestamptz like "2026-05-26T21:13:47+00:00"
+    const storedTime = localStorage.getItem("toga_last_seen_error_time");
+    if (storedTime && !storedTime.startsWith("20") || (storedTime && storedTime.length < 15)) {
+      localStorage.removeItem("toga_last_seen_error_time");
+    }
+
     const checkErrors = async () => {
       try {
-        let { data, error } = await supabase
+        const { data, error } = await supabase
           .from("Error Alerts")
           .select("Error, updated_at")
           .eq("id", 1)
-          .single();
+          .maybeSingle();
 
-        if (error) {
-          const { data: altData, error: altError } = await supabase
-            .from("error_alerts")
-            .select("Error, updated_at")
-            .eq("id", 1)
-            .single();
-          if (!altError && altData) {
-            data = altData;
-            error = null;
-          }
+        if (!active) return;
+        if (error || !data) {
+          setErrorNotification(null);
+          setErrorNotificationTime(null);
+          return;
         }
 
-        if (data && active) {
-          const errMsg = data.Error || "";
-          const updatedAt = data.updated_at || "";
+        const errMsg: string = data.Error || "";
+        const updatedAt: string = data.updated_at || "";
 
-          if (!errMsg) {
-            setErrorNotification(null);
-            setErrorNotificationTime(null);
-            return;
-          }
+        if (!errMsg) {
+          setErrorNotification(null);
+          setErrorNotificationTime(null);
+          return;
+        }
 
-          const lastSeenTime = localStorage.getItem("toga_last_seen_error_time");
-          if (lastSeenTime !== updatedAt) {
-            setErrorNotification(errMsg);
-            setErrorNotificationTime(updatedAt);
-          } else {
-            setErrorNotification(null);
-            setErrorNotificationTime(null);
-          }
+        // Only show if this updated_at has not been dismissed before
+        const lastSeenTime = localStorage.getItem("toga_last_seen_error_time");
+        if (lastSeenTime !== updatedAt) {
+          setErrorNotification(errMsg);
+          setErrorNotificationTime(updatedAt);
+        } else {
+          setErrorNotification(null);
+          setErrorNotificationTime(null);
         }
       } catch (err) {
         console.error("[UI] Error checking notifications:", err);
@@ -290,8 +291,8 @@ export default function Dashboard() {
     // Check instantly on mount
     checkErrors();
 
-    // Check every 4 seconds
-    const interval = setInterval(checkErrors, 4000);
+    // Check every 5 seconds
+    const interval = setInterval(checkErrors, 5000);
 
     return () => {
       active = false;
@@ -800,7 +801,7 @@ export default function Dashboard() {
           .from("status_table")
           .select("status")
           .eq("id", 1)
-          .single();
+          .maybeSingle();
 
         if (error) {
           console.error("Status polling error:", error);
@@ -3671,8 +3672,28 @@ export default function Dashboard() {
                     )}
 
                     {adStatus === "error" && (
-                      <div style={{ marginTop: 12, padding: 10, borderRadius: "var(--radius-sm)", background: "var(--red-light)", color: "var(--red-strong)", fontSize: 12, border: "0.5px solid var(--red)" }}>
-                        <b>Error:</b> {webhookError}
+                      <div style={{ marginTop: 12, padding: 12, borderRadius: "var(--radius-sm)", background: "var(--red-light)", color: "var(--red-strong)", fontSize: 12, border: "0.5px solid var(--red)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                        <span><b>Error:</b> {webhookError || "Failed to generate ad prompts."}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAdStatus("idle");
+                            setWebhookError("");
+                          }}
+                          style={{
+                            background: "transparent",
+                            border: "none",
+                            color: "var(--red-strong)",
+                            cursor: "pointer",
+                            fontSize: 14,
+                            fontWeight: 800,
+                            padding: "0 4px",
+                            lineHeight: 1
+                          }}
+                          title="Dismiss Error"
+                        >
+                          ✕
+                        </button>
                       </div>
                     )}
                   </div>
