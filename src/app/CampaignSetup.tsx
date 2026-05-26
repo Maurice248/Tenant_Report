@@ -302,11 +302,22 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }: Camp
     setLaunchStep(1);
 
     try {
+      const sanitizedConfig = {
+        ...config,
+        ad_set: {
+          ...config.ad_set,
+          age_min: (config.ad_set?.age_min === "" || config.ad_set?.age_min === undefined) ? 18 : Number(config.ad_set.age_min),
+          age_max: (config.ad_set?.age_max === "" || config.ad_set?.age_max === undefined) ? 65 : Number(config.ad_set.age_max),
+          daily_budget: (config.ad_set?.daily_budget === "" || config.ad_set?.daily_budget === undefined) ? 5000 : Number(config.ad_set.daily_budget),
+          lifetime_budget: (config.ad_set?.lifetime_budget === "" || config.ad_set?.lifetime_budget === undefined) ? 50000 : Number(config.ad_set.lifetime_budget),
+        }
+      };
+
       const res = await fetch("/api/meta/launch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          schema: config,
+          schema: sanitizedConfig,
           campaignId: selectedId || null,
         }),
       });
@@ -725,8 +736,16 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }: Camp
                       <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", fontWeight: 600, fontSize: 14 }}>$</span>
                       <input 
                         type="number" 
-                        value={config.ad_set?.budget_type === "DAILY" ? (config.ad_set?.daily_budget || 0) / 100 : (config.ad_set?.lifetime_budget || 0) / 100} 
-                        onChange={(e) => setField("ad_set", config.ad_set?.budget_type === "DAILY" ? "daily_budget" : "lifetime_budget", Math.round(Number(e.target.value) * 100))} 
+                        value={
+                          config.ad_set?.budget_type === "DAILY" 
+                            ? (config.ad_set?.daily_budget === "" || config.ad_set?.daily_budget === undefined ? "" : config.ad_set?.daily_budget / 100) 
+                            : (config.ad_set?.lifetime_budget === "" || config.ad_set?.lifetime_budget === undefined ? "" : config.ad_set?.lifetime_budget / 100)
+                        } 
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const key = config.ad_set?.budget_type === "DAILY" ? "daily_budget" : "lifetime_budget";
+                          setField("ad_set", key, val === "" ? "" : Math.round(Number(val) * 100));
+                        }} 
                         style={{ ...inputStyle, paddingLeft: 28 }} 
                         placeholder="0.00"
                         step="0.01"
@@ -783,20 +802,26 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }: Camp
                   <FieldGroup label="Min Age">
                     <input 
                       type="number" 
-                      min={13} 
+                      min={18} 
                       max={65} 
-                      value={config.ad_set?.age_min ?? 18} 
-                      onChange={(e) => setField("ad_set", "age_min", Number(e.target.value))} 
+                      value={config.ad_set?.age_min === "" || config.ad_set?.age_min === undefined ? "" : config.ad_set?.age_min} 
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setField("ad_set", "age_min", val === "" ? "" : Number(val));
+                      }} 
                       style={inputStyle} 
                     />
                   </FieldGroup>
                   <FieldGroup label="Max Age">
                     <input 
                       type="number" 
-                      min={13} 
+                      min={18} 
                       max={65} 
-                      value={config.ad_set?.age_max ?? 65} 
-                      onChange={(e) => setField("ad_set", "age_max", Number(e.target.value))} 
+                      value={config.ad_set?.age_max === "" || config.ad_set?.age_max === undefined ? "" : config.ad_set?.age_max} 
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setField("ad_set", "age_max", val === "" ? "" : Number(val));
+                      }} 
                       style={inputStyle} 
                     />
                   </FieldGroup>
