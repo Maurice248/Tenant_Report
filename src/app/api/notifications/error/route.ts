@@ -1,75 +1,82 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { prisma } from '@/lib/prisma';
 
 // GET /api/notifications/error
+// Returns the latest active global error from the database
 export async function GET() {
   try {
-    const { data, error } = await supabase
-      .from('n8n')
-      .select('status')
-      .eq('id', 1);
+    const latestError = await prisma.workflowExecution.findFirst({
+      where: { workflowType: 'GLOBAL_ERROR' },
+      orderBy: { createdAt: 'desc' },
+      select: { errorMessage: true }
+    });
 
-    if (error) {
-      console.error('[API] Supabase GET error:', error);
-      return NextResponse.json({ message: null });
-    }
-
-    const status = data?.[0]?.status || '';
-    if (status.startsWith('Error:')) {
-      const message = status.replace(/^Error:\s*/i, '');
-      return NextResponse.json({ message });
-    }
-
-    return NextResponse.json({ message: null });
+    return NextResponse.json({ message: latestError?.errorMessage || null });
   } catch (err) {
-    console.error('[API] GET execution error:', err);
+    console.error('[API] GET global error error:', err);
     return NextResponse.json({ message: null });
   }
 }
 
 // POST /api/notifications/error
+// Receives error from n8n and stores it in the database via Prisma
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const message = body?.message || body?.Error || body?.error || null;
     
     if (message) {
-      const { error } = await supabase
-        .from('n8n')
-        .update({ status: `Error: ${message}` })
-        .eq('id', 1);
-
-      if (error) {
-        console.error('[API] Supabase POST update error:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+      // Find the administrator user to link the execution record
+      let user = await prisma.user.findUnique({ where: { email: 'togahealthai@gmail.com' } });
+      if (!user) {
+        user = await prisma.user.findFirst();
       }
+
+      if (!user) {
+        console.error('[API] No users found in database to link error execution.');
+        return NextResponse.json({ error: 'Database has no users' }, { status: 500 });
+      }
+
+      // First clean up any older global errors
+      await prisma.workflowExecution.deleteMany({
+        where: { workflowType: 'GLOBAL_ERROR' }
+      });
+
+      // Create a fresh global error execution record
+      const execution = await prisma.workflowExecution.create({
+        data: {
+          userId: user.id,
+          workflowType: 'GLOBAL_ERROR',
+          workflowName: 'Global n8n Workflow Error',
+          status: 'FAILED',
+          inputData: '{}',
+          errorMessage: message
+        }
+      });
+
+      return NextResponse.json({ success: true, message: execution.errorMessage });
     }
 
-    return NextResponse.json({ success: true, message });
+    return NextResponse.json({ success: true, message: null });
   } catch (error: any) {
-    console.error('[API] POST execution error:', error);
-    return NextResponse.json({ error: error?.message || 'Failed to save notification' }, { status: 500 });
+    console.error('[API] POST global error error:', error);
+    return NextResponse.json({ error: error?.message || 'Failed to save global error' }, { status: 500 });
   }
 }
 
 // DELETE /api/notifications/error
+// Clears the active global error from the database
 export async function DELETE() {
   try {
-    const { error } = await supabase
-      .from('n8n')
-      .update({ status: 'Error Cleared' })
-      .eq('id', 1);
-
-    if (error) {
-      console.error('[API] Supabase DELETE error:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    await prisma.workflowExecution.deleteMany({
+      where: { workflowType: 'GLOBAL_ERROR' }
+    });
 
     return NextResponse.json({ success: true });
   } catch (err: any) {
-    console.error('[API] DELETE execution error:', err);
-    return NextResponse.json({ error: err?.message || 'Failed to clear error' }, { status: 500 });
+    console.error('[API] DELETE global error error:', err);
+    return NextResponse.json({ error: err?.message || 'Failed to clear global error' }, { status: 500 });
   }
 }
