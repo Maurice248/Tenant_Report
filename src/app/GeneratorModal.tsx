@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
-import { X, Wand2, Music, Mic2, Monitor, MessageSquare, Tag } from 'lucide-react';
+import { X, Wand2, Music, Mic2, Monitor, MessageSquare, Tag, User } from 'lucide-react';
 import { Spinner } from './components';
 
 interface GeneratorModalProps {
@@ -12,8 +12,22 @@ interface GeneratorModalProps {
   loading: boolean;
 }
 
+const VOICE_OPTIONS = {
+  male: [
+    { id: "KLoLpdGWK7agg0O2TJYg", label: "Charlie - Men" },
+    { id: "eqz5FuihuZwmJPuvZ65E", label: "Jess - Men" }
+  ],
+  female: [
+    { id: "wrxvN1LZJIfL3HHvffqe", label: "Bella - Lady" },
+    { id: "odyUrTN5HMVKujvVAgWW", label: "Emily - Lady" },
+    { id: "aD6riP1btT197c6dACmy", label: "Rachel - Lady" },
+    { id: "KClAuq9Hs0wFY7oJmaGN", label: "Maayan - Lady" }
+  ]
+};
+
 const initialFormData = {
-  category: "hair_transplant",
+  character: "male",
+  category: "Hair Transplant",
   description: "",
   videoStyle: "Highly Realistic 4k, real life",
   language: "English",
@@ -23,6 +37,12 @@ const initialFormData = {
 
 export default function GeneratorModal({ isOpen, onOpenChange, onSubmit, loading }: GeneratorModalProps) {
   const [formData, setFormData] = useState(initialFormData);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setFormData(initialFormData);
+    }
+  }, [isOpen]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -64,17 +84,14 @@ export default function GeneratorModal({ isOpen, onOpenChange, onSubmit, loading
               {/* Category */}
               <div className="sd-form-field">
                 <label className="sd-form-label"><Tag size={13} /> Category</label>
-                <select 
+                <input 
+                  type="text"
                   name="category" 
                   value={formData.category} 
                   onChange={handleChange}
                   className="sd-form-select"
-                >
-                  <option value="hair_transplant">Hair Transplant</option>
-                  <option value="dental_treatment">Dental Treatment</option>
-                  <option value="liposuction">Liposuction - Fat Removal</option>
-                  <option value="nose_job">Nose Job - Rhinoplasty</option>
-                </select>
+                  placeholder="e.g. Hair Transplant"
+                />
               </div>
 
               {/* Video Style */}
@@ -89,6 +106,43 @@ export default function GeneratorModal({ isOpen, onOpenChange, onSubmit, loading
                   <option value="Highly Realistic 4k, real life">Highly Realistic 4k, real life</option>
                   <option value="Cinematic Drone - Smooth">Cinematic Drone - Smooth</option>
                   <option value="Studio Professional - Clean">Studio Professional - Clean</option>
+                </select>
+              </div>
+
+              {/* Character */}
+              <div className="sd-form-field">
+                <label className="sd-form-label"><User size={13} /> Character</label>
+                <select 
+                  name="character" 
+                  value={formData.character || "male"} 
+                  onChange={(e) => {
+                    const newChar = e.target.value as 'male' | 'female';
+                    const firstVoice = VOICE_OPTIONS[newChar][0].id;
+                    setFormData(prev => ({ 
+                      ...prev, 
+                      character: newChar, 
+                      voice: firstVoice 
+                    }));
+                  }}
+                  className="sd-form-select"
+                >
+                  <option value="male">👨 Male</option>
+                  <option value="female">👩 Female</option>
+                </select>
+              </div>
+
+              {/* Voice */}
+              <div className="sd-form-field">
+                <label className="sd-form-label"><Mic2 size={13} /> Voice</label>
+                <select 
+                  name="voice" 
+                  value={formData.voice} 
+                  onChange={handleChange}
+                  className="sd-form-select"
+                >
+                  {(VOICE_OPTIONS[(formData.character || "male") as 'male' | 'female'] || []).map(v => (
+                    <option key={v.id} value={v.id}>{v.label}</option>
+                  ))}
                 </select>
               </div>
 
@@ -107,26 +161,8 @@ export default function GeneratorModal({ isOpen, onOpenChange, onSubmit, loading
                 </select>
               </div>
 
-              {/* Voice */}
-              <div className="sd-form-field">
-                <label className="sd-form-label"><Mic2 size={13} /> Voice</label>
-                <select 
-                  name="voice" 
-                  value={formData.voice} 
-                  onChange={handleChange}
-                  className="sd-form-select"
-                >
-                  <option value="wrxvN1LZJIfL3HHvffqe">Bella - Lady</option>
-                  <option value="odyUrTN5HMVKujvVAgWW">Emily - Lady</option>
-                  <option value="aD6riP1btT197c6dACmy">Rachel - Lady</option>
-                  <option value="eqz5FuihuZwmJPuvZ65E">Jess</option>
-                  <option value="KLoLpdGWK7agg0O2TJYg">Charlie - Men</option>
-                  <option value="KClAuq9Hs0wFY7oJmaGN">Maayan-Lady</option>
-                </select>
-              </div>
-
               {/* Background Song */}
-              <div className="sd-form-field sd-full-width">
+              <div className="sd-form-field">
                 <label className="sd-form-label"><Music size={13} /> Background Song</label>
                 <select 
                   name="backgroundSong" 
