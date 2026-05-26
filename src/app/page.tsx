@@ -247,14 +247,14 @@ export default function Dashboard() {
       try {
         let { data, error } = await supabase
           .from("Error Alerts")
-          .select("Error, created_at")
+          .select("Error, updated_at")
           .eq("id", 1)
           .single();
 
         if (error) {
           const { data: altData, error: altError } = await supabase
             .from("error_alerts")
-            .select("Error, created_at")
+            .select("Error, updated_at")
             .eq("id", 1)
             .single();
           if (!altError && altData) {
@@ -265,7 +265,7 @@ export default function Dashboard() {
 
         if (data && active) {
           const errMsg = data.Error || "";
-          const createdAt = data.created_at || "";
+          const updatedAt = data.updated_at || "";
 
           if (!errMsg) {
             setErrorNotification(null);
@@ -274,9 +274,9 @@ export default function Dashboard() {
           }
 
           const lastSeenTime = localStorage.getItem("toga_last_seen_error_time");
-          if (lastSeenTime !== createdAt) {
+          if (lastSeenTime !== updatedAt) {
             setErrorNotification(errMsg);
-            setErrorNotificationTime(createdAt);
+            setErrorNotificationTime(updatedAt);
           } else {
             setErrorNotification(null);
             setErrorNotificationTime(null);
