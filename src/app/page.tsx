@@ -236,6 +236,37 @@ export default function Dashboard() {
 
   // ── Supabase reports state ──
   const [sbRows, setSbRows] = useState([]);
+  const [errorNotification, setErrorNotification] = useState<string | null>(null);
+
+  // ── Poll for global n8n errors ──
+  useEffect(() => {
+    let active = true;
+
+    const checkErrors = async () => {
+      try {
+        const res = await fetch('/api/notifications/error');
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.message && active) {
+            setErrorNotification(data.message);
+          }
+        }
+      } catch (err) {
+        console.error("[UI] Error checking notifications:", err);
+      }
+    };
+
+    // Check instantly on mount
+    checkErrors();
+
+    // Check every 4 seconds
+    const interval = setInterval(checkErrors, 4000);
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, []);
   const [sbLoading, setSbLoading] = useState(true);
   const [sbTriggeringId, setSbTriggeringId] = useState(null);
   const [sbSessionTriggered, setSbSessionTriggered] = useState(new Set());
@@ -5235,6 +5266,118 @@ export default function Dashboard() {
       })()}
 
       </main>
+
+      {errorNotification && (
+        <div 
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(15, 23, 42, 0.45)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            animation: 'fadeIn 0.2s ease-out'
+          }}
+        >
+          <div 
+            style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04), 0 0 0 1px rgba(239, 68, 68, 0.1)',
+              width: '100%',
+              maxWidth: '480px',
+              padding: '24px',
+              margin: '20px',
+              borderTop: '4px solid #ef4444',
+              animation: 'scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+            }}
+          >
+            <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
+              <div 
+                style={{
+                  background: '#fef2f2',
+                  borderRadius: '50%',
+                  padding: '10px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#ef4444',
+                  flexShrink: 0
+                }}
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
+                  <line x1="12" y1="9" x2="12" y2="13"/>
+                  <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+              </div>
+              <div style={{ flex: 1 }}>
+                <h3 
+                  style={{
+                    fontSize: '16px',
+                    fontWeight: 700,
+                    color: '#1e293b',
+                    margin: '0 0 8px 0',
+                    lineHeight: '1.25'
+                  }}
+                >
+                  Workflow Execution Error
+                </h3>
+                <p 
+                  style={{
+                    fontSize: '13px',
+                    color: '#64748b',
+                    margin: '0 0 20px 0',
+                    lineHeight: '1.5',
+                    wordBreak: 'break-word',
+                    whiteSpace: 'pre-wrap'
+                  }}
+                >
+                  {errorNotification}
+                </p>
+              </div>
+            </div>
+            
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button
+                onClick={async () => {
+                  setErrorNotification(null);
+                  try {
+                    await fetch('/api/notifications/error', { method: 'DELETE' });
+                  } catch (err) {
+                    console.error("[UI] Failed to clear error on server:", err);
+                  }
+                }}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  color: '#475569',
+                  background: '#f1f5f9',
+                  border: 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  outline: 'none'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#e2e8f0';
+                  e.currentTarget.style.color = '#1e293b';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = '#f1f5f9';
+                  e.currentTarget.style.color = '#475569';
+                }}
+              >
+                Dismiss Error
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
