@@ -319,12 +319,22 @@ export default function SocialDash() {
   };
 
   const handleConfirmPrompts = async () => {
+    // Start progress bar loader immediately on click
+    setIsGenerating(true);
+    setGenerationType('video');
+    setProgress(0);
+    hasTriggeredInSession.current = true;
+    localStorage.setItem('sd_generation_start', Date.now().toString()); // ── Persist start time
+    setStatus("Generating your social video preview...");
+
     const webhookUrl = "https://n8n.srv1208919.hstgr.cloud/webhook/c44e7bac-b0db-43a7-96d3-8b2a3f483885";
     console.log("[UI] Confirming prompts to:", webhookUrl);
+    
+    // Trigger webhook which will only respond at the very end when video is done
     const result = await triggerWebhook(
       webhookUrl,
       "confirm",
-      "Prompts confirmed and sent!",
+      "Video created successfully!",
       {
         story: acceptedStory,
         scenes: generatedScenes,
@@ -334,7 +344,17 @@ export default function SocialDash() {
     );
 
     if (result) {
-      console.log("[UI] Prompts confirmed successfully:", result);
+      console.log("[UI] Prompts confirmed and video created successfully:", result);
+      setProgress(100);
+      handleRefreshPreview();
+      setTimeout(() => {
+        setIsGenerating(false);   // Turn off loader since video is ready
+        setGenerationType(null);
+      }, 1000);
+    } else {
+      console.warn("[UI] Confirm prompts webhook failed.");
+      setIsGenerating(false);
+      setGenerationType(null);
     }
   };
 
@@ -461,7 +481,7 @@ export default function SocialDash() {
           </div>
 
           {/* ---- Generation Progress Timeline ---- */}
-          {isGenerating && generatedScenes.length === 0 && (
+          {isGenerating && (
             <div className="sd-action-card sd-action-card-success animate-fade-in">
               <div className="sd-card-head">
                 <div className="sd-card-icon" style={{ background: '#f0fdfa', color: '#0d9488' }}>
