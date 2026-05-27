@@ -17,6 +17,7 @@ import {
 
 import { Badge, Spinner } from './components';
 import { socialSupabase } from '../lib/socialSupabase';
+import { supabase } from '../lib/supabase';
 import GeneratorModal from './GeneratorModal';
 import RetryModal from './RetryModal';
 import ImagePromptModal from './ImagePromptModal';
@@ -52,6 +53,7 @@ interface ToastState {
 
 export default function SocialDash() {
   const [videoUrl, setVideoUrl] = useState<string>("");
+  const [supabaseVideoUrl, setSupabaseVideoUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -70,9 +72,11 @@ export default function SocialDash() {
   const hasTriggeredInSession = useRef<boolean>(false);
 
   // ── Social Image Workspace States ──
-  const [showImageWorkspace, setShowImageWorkspace] = useState<boolean>(false);
+  const [showImageWorkspace, setShowImageWorkspace] = useState<boolean>(true);
   const [isImageGenerating, setIsImageGenerating] = useState<boolean>(false);
   const [generatedSocialImage, setGeneratedSocialImage] = useState<string | null>(null);
+  const [supabaseImageUrl, setSupabaseImageUrl] = useState<string | null>(null);
+  const [supabaseDescription, setSupabaseDescription] = useState<string>('');
   const [socialDescriptions, setSocialDescriptions] = useState<{
     instagram: string;
     facebook: string;
@@ -86,6 +90,77 @@ export default function SocialDash() {
   });
   const [activePlatform, setActivePlatform] = useState<'instagram' | 'facebook' | 'tiktok' | 'linkedin'>('instagram');
   const [showSocialRetryModal, setShowSocialRetryModal] = useState<boolean>(false);
+
+  // ── Supabase Images table: fetch & stream video_link, image_link, Descriptions from row id=1 ──
+  useEffect(() => {
+    const fetchImageData = async () => {
+      const { data, error } = await supabase
+        .from('Images')
+        .select('image_link, Descriptions')
+        .eq('id', 1)
+        .single();
+      console.log('[Images fetch] data:', data, '| error:', error);
+      if (data?.image_link) {
+        setSupabaseImageUrl(data.image_link);
+        setGeneratedSocialImage(data.image_link);
+        setShowImageWorkspace(true);
+      }
+      if (data?.Descriptions) {
+        try {
+          const desc = typeof data.Descriptions === 'string'
+            ? JSON.parse(data.Descriptions)
+            : data.Descriptions;
+          const caption  = desc.caption   || '';
+          const post     = desc.post      || '';
+          const tags     = desc.tags      || '';
+          const title    = desc.video_title || '';
+          setSupabaseDescription(title || caption);
+          setSocialDescriptions({
+            instagram: [caption, tags].filter(Boolean).join('\n\n'),
+            facebook:  [post, tags].filter(Boolean).join('\n\n'),
+            tiktok:    [title, caption, tags].filter(Boolean).join('\n\n'),
+            linkedin:  [post, tags].filter(Boolean).join('\n\n'),
+          });
+        } catch {
+          setSupabaseDescription(data.Descriptions);
+          setSocialDescriptions({ instagram: data.Descriptions, facebook: data.Descriptions, tiktok: data.Descriptions, linkedin: data.Descriptions });
+        }
+      }
+    };
+    fetchImageData();
+    const channel = supabase
+      .channel('images-all-cols')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'Images', filter: 'id=eq.1' }, (payload: any) => {
+        if (payload.new?.image_link) {
+          setSupabaseImageUrl(payload.new.image_link);
+          setGeneratedSocialImage(payload.new.image_link);
+          setShowImageWorkspace(true);
+        }
+        if (payload.new?.Descriptions) {
+          try {
+            const desc = typeof payload.new.Descriptions === 'string'
+              ? JSON.parse(payload.new.Descriptions)
+              : payload.new.Descriptions;
+            const caption  = desc.caption   || '';
+            const post     = desc.post      || '';
+            const tags     = desc.tags      || '';
+            const title    = desc.video_title || '';
+            setSupabaseDescription(title || caption);
+            setSocialDescriptions({
+              instagram: [caption, tags].filter(Boolean).join('\n\n'),
+              facebook:  [post, tags].filter(Boolean).join('\n\n'),
+              tiktok:    [title, caption, tags].filter(Boolean).join('\n\n'),
+              linkedin:  [post, tags].filter(Boolean).join('\n\n'),
+            });
+          } catch {
+            setSupabaseDescription(payload.new.Descriptions);
+            setSocialDescriptions({ instagram: payload.new.Descriptions, facebook: payload.new.Descriptions, tiktok: payload.new.Descriptions, linkedin: payload.new.Descriptions });
+          }
+        }
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, []);
 
   // ── Clear progress from localStorage on page load (so refresh removes it) ──
   useEffect(() => {
@@ -834,40 +909,14 @@ export default function SocialDash() {
       </header>
 
 
-      {/* ---- Main grid ---- */}
-      <div className="sd-grid">
+      {/* ---- Main Layout: 2 rows ---- */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '32px', width: '100%', paddingBottom: '40px' }}>
 
-        {/* ---- Left: Action cards ---- */}
-        <div className="sd-left">
+        {/* ROW 1: Video input (left) | Video preview (right) */}
+        <div className="sd-grid">
 
-          {/* Social Image Creator */}
-          <div className="sd-action-card sd-action-card-sky">
-            <div className="sd-card-head">
-              <div className="sd-card-icon sd-card-icon-sky">
-                <ImageIcon size={20} />
-              </div>
-              <h2 className="sd-card-title">Social Image Creator</h2>
-            </div>
-            <div className="sd-card-inner">
-              <div className="sd-card-inner-head">
-                <span className="sd-card-inner-label">Auto-Scale</span>
-                <Badge text="Instagram · FB · LI" color={medicalBlue} bg="var(--primary-light)" />
-              </div>
-              <p className="sd-card-inner-desc">
-                Create professional visuals automatically scaled for all major social channels.
-              </p>
-              <button
-                className="sd-btn-primary"
-                onClick={handleGenerateImages}
-                disabled={loading === 'images' || isImageGenerating}
-                style={{ background: medicalBlue }}
-              >
-                {loading === 'images'
-                  ? <><Spinner size={14} color="white" /> Processing...</>
-                  : <><Zap size={14} /> Generate Social Images</>}
-              </button>
-            </div>
-          </div>
+          {/* LEFT: video action cards */}
+          <div className="sd-left">
 
 
           {/* Custom Spotlight */}
@@ -1122,11 +1171,10 @@ export default function SocialDash() {
             </div>
           )}
 
-        </div>
+          </div>
 
-        {/* ---- Right: Preview panel ---- */}
-        <div className="sd-right">
-          {!showImageWorkspace ? (
+          {/* RIGHT: video preview */}
+          <div className="sd-right">
             <div className="sd-preview-panel">
 
               {/* Panel header */}
@@ -1150,8 +1198,8 @@ export default function SocialDash() {
 
               {/* Video area */}
               <div className="sd-video-area">
-                {videoUrl ? (
-                  <video ref={videoRef} src={videoUrl} controls>
+                {supabaseVideoUrl || videoUrl ? (
+                  <video ref={videoRef} src={supabaseVideoUrl || videoUrl} controls>
                     Your browser does not support the video tag.
                   </video>
                 ) : (
@@ -1181,7 +1229,57 @@ export default function SocialDash() {
               </div>
 
             </div>
-          ) : (
+          </div>
+        </div>
+
+        {/* ROW 2: Social Images (left inputs, right preview) */}
+        <div className="sd-grid">
+
+          {/* LEFT: Social Image Creator */}
+          <div className="sd-left">
+            {/* Social Image Creator */}
+            <div className="sd-action-card sd-action-card-sky">
+              <div className="sd-card-head">
+                <div className="sd-card-icon sd-card-icon-sky">
+                  <ImageIcon size={20} />
+                </div>
+                <h2 className="sd-card-title">Social Image Creator</h2>
+              </div>
+              <div className="sd-card-inner">
+                <div className="sd-card-inner-head">
+                  <span className="sd-card-inner-label">Auto-Scale</span>
+                  <Badge text="Instagram · FB · LI" color={medicalBlue} bg="var(--primary-light)" />
+                </div>
+                <p className="sd-card-inner-desc">
+                  Create professional visuals automatically scaled for all major social channels.
+                </p>
+                <button
+                  className="sd-btn-primary"
+                  onClick={handleGenerateImages}
+                  disabled={loading === 'images' || isImageGenerating}
+                  style={{ background: medicalBlue }}
+                >
+                  {loading === 'images'
+                    ? <><Spinner size={14} color="white" /> Processing...</>
+                    : <><Zap size={14} /> Generate Social Images</>}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT: Social image preview */}
+          <div className="sd-right">
+            {!showImageWorkspace ? (
+              <div className="sd-preview-panel" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px', minHeight: '300px' }}>
+                <div style={{ width: '64px', height: '64px', borderRadius: '16px', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <ImageIcon size={28} color="#94a3b8" />
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <p style={{ fontSize: '14px', fontWeight: 600, color: '#475569', margin: 0 }}>No Image Generated Yet</p>
+                  <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>Click “Generate Social Images” on the left to create platform-ready visuals.</p>
+                </div>
+              </div>
+            ) : (
             <div className="sd-preview-panel sd-image-workspace-panel animate-fade-in" style={{ padding: '20px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '16px', color: '#0f172a', position: 'relative' }}>
               {/* Workspace Header */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #e2e8f0', paddingBottom: '14px' }}>
@@ -1192,30 +1290,6 @@ export default function SocialDash() {
                   </h3>
                   <p style={{ fontSize: '11px', color: '#64748b', marginTop: '2px', margin: 0 }}>High-fidelity social feed preview & editor</p>
                 </div>
-                <button
-                  onClick={() => {
-                    setShowImageWorkspace(false);
-                    setIsImageGenerating(false);
-                  }}
-                  style={{
-                    background: '#ffffff',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '8px',
-                    padding: '6px 12px',
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    color: '#64748b',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px'
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = '#0f172a'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = '#ffffff'; e.currentTarget.style.color = '#64748b'; }}
-                >
-                  Back to Video
-                </button>
               </div>
 
               {isImageGenerating ? (
@@ -1486,7 +1560,8 @@ export default function SocialDash() {
               )}
 
             </div>
-          )}
+            )}
+          </div>
         </div>
 
       </div>

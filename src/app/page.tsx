@@ -5409,10 +5409,19 @@ export default function Dashboard() {
             
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
               <button
-                onClick={() => {
-                  // Dismiss by saving the exact error message — stays dismissed even if n8n updates the timestamp
+                onClick={async () => {
+                  // Save dismissed message locally
                   if (errorNotification) {
                     localStorage.setItem("toga_last_dismissed_error_msg", errorNotification.trim());
+                  }
+                  // Also clear the Error field in Supabase so it won't reappear on any session
+                  try {
+                    await supabase
+                      .from("Error Alerts")
+                      .update({ Error: "" })
+                      .eq("id", 1);
+                  } catch (e) {
+                    console.warn("Could not clear error from Supabase:", e);
                   }
                   setErrorNotification(null);
                   setErrorNotificationTime(null);
