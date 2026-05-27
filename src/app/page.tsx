@@ -240,15 +240,14 @@ export default function Dashboard() {
   const [errorNotificationTime, setErrorNotificationTime] = useState<string | null>(null);
 
   // ── Poll for global n8n errors directly from Supabase (RLS disabled) ──
+  // Normalize any timestamp string to ISO format so +00:00 vs Z never cause mismatches
+  const normTs = (ts: string | null): string => {
+    if (!ts) return "";
+    try { return new Date(ts).toISOString(); } catch { return ts; }
+  };
+
   useEffect(() => {
     let active = true;
-
-    // Clear any stale localStorage value that used the old timetz format (no date prefix)
-    // The new format is a full timestamptz like "2026-05-26T21:13:47+00:00"
-    const storedTime = localStorage.getItem("toga_last_seen_error_time");
-    if (storedTime && !storedTime.startsWith("20") || (storedTime && storedTime.length < 15)) {
-      localStorage.removeItem("toga_last_seen_error_time");
-    }
 
     const checkErrors = async () => {
       try {
@@ -274,11 +273,13 @@ export default function Dashboard() {
           return;
         }
 
-        // Only show if this updated_at has not been dismissed before
-        const lastSeenTime = localStorage.getItem("toga_last_seen_error_time");
-        if (lastSeenTime !== updatedAt) {
+        // Normalize both timestamps before comparing so format differences never cause a mismatch
+        const currentNorm = normTs(updatedAt);
+        const lastSeenNorm = normTs(localStorage.getItem("toga_last_seen_error_time"));
+
+        if (currentNorm && currentNorm !== lastSeenNorm) {
           setErrorNotification(errMsg);
-          setErrorNotificationTime(updatedAt);
+          setErrorNotificationTime(currentNorm); // always store normalized form
         } else {
           setErrorNotification(null);
           setErrorNotificationTime(null);
@@ -5415,8 +5416,10 @@ export default function Dashboard() {
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
               <button
                 onClick={() => {
-                  if (errorNotificationTime) {
-                    localStorage.setItem("toga_last_seen_error_time", errorNotificationTime);
+                  // Save the normalized timestamp so format differences never prevent dismissal from sticking
+                  const toSave = errorNotificationTime || normTs(errorNotificationTime);
+                  if (toSave) {
+                    localStorage.setItem("toga_last_seen_error_time", toSave);
                   }
                   setErrorNotification(null);
                   setErrorNotificationTime(null);
