@@ -1105,7 +1105,7 @@ export default function SocialDash() {
               <button
                 className="sd-btn-primary"
                 onClick={() => handleModalSubmit(videoFormData)}
-                disabled={loading === 'dynamic' || isImageGenerating || showImageWorkspace || !videoFormData.description.trim()}
+                disabled={loading === 'dynamic' || !videoFormData.description.trim()}
                 style={{ background: '#d97706', boxShadow: 'none', padding: '11px 16px' }}
               >
                 {loading === 'dynamic'
