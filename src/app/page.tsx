@@ -240,12 +240,9 @@ export default function Dashboard() {
   const [errorNotificationTime, setErrorNotificationTime] = useState<string | null>(null);
 
   // ── Poll for global n8n errors directly from Supabase (RLS disabled) ──
-  // Normalize any timestamp string to ISO format so +00:00 vs Z never cause mismatches
-  const normTs = (ts: string | null): string => {
-    if (!ts) return "";
-    try { return new Date(ts).toISOString(); } catch { return ts; }
-  };
-
+  // Strategy: track the DISMISSED ERROR MESSAGE (not timestamp).
+  // This way, even if n8n updates updated_at every few seconds with the same error,
+  // the alert stays dismissed until a genuinely NEW/DIFFERENT error message appears.
   useEffect(() => {
     let active = true;
 
@@ -253,7 +250,7 @@ export default function Dashboard() {
       try {
         const { data, error } = await supabase
           .from("Error Alerts")
-          .select("Error, updated_at")
+          .select("Error")
           .eq("id", 1)
           .maybeSingle();
 
@@ -264,8 +261,7 @@ export default function Dashboard() {
           return;
         }
 
-        const errMsg: string = data.Error || "";
-        const updatedAt: string = data.updated_at || "";
+        const errMsg: string = (data.Error || "").trim();
 
         if (!errMsg) {
           setErrorNotification(null);
@@ -273,13 +269,11 @@ export default function Dashboard() {
           return;
         }
 
-        // Normalize both timestamps before comparing so format differences never cause a mismatch
-        const currentNorm = normTs(updatedAt);
-        const lastSeenNorm = normTs(localStorage.getItem("toga_last_seen_error_time"));
-
-        if (currentNorm && currentNorm !== lastSeenNorm) {
+        // Only show if this exact error message has not been dismissed before
+        const lastDismissedMsg = localStorage.getItem("toga_last_dismissed_error_msg") || "";
+        if (errMsg !== lastDismissedMsg) {
           setErrorNotification(errMsg);
-          setErrorNotificationTime(currentNorm); // always store normalized form
+          setErrorNotificationTime(errMsg); // reuse state field to carry the key for dismiss
         } else {
           setErrorNotification(null);
           setErrorNotificationTime(null);
@@ -5416,10 +5410,9 @@ export default function Dashboard() {
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
               <button
                 onClick={() => {
-                  // Save the normalized timestamp so format differences never prevent dismissal from sticking
-                  const toSave = errorNotificationTime || normTs(errorNotificationTime);
-                  if (toSave) {
-                    localStorage.setItem("toga_last_seen_error_time", toSave);
+                  // Dismiss by saving the exact error message — stays dismissed even if n8n updates the timestamp
+                  if (errorNotification) {
+                    localStorage.setItem("toga_last_dismissed_error_msg", errorNotification.trim());
                   }
                   setErrorNotification(null);
                   setErrorNotificationTime(null);
