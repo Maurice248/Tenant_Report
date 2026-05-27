@@ -1292,7 +1292,7 @@ export default function SocialDash() {
                 </div>
               </div>
 
-              {isImageGenerating ? (
+              {isImageGenerating || loading === 'post_social' ? (
                 /* Mobile Screen - Loader State */
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '520px', background: 'rgba(255, 255, 255, 0.8)', border: '2px dashed #cbd5e1', borderRadius: '24px', position: 'relative' }}>
                   {/* Glowing light pulse */}
@@ -1304,8 +1304,14 @@ export default function SocialDash() {
                       <ImageIcon size={18} color="#0284c7" style={{ position: 'absolute', top: '12px', left: '12px' }} />
                     </div>
                     <div style={{ textAlign: 'center' }}>
-                      <p style={{ color: '#0f172a', fontSize: '14px', fontWeight: 600, margin: 0 }}>Drafting Platform Creatives...</p>
-                      <p style={{ color: '#64748b', fontSize: '11px', marginTop: '6px', maxWidth: '240px', margin: '6px 0 0 0' }}>Generating scaled images & tailoring custom copywriting for social distribution</p>
+                      <p style={{ color: '#0f172a', fontSize: '14px', fontWeight: 600, margin: 0 }}>
+                        {loading === 'post_social' ? "Regenerating Platform Creatives..." : "Drafting Platform Creatives..."}
+                      </p>
+                      <p style={{ color: '#64748b', fontSize: '11px', marginTop: '6px', maxWidth: '240px', margin: '6px 0 0 0' }}>
+                        {loading === 'post_social'
+                          ? "Applying your custom feedback and tailoring new social copies and creatives..."
+                          : "Generating scaled images & tailoring custom copywriting for social distribution"}
+                      </p>
                     </div>
                   </div>
                 </div>
