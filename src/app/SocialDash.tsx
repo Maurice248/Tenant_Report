@@ -12,7 +12,12 @@ import {
   CheckCircle2,
   Activity,
   MessageSquare,
-  RefreshCw
+  RefreshCw,
+  Tag,
+  Monitor,
+  User,
+  Mic2,
+  Music
 } from 'lucide-react';
 
 import { Badge, Spinner } from './components';
@@ -21,6 +26,19 @@ import { supabase } from '../lib/supabase';
 import GeneratorModal from './GeneratorModal';
 import RetryModal from './RetryModal';
 import ImagePromptModal from './ImagePromptModal';
+
+const VOICE_OPTIONS = {
+  male: [
+    { id: "KLoLpdGWK7agg0O2TJYg", label: "Charlie - Men" },
+    { id: "eqz5FuihuZwmJPuvZ65E", label: "Jess - Men" }
+  ],
+  female: [
+    { id: "wrxvN1LZJIfL3HHvffqe", label: "Bella - Lady" },
+    { id: "odyUrTN5HMVKujvVAgWW", label: "Emily - Lady" },
+    { id: "aD6riP1btT197c6dACmy", label: "Rachel - Lady" },
+    { id: "KClAuq9Hs0wFY7oJmaGN", label: "Maayan - Lady" }
+  ]
+};
 
 const medicalBlue = "#0284c7";
 const medicalTeal = "#0d9488";
@@ -65,6 +83,16 @@ export default function SocialDash() {
   const [generatedScenes, setGeneratedScenes] = useState<any[]>([]);
   const [acceptedStory, setAcceptedStory] = useState<string | null>(null);
   const [lastInputs, setLastInputs] = useState<any>(null);
+  const [videoFormData, setVideoFormData] = useState({
+    character: "male",
+    category: "Hair Transplant",
+    description: "",
+    videoStyle: "Highly Realistic 4k, real life",
+    language: "English",
+    voice: "KLoLpdGWK7agg0O2TJYg",
+    backgroundSong: "Inspirational - Sunrise Bloom"
+  });
+  const [imagePrompt, setImagePrompt] = useState<string>("");
   const [progress, setProgress] = useState<number>(0);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [generationType, setGenerationType] = useState<'video' | 'images' | null>(null);
@@ -919,31 +947,172 @@ export default function SocialDash() {
           <div className="sd-left">
 
 
-          {/* Custom Spotlight */}
-          <div className="sd-action-card sd-action-card-amber">
-            <div className="sd-card-head">
+          {/* Video Generation Config Form */}
+          <div className="sd-action-card sd-action-card-amber" style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: '480px', boxSizing: 'border-box' }}>
+            <div className="sd-card-head" style={{ marginBottom: '14px' }}>
               <div className="sd-card-icon sd-card-icon-amber">
                 <Settings size={20} />
               </div>
-              <h2 className="sd-card-title">Video Generation</h2>
-            </div>
-            <div className="sd-card-inner">
-              <div className="sd-card-inner-head">
-                <span className="sd-card-inner-label">Manual Control</span>
-                <Badge text="Custom" color="var(--amber)" bg="var(--amber-light)" />
+              <div style={{ textAlign: 'left' }}>
+                <h2 className="sd-card-title">Video AI Generation Config</h2>
+                <p style={{ fontSize: '11px', color: '#64748b', margin: '2px 0 0 0' }}>Configure video story, styles and details directly</p>
               </div>
-              <p className="sd-card-inner-desc">
-                Input custom scripts, tones, and visual scenes for total creative control.
-              </p>
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1 }}>
+              {/* Form Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' }}>
+                
+                {/* Category */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                    <Tag size={12} color="#d97706" /> Category
+                  </label>
+                  <input 
+                    type="text"
+                    name="category"
+                    value={videoFormData.category}
+                    onChange={(e) => setVideoFormData(prev => ({ ...prev, category: e.target.value }))}
+                    style={{ padding: '11px 14px', fontSize: '13px', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#f8fafc', color: '#0f172a', outline: 'none' }}
+                    placeholder="e.g. Hair Transplant"
+                  />
+                </div>
+
+                {/* Video Style */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                    <Monitor size={12} color="#d97706" /> Video Style
+                  </label>
+                  <select 
+                    name="videoStyle"
+                    value={videoFormData.videoStyle}
+                    onChange={(e) => setVideoFormData(prev => ({ ...prev, videoStyle: e.target.value }))}
+                    style={{ padding: '11px 14px', fontSize: '13px', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#f8fafc', color: '#0f172a', outline: 'none' }}
+                  >
+                    <option value="Highly Realistic 4k, real life">Realistic 4k</option>
+                    <option value="Cinematic Drone - Smooth">Cinematic Drone</option>
+                    <option value="Studio Professional - Clean">Studio Clean</option>
+                  </select>
+                </div>
+
+                {/* Character */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                    <User size={12} color="#d97706" /> Character
+                  </label>
+                  <select 
+                    name="character"
+                    value={videoFormData.character}
+                    onChange={(e) => {
+                      const newChar = e.target.value as 'male' | 'female';
+                      const firstVoice = VOICE_OPTIONS[newChar][0].id;
+                      setVideoFormData(prev => ({ 
+                        ...prev, 
+                        character: newChar, 
+                        voice: firstVoice 
+                      }));
+                    }}
+                    style={{ padding: '11px 14px', fontSize: '13px', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#f8fafc', color: '#0f172a', outline: 'none' }}
+                  >
+                    <option value="male">👨 Male</option>
+                    <option value="female">👩 Female</option>
+                  </select>
+                </div>
+
+                {/* Voice */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                    <Mic2 size={12} color="#d97706" /> Voice
+                  </label>
+                  <select 
+                    name="voice"
+                    value={videoFormData.voice}
+                    onChange={(e) => setVideoFormData(prev => ({ ...prev, voice: e.target.value }))}
+                    style={{ padding: '11px 14px', fontSize: '13px', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#f8fafc', color: '#0f172a', outline: 'none' }}
+                  >
+                    {(VOICE_OPTIONS[videoFormData.character as 'male' | 'female'] || []).map(v => (
+                      <option key={v.id} value={v.id}>{v.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Language */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                    Language
+                  </label>
+                  <select 
+                    name="language"
+                    value={videoFormData.language}
+                    onChange={(e) => setVideoFormData(prev => ({ ...prev, language: e.target.value }))}
+                    style={{ padding: '11px 14px', fontSize: '13px', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#f8fafc', color: '#0f172a', outline: 'none' }}
+                  >
+                    <option value="English">English</option>
+                    <option value="Spanish">Spanish</option>
+                    <option value="French">French</option>
+                  </select>
+                </div>
+
+                {/* Background Song */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                    <Music size={12} color="#d97706" /> Background
+                  </label>
+                  <select 
+                    name="backgroundSong"
+                    value={videoFormData.backgroundSong}
+                    onChange={(e) => setVideoFormData(prev => ({ ...prev, backgroundSong: e.target.value }))}
+                    style={{ padding: '11px 14px', fontSize: '13px', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#f8fafc', color: '#0f172a', outline: 'none' }}
+                  >
+                    <option value="Inspirational - Sunrise Bloom">Sunrise Bloom</option>
+                    <option value="Upbeat - Corporate Drive">Upbeat Drive</option>
+                    <option value="Lo-fi - Midnight Study">Lo-fi Midnight</option>
+                    <option value="Cinematic - Epic Journey">Epic Journey</option>
+                    <option value="Ambient - Calm Waters">Calm Waters</option>
+                  </select>
+                </div>
+
+              </div>
+
+              {/* Story Description Textarea */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}>
+                <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                  <MessageSquare size={12} color="#d97706" /> Story Description
+                </label>
+                <textarea 
+                  name="description"
+                  value={videoFormData.description}
+                  onChange={(e) => setVideoFormData(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Tell your patient story or describe the blog post content..."
+                  style={{ 
+                    height: '75px', 
+                    minHeight: '65px',
+                    padding: '10px 12px', 
+                    fontSize: '12px', 
+                    border: '1px solid #cbd5e1', 
+                    borderRadius: '8px', 
+                    background: '#f8fafc',
+                    color: '#0f172a',
+                    resize: 'none',
+                    fontFamily: 'inherit',
+                    outline: 'none'
+                  }}
+                  required
+                />
+              </div>
+
+              {/* Submit Button */}
               <button
-                className="sd-btn-secondary"
-                onClick={handleDynamicTrigger}
-                disabled={loading === 'dynamic' || isImageGenerating || showImageWorkspace}
+                className="sd-btn-primary"
+                onClick={() => handleModalSubmit(videoFormData)}
+                disabled={loading === 'dynamic' || isImageGenerating || showImageWorkspace || !videoFormData.description.trim()}
+                style={{ background: '#d97706', boxShadow: 'none', padding: '11px 16px' }}
               >
                 {loading === 'dynamic'
-                  ? <><Spinner size={14} /> Processing...</>
-                  : <><Settings size={14} /> Video Generation</>}
+                  ? <><Spinner size={14} color="white" /> Processing...</>
+                  : <><Zap size={14} /> Generate Video AI Campaign</>}
               </button>
+
             </div>
           </div>
 
@@ -1237,32 +1406,61 @@ export default function SocialDash() {
 
           {/* LEFT: Social Image Creator */}
           <div className="sd-left">
-            {/* Social Image Creator */}
-            <div className="sd-action-card sd-action-card-sky">
-              <div className="sd-card-head">
-                <div className="sd-card-icon sd-card-icon-sky">
-                  <ImageIcon size={20} />
+            {/* Social Image Creator Config Form */}
+             <div className="sd-action-card sd-action-card-sky" style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: '220px', boxSizing: 'border-box' }}>
+              <div className="sd-card-head" style={{ marginBottom: '14px', justifyContent: 'space-between', width: '100%' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                  <div className="sd-card-icon sd-card-icon-sky">
+                    <ImageIcon size={20} />
+                  </div>
+                  <div style={{ textAlign: 'left' }}>
+                    <h2 className="sd-card-title">Social Image Creator</h2>
+                    <p style={{ fontSize: '11px', color: '#64748b', margin: '2px 0 0 0' }}>Configure scaled prompt directly</p>
+                  </div>
                 </div>
-                <h2 className="sd-card-title">Social Image Creator</h2>
+                <Badge text="Auto-Scale" color={medicalBlue} bg="var(--primary-light)" />
               </div>
-              <div className="sd-card-inner">
-                <div className="sd-card-inner-head">
-                  <span className="sd-card-inner-label">Auto-Scale</span>
-                  <Badge text="Instagram · FB · LI" color={medicalBlue} bg="var(--primary-light)" />
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1 }}>
+                
+                {/* Image Prompt Textarea */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', textAlign: 'left' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                    Image Generation Prompt
+                  </label>
+                  <textarea 
+                    value={imagePrompt}
+                    onChange={(e) => setImagePrompt(e.target.value)}
+                    placeholder="e.g. Modern dental clinic interior, professional lighting, warm patient care atmosphere, highly detailed..."
+                    style={{ 
+                      height: '65px', 
+                      minHeight: '50px', 
+                      padding: '10px 12px', 
+                      fontSize: '12px', 
+                      border: '1px solid #cbd5e1', 
+                      borderRadius: '8px', 
+                      background: '#f8fafc',
+                      color: '#0f172a',
+                      resize: 'none',
+                      fontFamily: 'inherit',
+                      outline: 'none'
+                    }}
+                    required
+                  />
                 </div>
-                <p className="sd-card-inner-desc">
-                  Create professional visuals automatically scaled for all major social channels.
-                </p>
+
+                {/* Submit Button */}
                 <button
                   className="sd-btn-primary"
-                  onClick={handleGenerateImages}
-                  disabled={loading === 'images' || isImageGenerating}
-                  style={{ background: medicalBlue }}
+                  onClick={() => handleImagePromptSubmit(imagePrompt)}
+                  disabled={loading === 'images' || isImageGenerating || !imagePrompt.trim()}
+                  style={{ background: medicalBlue, boxShadow: 'none', padding: '11px 16px' }}
                 >
                   {loading === 'images'
-                    ? <><Spinner size={14} color="white" /> Processing...</>
+                    ? <><Spinner size={14} color="white" /> Generating...</>
                     : <><Zap size={14} /> Generate Social Images</>}
                 </button>
+
               </div>
             </div>
           </div>
