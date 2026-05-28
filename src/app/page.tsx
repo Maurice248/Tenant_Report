@@ -1903,14 +1903,24 @@ export default function Dashboard() {
               <span>📜</span> Previous Runs
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: "70vh", overflowY: "auto", paddingRight: 4 }}>
-              {[...sbRows].reverse().map((row) => {
+              {[...sbRows].reverse().map((row: any) => {
                 const report = parseSbReport(row);
+                const inputsObj = typeof row.inputs === 'string' ? JSON.parse(row.inputs || "{}") : (row.inputs || {});
+                const keyword = inputsObj.action || inputsObj.keyword || inputsObj.topic || inputsObj.query || null;
+                const displayTitle = keyword || report.topic || `Run at ${formatSbTime(row.created_at)}`;
+                const tooltipText = row.inputs ? JSON.stringify(inputsObj, null, 2) : "No inputs recorded";
+
                 return (
                   <div key={row.id} style={{
                     padding: 12, borderRadius: "var(--radius-md)", border: "0.5px solid var(--border-light)",
                     background: "var(--surface)", transition: "transform 0.15s, border-color 0.15s"
-                  }} onMouseEnter={(e) => e.currentTarget.style.borderColor = "var(--primary)"} onMouseLeave={(e) => e.currentTarget.style.borderColor = "var(--border-light)"}>
-                    <div style={{ fontWeight: 600, color: "var(--text)", fontSize: 11, marginBottom: 2 }}>{report.topic || `Run at ${formatSbTime(row.created_at)}`}</div>
+                  }} 
+                  title={tooltipText}
+                  onMouseEnter={(e) => e.currentTarget.style.borderColor = "var(--primary)"} 
+                  onMouseLeave={(e) => e.currentTarget.style.borderColor = "var(--border-light)"}>
+                    <div style={{ fontWeight: 600, color: "var(--text)", fontSize: 11, marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {displayTitle}
+                    </div>
                     <div style={{ fontSize: 9, color: "var(--text-muted)", marginBottom: 10, display: "flex", alignItems: "center", gap: 4 }}>
                       <span>📅</span> {formatSbDate(row.created_at)}
                     </div>
