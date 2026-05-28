@@ -47,6 +47,52 @@ const VOICE_OPTIONS = {
 const medicalBlue = "#0284c7";
 const medicalTeal = "#0d9488";
 
+function parseDescriptions(rawDescriptions: any) {
+  try {
+    const desc = typeof rawDescriptions === 'string'
+      ? JSON.parse(rawDescriptions)
+      : rawDescriptions;
+
+    let instagram = "", facebook = "", tiktok = "", linkedin = "", twitter = "", supabaseTitle = "";
+
+    const hasNested = desc.instagram || desc.facebook || desc.tiktok || desc.linkedin || desc.twitter ||
+                      desc.Instagram || desc.Facebook || desc.Tiktok || desc.Linkedin || desc.Twitter;
+
+    if (hasNested) {
+      const instaObj = desc.instagram || desc.Instagram || {};
+      const fbObj = desc.facebook || desc.Facebook || {};
+      const ttObj = desc.tiktok || desc.Tiktok || {};
+      const liObj = desc.linkedin || desc.Linkedin || {};
+      const twObj = desc.twitter || desc.Twitter || {};
+      instagram = instaObj.content || instaObj.caption || instaObj.title || "";
+      facebook = fbObj.content || fbObj.caption || fbObj.title || "";
+      tiktok = ttObj.caption || ttObj.content || ttObj.title || "";
+      linkedin = liObj.content || liObj.caption || liObj.title || "";
+      twitter = twObj.content || twObj.caption || twObj.title || "";
+      supabaseTitle = fbObj.title || instaObj.title || desc.video_title || "";
+    } else {
+      const caption = desc.caption || '';
+      const post = desc.post || '';
+      const tags = desc.tags || '';
+      const title = desc.video_title || '';
+      supabaseTitle = title || caption;
+      instagram = [caption, tags].filter(Boolean).join('\n\n');
+      facebook = [post, tags].filter(Boolean).join('\n\n');
+      tiktok = caption;
+      linkedin = [post, tags].filter(Boolean).join('\n\n');
+      twitter = caption;
+    }
+
+    return { supabaseTitle, socialDescriptions: { instagram, facebook, tiktok, linkedin, twitter } };
+  } catch {
+    const descStr = typeof rawDescriptions === 'object' ? JSON.stringify(rawDescriptions) : String(rawDescriptions);
+    return {
+      supabaseTitle: descStr,
+      socialDescriptions: { instagram: descStr, facebook: descStr, tiktok: descStr, linkedin: descStr, twitter: descStr }
+    };
+  }
+}
+
 const findScenesRecursively = (obj: any): any[] => {
   if (!obj) return [];
   let allScenes: any[] = [];
@@ -87,6 +133,7 @@ export default function SocialDash() {
   const [showImageModal, setShowImageModal] = useState<boolean>(false);
   const [generatedStory, setGeneratedStory] = useState<string | null>(null);
   const [generatedScenes, setGeneratedScenes] = useState<any[]>([]);
+  const [sceneFailures, setSceneFailures] = useState<Record<number, { msg: string; column: 'image' | 'video' }>>({}); // 0-based idx → { msg, column }
   const [acceptedStory, setAcceptedStory] = useState<string | null>(null);
   const [lastInputs, setLastInputs] = useState<any>(null);
   const [videoFormData, setVideoFormData] = useState<{
@@ -153,76 +200,6 @@ export default function SocialDash() {
 
   // ── Supabase Images table: fetch & stream video_link, image_link, Descriptions from row id=1 ──
   useEffect(() => {
-    const parseDescriptions = (rawDescriptions: any) => {
-      try {
-        const desc = typeof rawDescriptions === 'string'
-          ? JSON.parse(rawDescriptions)
-          : rawDescriptions;
-        
-        let instagram = "";
-        let facebook = "";
-        let tiktok = "";
-        let linkedin = "";
-        let twitter = "";
-        let supabaseTitle = "";
-
-        // Check if it's the nested format
-        const hasNested = desc.instagram || desc.facebook || desc.tiktok || desc.linkedin || desc.twitter ||
-                          desc.Instagram || desc.Facebook || desc.Tiktok || desc.Linkedin || desc.Twitter;
-
-        if (hasNested) {
-          const instaObj = desc.instagram || desc.Instagram || {};
-          const fbObj = desc.facebook || desc.Facebook || {};
-          const ttObj = desc.tiktok || desc.Tiktok || {};
-          const liObj = desc.linkedin || desc.Linkedin || {};
-          const twObj = desc.twitter || desc.Twitter || {};
-
-          instagram = instaObj.content || instaObj.caption || instaObj.title || "";
-          facebook = fbObj.content || fbObj.caption || fbObj.title || "";
-          tiktok = ttObj.caption || ttObj.content || ttObj.title || "";
-          linkedin = liObj.content || liObj.caption || liObj.title || "";
-          twitter = twObj.content || twObj.caption || twObj.title || "";
-          supabaseTitle = fbObj.title || instaObj.title || desc.video_title || "";
-        } else {
-          // Flat fallback
-          const caption  = desc.caption   || '';
-          const post     = desc.post      || '';
-          const tags     = desc.tags      || '';
-          const title    = desc.video_title || '';
-          
-          supabaseTitle = title || caption;
-          instagram = [caption, tags].filter(Boolean).join('\n\n');
-          facebook = [post, tags].filter(Boolean).join('\n\n');
-          tiktok = caption;
-          linkedin = [post, tags].filter(Boolean).join('\n\n');
-          twitter = caption;
-        }
-
-        return {
-          supabaseTitle,
-          socialDescriptions: {
-            instagram,
-            facebook,
-            tiktok,
-            linkedin,
-            twitter
-          }
-        };
-      } catch {
-        const descStr = typeof rawDescriptions === 'object' ? JSON.stringify(rawDescriptions) : String(rawDescriptions);
-        return {
-          supabaseTitle: descStr,
-          socialDescriptions: {
-            instagram: descStr,
-            facebook: descStr,
-            tiktok: descStr,
-            linkedin: descStr,
-            twitter: descStr
-          }
-        };
-      }
-    };
-
     const fetchImageData = async () => {
       try {
         const { data, error } = await supabase
@@ -397,9 +374,53 @@ export default function SocialDash() {
     prevStatusRef.current = status; // always update after checking
   }, [status]);
 
-  const handleRefreshPreview = () => {
-    const sampleUrl = "https://cdssxtquayzijmbnlqmt.supabase.co/storage/v1/object/public/n8n/finalbefore2.mp3";
-    setVideoUrl(`${sampleUrl}?t=${Date.now()}`);
+  const [isRefreshingVideo, setIsRefreshingVideo] = useState<boolean>(false);
+
+  const handleRefreshPreview = async () => {
+    setIsRefreshingVideo(true);
+    try {
+      const res = await fetch(`/api/video-metadata?t=${Date.now()}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.video_link) {
+          setSupabaseVideoUrl(`${data.video_link}?t=${Date.now()}`);
+        }
+        if (data?.metadata) {
+          setVideoMetadata(data.metadata);
+        }
+      }
+    } catch (err) {
+      console.error("Error refreshing video preview:", err);
+    } finally {
+      setIsRefreshingVideo(false);
+    }
+  };
+
+  const [isRefreshingImage, setIsRefreshingImage] = useState<boolean>(false);
+
+  const handleRefreshImagePreview = async () => {
+    setIsRefreshingImage(true);
+    try {
+      const { data } = await supabase
+        .from('Images')
+        .select('image_link, Descriptions')
+        .eq('id', 1)
+        .single();
+      if (data?.image_link) {
+        setSupabaseImageUrl(data.image_link);
+        setGeneratedSocialImage(`${data.image_link}?t=${Date.now()}`);
+        setShowImageWorkspace(true);
+      }
+      if (data?.Descriptions) {
+        const parsed = parseDescriptions(data.Descriptions);
+        setSupabaseDescription(parsed.supabaseTitle);
+        setSocialDescriptions(parsed.socialDescriptions);
+      }
+    } catch (err) {
+      console.error("Error refreshing image preview:", err);
+    } finally {
+      setIsRefreshingImage(false);
+    }
   };
 
 
@@ -527,6 +548,8 @@ export default function SocialDash() {
           linkedin: liText,
           twitter: twText
         });
+        // Auto-refresh image preview from Supabase after successful generation
+        setTimeout(() => handleRefreshImagePreview(), 1500);
       } catch (err) {
         console.error("Error parsing webhook social data:", err);
       } finally {
@@ -642,6 +665,8 @@ export default function SocialDash() {
           linkedin: liText,
           twitter: twText
         });
+        // Auto-refresh image preview from Supabase after successful retry
+        setTimeout(() => handleRefreshImagePreview(), 1500);
       } catch (err) {
         console.error("Error parsing webhook social data in retry:", err);
       } finally {
@@ -763,42 +788,76 @@ export default function SocialDash() {
   };
 
   const handleConfirmPrompts = async () => {
-    // Start progress bar loader immediately on click
+    setSceneFailures({}); // clear any previous failures
     setIsGenerating(true);
     setGenerationType('video');
     setProgress(0);
     hasTriggeredInSession.current = true;
-    localStorage.setItem('sd_generation_start', Date.now().toString()); // ── Persist start time
+    localStorage.setItem('sd_generation_start', Date.now().toString());
     setStatus("Generating your social video preview...");
 
     const webhookUrl = "https://n8n.srv1208919.hstgr.cloud/webhook/c44e7bac-b0db-43a7-96d3-8b2a3f483885";
     console.log("[UI] Confirming prompts to:", webhookUrl);
-    
-    // Trigger webhook which will only respond at the very end when video is done
-    const result = await triggerWebhook(
-      webhookUrl,
-      "confirm",
-      "Video created successfully!",
-      {
-        story: acceptedStory,
-        scenes: generatedScenes,
-        status: "confirmed"
-      },
-      "POST"
-    );
+
+    let result: any = null;
+    setLoading('confirm'); // disable button + hide scenes immediately
+    try {
+      // Use direct fetch through proxy so we can read the body even on non-200 responses
+      const proxyRes = await fetch('/api/proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: webhookUrl,
+          method: 'POST',
+          body: { story: acceptedStory, scenes: generatedScenes, status: "confirmed" }
+        })
+      });
+      const rawText = await proxyRes.text();
+      try { result = JSON.parse(rawText); } catch { result = rawText ? { message: rawText } : null; }
+      console.log("[UI] Confirm prompts raw response:", rawText.slice(0, 500));
+    } catch (err) {
+      console.error("[UI] Confirm prompts fetch error:", err);
+    } finally {
+      setLoading(null);
+    }
 
     if (result) {
+      // Check for partial/full failures due to policy violations (present in both 200 and non-200 responses)
+      const responseArr = Array.isArray(result) ? result : [result];
+      const responseObj = responseArr[0] ?? result;
+      const failedResults: any[] = responseObj?.results?.filter((r: any) => r.state === 'fail') || [];
+
+      if (failedResults.length > 0) {
+        const failures: Record<number, { msg: string; column: 'image' | 'video' }> = {};
+        failedResults.forEach((r: any) => {
+          // Detect failure type: video tasks have duration/aspect_ratio fields
+          const isVideoTask = r.duration !== undefined || r.aspect_ratio !== undefined;
+          const column: 'image' | 'video' = isVideoTask ? 'video' : 'image';
+          const sceneIdx = (r.index ?? 0) - 1; // 1-based → 0-based
+          failures[sceneIdx] = {
+            msg: r.failMsg || 'This prompt violated content policy.',
+            column,
+          };
+        });
+        setSceneFailures(failures);
+        setIsGenerating(false);
+        setGenerationType(null);
+        showToast(`${failedResults.length} prompt(s) failed — edit the highlighted scenes and resubmit.`, 'info');
+        return;
+      }
+
+      // All succeeded
       console.log("[UI] Prompts confirmed and video created successfully:", result);
       setProgress(100);
-      setGeneratedScenes([]); // Clear the scenes card so it disappears
-      setAcceptedStory(null); // Clear the accepted story reference
+      setGeneratedScenes([]);
+      setAcceptedStory(null);
       handleRefreshPreview();
       setTimeout(() => {
-        setIsGenerating(false);   // Turn off loader since video is ready
+        setIsGenerating(false);
         setGenerationType(null);
       }, 1000);
     } else {
-      console.warn("[UI] Confirm prompts webhook failed.");
+      console.warn("[UI] Confirm prompts webhook failed with no data.");
       setIsGenerating(false);
       setGenerationType(null);
     }
@@ -807,6 +866,7 @@ export default function SocialDash() {
   const handleRetrySubmit = async (retryPrompt: string) => {
     setShowRetryModal(false);
     setGeneratedScenes([]);
+    setSceneFailures({});
     const data = { ...lastInputs, retry_prompt: retryPrompt, status: "retry", generated_story: generatedStory };
     
     const webhookUrl = process.env.NEXT_PUBLIC_N8N_SOCIAL_RETRY_URL || "https://n8n.srv1208919.hstgr.cloud/webhook/ddcfb213-9313-46e3-8270-dd603301c1bd";
@@ -1884,32 +1944,27 @@ export default function SocialDash() {
                   : <><Zap size={14} /> Generate Video AI Campaign</>}
               </button>
 
+              {/* ---- Generation Progress (inside the input card) ---- */}
+              {isGenerating && generationType !== 'images' && (
+                <div style={{ marginTop: 4, padding: '16px', borderRadius: 12, background: '#f0fdfa', border: '1.5px solid #99f6e4' }} className="animate-fade-in">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 9, background: '#ccfbf1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Zap size={16} color="#0d9488" />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>Video Generation in Progress</div>
+                      <div style={{ fontSize: 11, color: '#64748b', marginTop: 1 }}>System is processing your request. Preview will update automatically.</div>
+                    </div>
+                    <span style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 800, color: '#0d9488' }}>{Math.round(progress)}%</span>
+                  </div>
+                  <div style={{ height: 6, background: '#ccfbf1', borderRadius: 6, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${progress}%`, background: 'linear-gradient(90deg, #0d9488, #0284c7)', borderRadius: 6, transition: 'width 0.4s ease' }} />
+                  </div>
+                </div>
+              )}
+
             </div>
           </div>
-
-          {/* ---- Generation Progress Timeline ---- */}
-          {isGenerating && generationType !== 'images' && (
-            <div className="sd-action-card sd-action-card-success animate-fade-in">
-              <div className="sd-card-head">
-                <div className="sd-card-icon" style={{ background: '#f0fdfa', color: '#0d9488' }}>
-                  <Zap size={20} />
-                </div>
-                <h2 className="sd-card-title">Video Generation in Progress</h2>
-              </div>
-              <div className="sd-card-inner">
-                <div className="sd-timeline-header">
-                  <span className="sd-timeline-label">Progress</span>
-                  <span className="sd-timeline-value">{Math.round(progress)}%</span>
-                </div>
-                <div className="sd-timeline-bar">
-                  <div className="sd-timeline-progress" style={{ width: `${progress}%` }} />
-                </div>
-                <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '8px' }}>
-                  System is currently processing your request. The preview will update automatically.
-                </p>
-              </div>
-            </div>
-          )}
 
           {/* Generated Story Output */}
 
@@ -1959,19 +2014,25 @@ export default function SocialDash() {
             </div>
           )}
 
-          {generatedScenes && generatedScenes.length > 0 && (
-            <div className="sd-action-card sd-action-card-success animate-fade-in" style={{ paddingBottom: 0 }}>
-              <div className="sd-card-head" style={{ borderBottom: '1px solid #dcfce7', paddingBottom: 16 }}>
-                <div className="sd-card-icon" style={{ background: '#f0fdf4', color: '#16a34a' }}>
-                  <ImageIcon size={20} />
+          {generatedScenes && generatedScenes.length > 0 && loading !== 'confirm' && (() => {
+            const failCount = Object.keys(sceneFailures).length;
+            return (
+            <div className="sd-action-card animate-fade-in" style={{ paddingBottom: 0, border: failCount > 0 ? '2px solid #ef4444' : undefined, boxShadow: failCount > 0 ? '0 8px 32px rgba(220,38,38,0.15)' : undefined }}>
+              <div className="sd-card-head" style={{ borderBottom: failCount > 0 ? '1px solid #fecaca' : '1px solid #dcfce7', paddingBottom: 16, background: failCount > 0 ? 'linear-gradient(135deg, #dc2626, #ef4444)' : undefined, margin: failCount > 0 ? '-20px -20px 0 -20px' : undefined, padding: failCount > 0 ? '18px 20px' : undefined, borderRadius: failCount > 0 ? '14px 14px 0 0' : undefined }}>
+                <div className="sd-card-icon" style={{ background: failCount > 0 ? 'rgba(255,255,255,0.2)' : '#f0fdf4', color: failCount > 0 ? '#fff' : '#16a34a' }}>
+                  {failCount > 0 ? <span style={{ fontSize: 18 }}>⚠️</span> : <ImageIcon size={20} />}
                 </div>
                 <div style={{ flex: 1 }}>
-                  <h2 className="sd-card-title">Generated Ad Scenes</h2>
-                  <p style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
-                    Inspect and edit your scaled image and video scenario prompts.
+                  <h2 className="sd-card-title" style={{ color: failCount > 0 ? '#fff' : undefined }}>
+                    {failCount > 0 ? 'Policy Violation — Fix & Resubmit' : 'Generated Ad Scenes'}
+                  </h2>
+                  <p style={{ fontSize: 11, color: failCount > 0 ? 'rgba(255,255,255,0.8)' : '#64748b', marginTop: 2 }}>
+                    {failCount > 0
+                      ? `${failCount} scene${failCount > 1 ? 's' : ''} failed content policy check — edit the highlighted prompt${failCount > 1 ? 's' : ''} and click Resubmit.`
+                      : 'Inspect and edit your scaled image and video scenario prompts.'}
                   </p>
                 </div>
-                <Badge text={`${generatedScenes.length} scenes`} color="#16a34a" bg="#f0fdf4" />
+                <Badge text={failCount > 0 ? `${failCount} failed` : `${generatedScenes.length} scenes`} color={failCount > 0 ? '#fff' : '#16a34a'} bg={failCount > 0 ? 'rgba(255,255,255,0.2)' : '#f0fdf4'} />
               </div>
               <div className="sd-card-inner" style={{ padding: 0, background: '#ffffff' }}>
                 <div style={{ display: "grid", gridTemplateColumns: "44px 1.1fr 1.3fr 1.3fr", padding: "10px 20px", background: "#f8fafc", borderBottom: "1.5px solid #e2e8f0" }}>
@@ -1982,15 +2043,22 @@ export default function SocialDash() {
                 </div>
 
                 <div style={{ overflowY: "auto", maxHeight: "450px" }}>
-                  {generatedScenes.map((scene: any, i: number) => (
-                    <div key={i} style={{ display: "grid", gridTemplateColumns: "44px 1.1fr 1.3fr 1.3fr", borderBottom: "1px solid #f1f5f9", background: i % 2 === 0 ? "#fff" : "#f8fafc" }}>
+                  {generatedScenes.map((scene: any, i: number) => {
+                    const failure = sceneFailures[i];
+                    const isFailed = failure !== undefined;
+                    const isImageFail = isFailed && failure.column === 'image';
+                    const isVideoFail = isFailed && failure.column === 'video';
+                    const clearFailure = () => setSceneFailures(prev => { const n = { ...prev }; delete n[i]; return n; });
+                    return (
+                    <div key={i} style={{ display: "grid", gridTemplateColumns: "44px 1.1fr 1.3fr 1.3fr", borderBottom: "1px solid #f1f5f9", background: isFailed ? "#fff5f5" : (i % 2 === 0 ? "#fff" : "#f8fafc"), outline: isFailed ? "2px solid #fca5a5" : undefined }}>
                       {/* Scene number */}
                       <div style={{ padding: "16px 8px", display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 18 }}>
                         <span style={{
                           display: "inline-flex", alignItems: "center", justifyContent: "center",
                           width: 24, height: 24, borderRadius: "50%",
-                          background: "#0284c7",
-                          color: "#fff", fontSize: 11, fontWeight: 800
+                          background: isFailed ? "#ef4444" : "#0284c7",
+                          color: "#fff", fontSize: 11, fontWeight: 800,
+                          boxShadow: isFailed ? "0 0 0 3px rgba(239,68,68,0.2)" : undefined
                         }}>{scene.scene}</span>
                       </div>
 
@@ -2008,8 +2076,7 @@ export default function SocialDash() {
                           rows={4}
                           style={{
                             width: "100%", fontSize: 11, color: "#15803d", fontWeight: 500, lineHeight: 1.75,
-                            border: "1.5px solid #dcfce7",
-                            borderRadius: 8, padding: "10px 12px",
+                            border: "1.5px solid #dcfce7", borderRadius: 8, padding: "10px 12px",
                             resize: "vertical", fontFamily: "inherit", outline: "none",
                             background: "#f0fdf4", transition: "border 0.15s",
                           }}
@@ -2019,7 +2086,7 @@ export default function SocialDash() {
                         />
                       </div>
 
-                      {/* Image Prompt — editable */}
+                      {/* Image Prompt — red if image failure */}
                       <div style={{ padding: "12px 12px 12px 12px", borderRight: "1px solid #e2e8f0" }}>
                         <textarea
                           value={scene.prompt || ""}
@@ -2029,22 +2096,30 @@ export default function SocialDash() {
                               arr[i] = { ...arr[i], prompt: e.target.value };
                               return arr;
                             });
+                            if (isImageFail) clearFailure();
                           }}
                           rows={4}
                           style={{
-                            width: "100%", fontSize: 11, color: "#334155", lineHeight: 1.75,
-                            border: "1.5px solid #e2e8f0",
+                            width: "100%", fontSize: 11, color: isImageFail ? "#991b1b" : "#334155", lineHeight: 1.75,
+                            border: isImageFail ? "2px solid #ef4444" : "1.5px solid #e2e8f0",
                             borderRadius: 8, padding: "10px 12px",
                             resize: "vertical", fontFamily: "inherit", outline: "none",
-                            background: "#f8fafc", transition: "border 0.15s",
+                            background: isImageFail ? "#fff1f2" : "#f8fafc", transition: "border 0.15s",
+                            boxShadow: isImageFail ? "0 0 0 3px rgba(239,68,68,0.12)" : undefined,
                           }}
-                          onFocus={e => e.target.style.borderColor = "#0284c7"}
-                          onBlur={e => e.target.style.borderColor = "#e2e8f0"}
+                          onFocus={e => e.target.style.borderColor = isImageFail ? "#dc2626" : "#0284c7"}
+                          onBlur={e => e.target.style.borderColor = isImageFail ? "#ef4444" : "#e2e8f0"}
                           placeholder="No image prompt..."
                         />
+                        {isImageFail && (
+                          <div style={{ display: "flex", alignItems: "flex-start", gap: 6, marginTop: 6, padding: "7px 10px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 7 }}>
+                            <span style={{ fontSize: 13, flexShrink: 0 }}>🚫</span>
+                            <span style={{ fontSize: 10, color: "#991b1b", lineHeight: 1.5, fontWeight: 600 }}>{failure.msg}</span>
+                          </div>
+                        )}
                       </div>
 
-                      {/* Video Scenario — editable */}
+                      {/* Video Scenario — red if video failure */}
                       <div style={{ padding: "12px 12px" }}>
                         <textarea
                           value={scene.video_scenario || ""}
@@ -2054,23 +2129,32 @@ export default function SocialDash() {
                               arr[i] = { ...arr[i], video_scenario: e.target.value };
                               return arr;
                             });
+                            if (isVideoFail) clearFailure();
                           }}
                           rows={4}
                           style={{
                             width: "100%", fontSize: 11, lineHeight: 1.75,
-                            color: "#6d28d9",
-                            border: "1.5px solid #e2e8f0",
+                            color: isVideoFail ? "#991b1b" : "#6d28d9",
+                            border: isVideoFail ? "2px solid #ef4444" : "1.5px solid #e2e8f0",
                             borderRadius: 8, padding: "10px 12px",
                             resize: "vertical", fontFamily: "inherit", outline: "none",
-                            background: "#f5f3ff", transition: "border 0.15s",
+                            background: isVideoFail ? "#fff1f2" : "#f5f3ff", transition: "border 0.15s",
+                            boxShadow: isVideoFail ? "0 0 0 3px rgba(239,68,68,0.12)" : undefined,
                           }}
-                          onFocus={e => e.target.style.borderColor = "#7c3aed"}
-                          onBlur={e => e.target.style.borderColor = "#e2e8f0"}
+                          onFocus={e => e.target.style.borderColor = isVideoFail ? "#dc2626" : "#7c3aed"}
+                          onBlur={e => e.target.style.borderColor = isVideoFail ? "#ef4444" : "#e2e8f0"}
                           placeholder="No video scenario..."
                         />
+                        {isVideoFail && (
+                          <div style={{ display: "flex", alignItems: "flex-start", gap: 6, marginTop: 6, padding: "7px 10px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 7 }}>
+                            <span style={{ fontSize: 13, flexShrink: 0 }}>🚫</span>
+                            <span style={{ fontSize: 10, color: "#991b1b", lineHeight: 1.5, fontWeight: 600 }}>{failure.msg}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 {/* Footer bar with Confirm Prompts button */}
@@ -2098,6 +2182,8 @@ export default function SocialDash() {
                   >
                     {loading === 'confirm' ? (
                       <><Spinner size={14} color="white" /> Confirming...</>
+                    ) : failCount > 0 ? (
+                      <><CheckCircle2 size={14} /> Resubmit Prompts →</>
                     ) : (
                       <><CheckCircle2 size={14} /> Confirm Prompts</>
                     )}
@@ -2105,7 +2191,8 @@ export default function SocialDash() {
                 </div>
               </div>
             </div>
-          )}
+            );
+          })()}
 
           </div>
 
@@ -2120,12 +2207,13 @@ export default function SocialDash() {
                   <span className="sd-preview-label">System Preview Output</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <button 
-                    className="sd-btn-refresh-small" 
+                  <button
+                    className="sd-btn-refresh-small"
                     onClick={handleRefreshPreview}
+                    disabled={isRefreshingVideo}
                     title="Refresh Preview"
                   >
-                    <RefreshCw size={14} />
+                    <RefreshCw size={14} style={{ animation: isRefreshingVideo ? 'spin 1s linear infinite' : 'none' }} />
                   </button>
                   <span className="sd-live-tag">Live Feed</span>
                 </div>
@@ -2547,6 +2635,17 @@ export default function SocialDash() {
                     Social Campaign Mockup
                   </h3>
                   <p style={{ fontSize: '11px', color: '#64748b', marginTop: '2px', margin: 0 }}>High-fidelity social feed preview & editor</p>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <button
+                    className="sd-btn-refresh-small"
+                    onClick={handleRefreshImagePreview}
+                    disabled={isRefreshingImage}
+                    title="Refresh Image Preview"
+                  >
+                    <RefreshCw size={14} style={{ animation: isRefreshingImage ? 'spin 1s linear infinite' : 'none' }} />
+                  </button>
+                  <span className="sd-live-tag">Live Feed</span>
                 </div>
               </div>
 
