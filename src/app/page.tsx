@@ -34,6 +34,7 @@ import { supabase } from "../lib/supabase";
 import { useRouter } from "next/navigation";
 import CampaignSetup from "./CampaignSetup";
 import SocialDash from "./SocialDash";
+import VoiceExplorerModal from "./VoiceExplorerModal";
 import "./globals.css";
 
 // ─── CONSTANTS ───────────────────────────────────────────────
@@ -233,6 +234,8 @@ export default function Dashboard() {
   const [scenesModal, setScenesModal] = useState({ open: false, scenes: [], adLabel: "", itemId: null });
   const [editedScenes, setEditedScenes] = useState([]);     // editable copy of scenes in modal
   const [failedPrompts, setFailedPrompts] = useState<Array<{ taskId: string; prompt: string; failMsg: string }>>([]);
+  const [voiceModalOpenForId, setVoiceModalOpenForId] = useState<number | null>(null);
+  const [voiceLabels, setVoiceLabels] = useState<Record<number, string>>({});
   const [failedImagePrompts, setFailedImagePrompts] = useState<Array<{ prompt: string; reason: string; index: number }>>([]);
   const [editingImagePrompt, setEditingImagePrompt] = useState<{ open: boolean; index: number; prompt: string; reason: string } | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -959,6 +962,7 @@ export default function Dashboard() {
   const DURATIONS = ["20 seconds", "28 seconds", "32 seconds", "36 seconds", "40 seconds"];
   const AUDIO_STYLES = ["Background Music", "Voiceover Only", "Music + Voiceover", "No Audio"];
   const VIDEO_STYLES = ["Bold & Colorful", "Cinematic", "Minimal & Clean", "Dark & Moody", "Neon / Glow", "Hand-drawn / Sketch"];
+  const LANGUAGES = ["English", "Spanish", "French", "Hebrew", "Turkish"];
   const VOICE_OPTIONS = {
     male: [
       { label: "Markmont", id: "rTOopItG6FIkKMIVxsl5" },
@@ -3323,10 +3327,9 @@ export default function Dashboard() {
                                     value={item.character || "male"}
                                     onChange={(e) => {
                                       const newChar = e.target.value;
-                                      const firstVoice = VOICE_OPTIONS[newChar][0].id;
                                       setCreateTabAdsConfig((prev) => {
                                         const newItems = [...prev.items];
-                                        newItems[idx] = { ...newItems[idx], character: newChar, voiceId: firstVoice };
+                                        newItems[idx] = { ...newItems[idx], character: newChar };
                                         return { ...prev, items: newItems };
                                       });
                                     }}
@@ -3340,36 +3343,68 @@ export default function Dashboard() {
                                     <option value="female">👩 Female</option>
                                   </select>
                                 </div>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => setVoiceModalOpenForId(item.id)}
+                                    style={{
+                                      width: "100%", padding: "10px", borderRadius: "var(--radius-md)",
+                                      border: "none", background: "#0284c7", color: "#fff",
+                                      fontSize: 12, fontWeight: 700, cursor: "pointer",
+                                      display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                                      fontFamily: "inherit", transition: "background 0.15s",
+                                    }}
+                                    onMouseEnter={e => { e.currentTarget.style.background = "#0369a1"; }}
+                                    onMouseLeave={e => { e.currentTarget.style.background = "#0284c7"; }}
+                                  >
+                                    🎙️ Voices
+                                  </button>
+                                  {voiceLabels[item.id] && (
+                                    <div style={{
+                                      display: "flex", alignItems: "center", gap: 5,
+                                      padding: "4px 10px", background: "#eff6ff",
+                                      border: "1px solid #bfdbfe", borderRadius: 6,
+                                      fontSize: 11, fontWeight: 600, color: "#1d4ed8",
+                                    }}>
+                                      <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                        {voiceLabels[item.id]}
+                                      </span>
+                                      <span style={{ fontSize: 9, fontWeight: 700, color: "#2563eb", textTransform: "uppercase", background: "#dbeafe", padding: "1px 5px", borderRadius: 3, flexShrink: 0 }}>
+                                        Selected
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                                 <div>
-                                  <div style={{ fontSize: 10, fontWeight: 800, color: "#0284c7", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Voice</div>
+                                  <div style={{ fontSize: 10, fontWeight: 800, color: "#0284c7", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Visual Style</div>
                                   <select
-                                    value={item.voiceId || VOICE_OPTIONS[item.character || "male"][0].id}
-                                    onChange={(e) => updateCreateTabItemField(idx, "voiceId", e.target.value)}
+                                    value={item.videoStyle}
+                                    onChange={(e) => updateCreateTabItemField(idx, "videoStyle", e.target.value)}
                                     style={{
                                       width: "100%", padding: "10px", borderRadius: "var(--radius-md)",
                                       border: "1px solid var(--border)", background: "var(--card-bg)",
                                       fontSize: 12, outline: "none", color: "var(--text)", fontFamily: "inherit"
                                     }}
                                   >
-                                    {(VOICE_OPTIONS[item.character || "male"] || []).map(v => (
-                                      <option key={v.id} value={v.id}>{v.label}</option>
-                                    ))}
+                                    {VIDEO_STYLES.map(s => <option key={s} value={s}>{s}</option>)}
                                   </select>
                                 </div>
-                              </div>
-                              <div>
-                                <div style={{ fontSize: 10, fontWeight: 800, color: "#0284c7", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Visual Style</div>
-                                <select
-                                  value={item.videoStyle}
-                                  onChange={(e) => updateCreateTabItemField(idx, "videoStyle", e.target.value)}
-                                  style={{
-                                    width: "100%", padding: "10px", borderRadius: "var(--radius-md)",
-                                    border: "1px solid var(--border)", background: "var(--card-bg)",
-                                    fontSize: 12, outline: "none", color: "var(--text)", fontFamily: "inherit"
-                                  }}
-                                >
-                                  {VIDEO_STYLES.map(s => <option key={s} value={s}>{s}</option>)}
-                                </select>
+                                <div>
+                                  <div style={{ fontSize: 10, fontWeight: 800, color: "#0284c7", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Language</div>
+                                  <select
+                                    value={item.language || "English"}
+                                    onChange={(e) => updateCreateTabItemField(idx, "language", e.target.value)}
+                                    style={{
+                                      width: "100%", padding: "10px", borderRadius: "var(--radius-md)",
+                                      border: "1px solid var(--border)", background: "var(--card-bg)",
+                                      fontSize: 12, outline: "none", color: "var(--text)", fontFamily: "inherit"
+                                    }}
+                                  >
+                                    {LANGUAGES.map(l => <option key={l} value={l}>{l}</option>)}
+                                  </select>
+                                </div>
                               </div>
                               <div>
                                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
@@ -5762,6 +5797,30 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* ── Voice Explorer Modal (Create Ads) ── */}
+      {voiceModalOpenForId !== null && (() => {
+        const currentItem = createTabAdsConfig.items.find((it: any) => it.id === voiceModalOpenForId);
+        return (
+          <VoiceExplorerModal
+            isOpen={voiceModalOpenForId !== null}
+            onOpenChange={(open) => { if (!open) setVoiceModalOpenForId(null); }}
+            selectedVoiceId={currentItem?.voiceId || ""}
+            onSelectVoice={(id, label) => {
+              if (voiceModalOpenForId !== null) {
+                setCreateTabAdsConfig((prev: any) => {
+                  const newItems = [...prev.items];
+                  const idx = newItems.findIndex((it: any) => it.id === voiceModalOpenForId);
+                  if (idx !== -1) newItems[idx] = { ...newItems[idx], voiceId: id };
+                  return { ...prev, items: newItems };
+                });
+                setVoiceLabels(prev => ({ ...prev, [voiceModalOpenForId]: label }));
+              }
+              setVoiceModalOpenForId(null);
+            }}
+          />
+        );
+      })()}
 
       </main>
 

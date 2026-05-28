@@ -24,6 +24,49 @@ interface VoiceExplorerModalProps {
 
 const VOICES_PER_PAGE = 20;
 
+const LANGUAGE_NAMES: Record<string, string> = {
+  ar: "Arabic", bg: "Bulgarian", cs: "Czech", da: "Danish", de: "German",
+  el: "Greek", en: "English", es: "Spanish", fi: "Finnish", fil: "Filipino",
+  fr: "French", he: "Hebrew", hi: "Hindi", hr: "Croatian", hu: "Hungarian",
+  id: "Indonesian", it: "Italian", ja: "Japanese", ko: "Korean", ms: "Malay",
+  nl: "Dutch", no: "Norwegian", pl: "Polish", pt: "Portuguese", ro: "Romanian",
+  ru: "Russian", sk: "Slovak", sv: "Swedish", ta: "Tamil", tr: "Turkish",
+  uk: "Ukrainian", vi: "Vietnamese", zh: "Chinese",
+};
+
+// These always appear at the top, regardless of what the API returns
+const PINNED_LANGUAGES = [
+  { code: "en",      label: "English" },
+  { code: "es",      label: "Spanish" },
+  { code: "fr",      label: "French" },
+  { code: "he",      label: "Hebrew" },
+  { code: "tr",      label: "Turkish" },
+];
+
+// Alternate codes/names ElevenLabs may use for the same language
+const LANGUAGE_ALIASES: Record<string, string> = {
+  english: "en", spanish: "es", french: "fr",
+  hebrew: "he", iw: "he", turkish: "tr",
+  german: "de", arabic: "ar", chinese: "zh",
+};
+
+function getLanguageLabel(code: string): string {
+  return LANGUAGE_NAMES[code.toLowerCase()] || code;
+}
+
+function normaliseLang(raw: string): string {
+  const lower = raw.toLowerCase();
+  return LANGUAGE_ALIASES[lower] || lower;
+}
+
+function sortLanguages(langs: string[]): string[] {
+  const pinnedCodes = new Set(PINNED_LANGUAGES.map(p => p.code));
+  const rest = langs
+    .filter(l => !pinnedCodes.has(normaliseLang(l)))
+    .sort((a, b) => getLanguageLabel(a).localeCompare(getLanguageLabel(b)));
+  return rest;
+}
+
 export default function VoiceExplorerModal({
   isOpen,
   onOpenChange,
@@ -103,7 +146,7 @@ export default function VoiceExplorerModal({
       voice.description.toLowerCase().includes(query);
     const matchesGender = genderFilter === 'all' || voice.gender === genderFilter;
     const matchesAccent = accentFilter === 'all' || voice.accent.toLowerCase().includes(accentFilter.toLowerCase());
-    const matchesLanguage = languageFilter === 'all' || voice.language.toLowerCase().includes(languageFilter.toLowerCase());
+    const matchesLanguage = languageFilter === 'all' || normaliseLang(voice.language) === languageFilter || voice.language.toLowerCase().includes(languageFilter.toLowerCase());
     return matchesSearch && matchesGender && matchesAccent && matchesLanguage;
   });
 
@@ -120,7 +163,7 @@ export default function VoiceExplorerModal({
 
   // Unique filter options derived from all voices
   const uniqueAccents = Array.from(new Set(voices.map(v => v.accent).filter(Boolean))).sort();
-  const uniqueLanguages = Array.from(new Set(voices.map(v => v.language).filter(Boolean))).sort();
+  const uniqueLanguages = sortLanguages(Array.from(new Set(voices.map(v => v.language).filter(Boolean))));
 
   const clearFilters = () => {
     setSearchQuery('');
@@ -268,8 +311,12 @@ export default function VoiceExplorerModal({
                   style={{ padding: '5px 10px', fontSize: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#ffffff', color: '#0f172a', outline: 'none', fontWeight: 500, cursor: 'pointer' }}
                 >
                   <option value="all">All Languages</option>
+                  {PINNED_LANGUAGES.map(p => (
+                    <option key={p.code} value={p.code}>{p.label}</option>
+                  ))}
+                  {uniqueLanguages.length > 0 && <option disabled>──────────</option>}
                   {uniqueLanguages.map(lang => (
-                    <option key={lang} value={lang}>{lang}</option>
+                    <option key={lang} value={lang}>{getLanguageLabel(lang)}</option>
                   ))}
                 </select>
               </div>
@@ -360,7 +407,7 @@ export default function VoiceExplorerModal({
                         {voice.language && (
                           <div style={{ marginBottom: '6px' }}>
                             <span style={{ padding: '2px 7px', borderRadius: '4px', fontSize: '9px', fontWeight: 600, background: '#f1f5f9', color: '#475569' }}>
-                              🌐 {voice.language}
+                              🌐 {getLanguageLabel(voice.language)}
                             </span>
                           </div>
                         )}

@@ -1772,6 +1772,8 @@ export default function SocialDash() {
                     <option value="English">English</option>
                     <option value="Spanish">Spanish</option>
                     <option value="French">French</option>
+                    <option value="Hebrew">Hebrew</option>
+                    <option value="Turkish">Turkish</option>
                   </select>
                 </div>
 
