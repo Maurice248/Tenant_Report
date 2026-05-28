@@ -246,12 +246,11 @@ export default function SocialDash() {
     };
     const fetchVideoData = async () => {
       try {
-        const { data, error } = await supabase
-          .from('videos')
-          .select('video_link, metadata')
-          .eq('id', 1)
-          .single();
-        console.log('[Videos fetch] data:', data, '| error:', error);
+        const res = await fetch('/api/video-metadata');
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
+        const data = await res.json();
         if (data) {
           if (data.video_link) {
             setSupabaseVideoUrl(data.video_link);
@@ -261,12 +260,17 @@ export default function SocialDash() {
           }
         }
       } catch (err) {
-        console.error("Error fetching initial video data from Supabase:", err);
+        console.error("Error fetching video data from server API proxy:", err);
       }
     };
 
     fetchImageData();
     fetchVideoData();
+
+    // Set up polling for live video metadata (to bypass real-time subscription RLS block)
+    const videoPollInterval = setInterval(() => {
+      fetchVideoData();
+    }, 8000);
 
     const channel = supabase
       .channel('images-all-cols')
@@ -300,6 +304,7 @@ export default function SocialDash() {
     return () => {
       supabase.removeChannel(channel);
       supabase.removeChannel(videoChannel);
+      clearInterval(videoPollInterval);
     };
   }, []);
 
@@ -2176,7 +2181,7 @@ export default function SocialDash() {
                       boxShadow: '0 25px 50px -12px rgba(0,0,0,0.1), inset 0 0 20px rgba(0,0,0,0.02)',
                       overflow: 'hidden',
                       position: 'relative',
-                      height: '460px'
+                      height: '530px'
                     }}>
                       {/* Simulated Notch / Dynamic Island */}
                       <div style={{
@@ -2245,6 +2250,113 @@ export default function SocialDash() {
                             <p style={{ color: '#475569', fontSize: '11px', fontWeight: 500, textAlign: 'center' }}>Loading preview stream...</p>
                           </div>
                         )}
+                      </div>
+                    </div>
+
+                    {/* Edit Native Platform Copy Section */}
+                    <div style={{
+                      background: '#ffffff',
+                      borderRadius: '16px',
+                      padding: '16px',
+                      border: '1px solid #e2e8f0',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '12px',
+                      marginTop: '8px'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '14px' }}>✍️</span>
+                        <span style={{ fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          Edit {activeVideoPlatform} Post Copy
+                        </span>
+                      </div>
+
+                      {activeVideoPlatform === 'youtube' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <label style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>YouTube Video Title</label>
+                          <input
+                            type="text"
+                            value={getActiveVideoTitle()}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setVideoMetadata((prev: any) => {
+                                const currentMetadata = prev ? { ...prev } : {
+                                  instagram: { content: socialDescriptions.instagram },
+                                  facebook: { content: socialDescriptions.facebook },
+                                  linkedin: { content: socialDescriptions.linkedin },
+                                  tiktok: { caption: socialDescriptions.tiktok },
+                                  youtube: { title: "From Hiding My Smile to Loving It 💙", description: socialDescriptions.instagram },
+                                  twitter: { content: socialDescriptions.twitter }
+                                };
+                                const updatedPlatformData = { ...currentMetadata.youtube, title: val };
+                                return { ...currentMetadata, youtube: updatedPlatformData };
+                              });
+                            }}
+                            style={{
+                              width: '100%',
+                              padding: '8px 12px',
+                              borderRadius: '8px',
+                              border: '1.5px solid #e2e8f0',
+                              fontSize: '11px',
+                              color: '#0f172a',
+                              outline: 'none',
+                              fontFamily: 'inherit',
+                              background: '#f8fafc',
+                              transition: 'all 0.15s'
+                            }}
+                            onFocus={(e) => e.target.style.borderColor = '#0284c7'}
+                            onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
+                          />
+                        </div>
+                      )}
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <label style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>
+                          {activeVideoPlatform === 'tiktok' ? 'Video Caption' : activeVideoPlatform === 'youtube' ? 'Video Description' : 'Post Content'}
+                        </label>
+                        <textarea
+                          value={getActiveVideoText()}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setVideoMetadata((prev: any) => {
+                              const currentMetadata = prev ? { ...prev } : {
+                                instagram: { content: socialDescriptions.instagram },
+                                facebook: { content: socialDescriptions.facebook },
+                                linkedin: { content: socialDescriptions.linkedin },
+                                tiktok: { caption: socialDescriptions.tiktok },
+                                youtube: { title: "From Hiding My Smile to Loving It 💙", description: socialDescriptions.instagram },
+                                twitter: { content: socialDescriptions.twitter }
+                              };
+                              const updatedPlatformData = { ...currentMetadata[activeVideoPlatform] };
+                              if (activeVideoPlatform === 'tiktok') {
+                                updatedPlatformData.caption = val;
+                              } else if (activeVideoPlatform === 'youtube') {
+                                updatedPlatformData.description = val;
+                              } else {
+                                updatedPlatformData.content = val;
+                              }
+                              return { ...currentMetadata, [activeVideoPlatform]: updatedPlatformData };
+                            });
+                          }}
+                          rows={4}
+                          placeholder={`Draft your perfect native ${activeVideoPlatform} copy...`}
+                          style={{
+                            width: '100%',
+                            padding: '10px 12px',
+                            borderRadius: '8px',
+                            border: '1.5px solid #e2e8f0',
+                            fontSize: '11px',
+                            color: '#0f172a',
+                            outline: 'none',
+                            resize: 'none',
+                            fontFamily: 'inherit',
+                            background: '#f8fafc',
+                            lineHeight: '1.6',
+                            transition: 'all 0.15s'
+                          }}
+                          onFocus={(e) => e.target.style.borderColor = '#0284c7'}
+                          onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
+                        />
                       </div>
                     </div>
                   </div>
@@ -2530,7 +2642,7 @@ export default function SocialDash() {
 
                     {/* Simulated Mobile Device screen viewport */}
                     <div style={{
-                      height: '480px',
+                      height: '456px',
                       overflowY: 'auto',
                       background: activePlatform === 'tiktok' ? '#000000' : '#ffffff',
                       color: activePlatform === 'tiktok' ? '#ffffff' : '#0f172a',
