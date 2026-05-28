@@ -438,9 +438,12 @@ export default function SocialDash() {
                        platforms.tiktok?.caption || 
                        platforms.tiktok?.content || 
                        platforms.tiktok?.description || 
-                       platforms.twitter?.content || 
+                       "What Nobody Tells You About DHI Hair Transplants 🇹🇷\n\n#HairTransplant #HairRestoration #HairTransplantTurkey";
+
+        const twText = platforms.twitter?.content || 
                        platforms.twitter?.caption || 
-                       "What Nobody Tells You About DHI Hair Transplants 🇹🇷\n\nWaiting for hair restoration in Canada felt endless and costly. Discovering the DHI hair transplant with TOGA Health in Turkey changed everything — a no-shave, minimally invasive method that offers precision and faster recovery. Unlike traditional transplants, DHI uses direct implantation for a natural look without long downtime. Now, I can enjoy fuller hair without hiding behind scars or shaved areas. TOGA Health helped me skip the wait and regain confidence with cutting-edge care tailored just for me. Visit TOGA Health to learn more about transforming your life\n\n#HairTransplant #HairRestoration #HairTransplantTurkey #MedicalTourismTurkey #IstanbulHealthcare #Togahealth";
+                       platforms.twitter?.description || 
+                       "What Nobody Tells You About DHI Hair Transplants 🇹🇷\n\nWaiting for hair restoration in Canada felt endless. Discovering DHI with TOGA Health changed everything! #HairTransplant #Turkey";
 
         const liText = platforms.linkedin?.content || 
                        platforms.linkedin?.caption || 
@@ -451,7 +454,8 @@ export default function SocialDash() {
           instagram: instaText,
           facebook: fbText,
           tiktok: ttText,
-          linkedin: liText
+          linkedin: liText,
+          twitter: twText
         });
       } catch (err) {
         console.error("Error parsing webhook social data:", err);
@@ -467,7 +471,8 @@ export default function SocialDash() {
         instagram: "What Nobody Tells You About DHI Hair Transplants 🇹🇷\n\nWaiting for hair restoration in Canada felt endless and costly. Discovering the DHI hair transplant with TOGA Health in Turkey changed everything — a no-shave, minimally invasive method that offers precision and faster recovery. Unlike traditional transplants, DHI uses direct implantation for a natural look without long downtime. Now, I can enjoy fuller hair without hiding behind scars or shaved areas. TOGA Health helped me skip the wait and regain confidence with cutting-edge care tailored just for me. Visit TOGA Health to learn more about transforming your life\n\n.\n.\n.\n#HairTransplant #HairRestoration #HairTransplantTurkey #MedicalTourismTurkey #IstanbulHealthcare #CanadianPatients #ConfidenceRestored #LifeTransformation #NewBeginnings #SelfCareJourney #TransformationStory #TOGAHealth #MedicalTourism #AffordableHealthcare",
         facebook: "What Nobody Tells You About DHI Hair Transplants 🇹🇷\n\nWaiting for hair restoration in Canada felt endless and costly. Discovering the DHI hair transplant with TOGA Health in Turkey changed everything — a no-shave, minimally invasive method that offers precision and faster recovery. Unlike traditional transplants, DHI uses direct implantation for a natural look without long downtime. Now, I can enjoy fuller hair without hiding behind scars or shaved areas. TOGA Health helped me skip the wait and regain confidence with cutting-edge care tailored just for me. Visit TOGA Health to learn more about transforming your life\n\n#HairTransplant #HairRestoration #HairTransplantTurkey #MedicalTourismTurkey #IstanbulHealthcare #CanadianPatients #ConfidenceRestored #LifeTransformation #NewBeginnings #SelfCareJourney #TransformationStory #TOGAHealth #MedicalTourism #AffordableHealthcare",
         tiktok: "What Nobody Tells You About DHI Hair Transplants 🇹🇷\n\n#HairTransplant #HairRestoration #HairTransplantTurkey",
-        linkedin: "What Nobody Tells You About DHI Hair Transplants 🇹🇷\n\nWaiting for hair restoration in Canada felt endless and costly. Discovering the DHI hair transplant with TOGA Health in Turkey changed everything — a no-shave, minimally invasive method that offers precision and faster recovery. Unlike traditional transplants, DHI uses direct implantation for a natural look without long downtime. Now, I can enjoy fuller hair without hiding behind scars or shaved areas. TOGA Health helped me skip the wait and regain confidence with cutting-edge care tailored just for me. Visit TOGA Health to learn more about transforming your life\n\n#HairTransplant #HairRestoration #HairTransplantTurkey #MedicalTourismTurkey #IstanbulHealthcare #CanadianPatients #ConfidenceRestored"
+        linkedin: "What Nobody Tells You About DHI Hair Transplants 🇹🇷\n\nWaiting for hair restoration in Canada felt endless and costly. Discovering the DHI hair transplant with TOGA Health in Turkey changed everything — a no-shave, minimally invasive method that offers precision and faster recovery. Unlike traditional transplants, DHI uses direct implantation for a natural look without long downtime. Now, I can enjoy fuller hair without hiding behind scars or shaved areas. TOGA Health helped me skip the wait and regain confidence with cutting-edge care tailored just for me. Visit TOGA Health to learn more about transforming your life\n\n#HairTransplant #HairRestoration #HairTransplantTurkey #MedicalTourismTurkey #IstanbulHealthcare #CanadianPatients #ConfidenceRestored",
+        twitter: "What Nobody Tells You About DHI Hair Transplants 🇹🇷\n\nWaiting for hair restoration in Canada felt endless. Discovering DHI with TOGA Health changed everything! #HairTransplant #Turkey"
       });
     }
   };
@@ -554,12 +559,18 @@ export default function SocialDash() {
                        platforms.linkedin?.caption || 
                        "";
 
+        const twText = platforms.twitter?.content || 
+                       platforms.twitter?.caption || 
+                       platforms.twitter?.description || 
+                       "";
+
         setGeneratedSocialImage(imageUrl);
         setSocialDescriptions({
           instagram: instaText,
           facebook: fbText,
           tiktok: ttText,
-          linkedin: liText
+          linkedin: liText,
+          twitter: twText
         });
       } catch (err) {
         console.error("Error parsing webhook social data in retry:", err);
