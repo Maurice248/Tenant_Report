@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import {
   Badge,
   Card,
@@ -236,6 +237,7 @@ export default function Dashboard() {
 
   // ── Supabase reports state ──
   const [sbRows, setSbRows] = useState([]);
+  const [hoveredInputs, setHoveredInputs] = useState<any>(null);
   const [errorNotification, setErrorNotification] = useState<string | null>(null);
   const [errorNotificationTime, setErrorNotificationTime] = useState<string | null>(null);
 
@@ -1914,17 +1916,21 @@ export default function Dashboard() {
                     padding: 12, borderRadius: "var(--radius-md)", border: "0.5px solid var(--border-light)",
                     background: "var(--surface)", transition: "transform 0.15s, border-color 0.15s"
                   }} 
-                  onMouseEnter={(e) => e.currentTarget.style.borderColor = "var(--primary)"} 
-                  onMouseLeave={(e) => e.currentTarget.style.borderColor = "var(--border-light)"}>
-                    
-                    {row.inputs && (
-                      <div className="absolute left-[105%] top-0 hidden group-hover:block z-50 p-4 bg-slate-900 text-slate-300 rounded-xl shadow-2xl text-[10px] w-72 border border-slate-700 pointer-events-none" style={{ backdropFilter: "blur(8px)" }}>
-                        <div style={{ fontSize: 11, fontWeight: 800, color: "#fff", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>Run Configuration</div>
-                        <pre style={{ margin: 0, fontFamily: "monospace", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                          {JSON.stringify(inputsObj, null, 2)}
-                        </pre>
-                      </div>
-                    )}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = "var(--primary)";
+                    if (row.inputs) {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setHoveredInputs({
+                        data: inputsObj,
+                        x: rect.right + 10,
+                        y: rect.top
+                      });
+                    }
+                  }} 
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = "var(--border-light)";
+                    setHoveredInputs(null);
+                  }}>
 
                     <div style={{ fontWeight: 600, color: "var(--text)", fontSize: 11, marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textTransform: "capitalize" }}>
                       {displayTitle}
@@ -5486,6 +5492,23 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+      )}
+
+      {hoveredInputs && typeof window !== "undefined" && document.body && createPortal(
+        <div style={{
+          position: "fixed",
+          left: hoveredInputs.x,
+          top: hoveredInputs.y,
+          zIndex: 999999,
+          pointerEvents: "none",
+          backdropFilter: "blur(8px)"
+        }} className="p-4 bg-slate-900 text-slate-300 rounded-xl shadow-2xl text-[10px] w-72 border border-slate-700">
+          <div style={{ fontSize: 11, fontWeight: 800, color: "#fff", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>Run Configuration</div>
+          <pre style={{ margin: 0, fontFamily: "monospace", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+            {JSON.stringify(hoveredInputs.data, null, 2)}
+          </pre>
+        </div>,
+        document.body
       )}
     </div>
   );
