@@ -1548,10 +1548,17 @@ export default function SocialDash() {
   };
 
   const handlePostVideo = () => {
-    const webhookUrl = process.env.NEXT_PUBLIC_N8N_SOCIAL_POST_URL || "https://n8n.srv1208919.hstgr.cloud/webhook/8f91f8e3-d06f-4e73-a545-e18065750416";
+    const webhookUrl = "https://n8n.srv1208919.hstgr.cloud/webhook/9f2515c1-b4fc-4dc9-9f39-8e766aee0dc6";
     triggerWebhook(
       webhookUrl,
-      "post", "Video posted to social media!"
+      "post",
+      "Video posted successfully!",
+      {
+        video_url: supabaseVideoUrl || videoUrl,
+        metadata: videoMetadata,
+        status: "Approved"
+      },
+      "POST"
     );
   };
 
@@ -2201,7 +2208,15 @@ export default function SocialDash() {
                         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
                         paddingTop: '20px' // Leave space for simulated notch
                       }} className="sd-phone-screen">
-                        {supabaseVideoUrl || videoUrl ? (
+                        {loading === 'post' ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '16px', padding: '20px', background: 'rgba(255, 255, 255, 0.96)', zIndex: 20, position: 'absolute', top: 0, left: 0, width: '100%' }}>
+                            <Loader2 size={36} color="#0284c7" style={{ animation: 'spin 1.5s linear infinite' }} />
+                            <div style={{ textAlign: 'center' }}>
+                              <p style={{ color: '#0f172a', fontSize: '13px', fontWeight: 700, margin: 0 }}>posting content</p>
+                              <p style={{ color: '#64748b', fontSize: '9px', marginTop: '4px', maxWidth: '200px', margin: '4px 0 0 0' }}>Syncing video asset and native copy to active social accounts...</p>
+                            </div>
+                          </div>
+                        ) : supabaseVideoUrl || videoUrl ? (
                           (() => {
                             const videoSrc = supabaseVideoUrl || videoUrl;
                             const activeText = getActiveVideoText();
