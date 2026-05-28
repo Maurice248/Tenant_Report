@@ -1082,16 +1082,14 @@ export default function SocialDash() {
                   <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
                     <Clock size={12} color="#d97706" /> Duration
                   </label>
-                  <select 
+                  <input 
+                    type="text"
                     name="duration"
-                    value={videoFormData.duration || "30s"}
+                    value={videoFormData.duration}
                     onChange={(e) => setVideoFormData(prev => ({ ...prev, duration: e.target.value }))}
                     style={{ padding: '11px 14px', fontSize: '13px', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#f8fafc', color: '#0f172a', outline: 'none' }}
-                  >
-                    <option value="30s">30 Seconds</option>
-                    <option value="60s">60 Seconds</option>
-                    <option value="90s">90 Seconds</option>
-                  </select>
+                    placeholder="e.g. 30s, 60s, 1m"
+                  />
                 </div>
 
               </div>
