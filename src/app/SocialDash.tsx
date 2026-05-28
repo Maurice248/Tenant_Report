@@ -553,7 +553,7 @@ export default function SocialDash() {
       await triggerWebhook(
         webhookUrl,
         "post_social",
-        "Social campaign posted successfully!",
+        "IMAGE PUBLISHED SUCCESSFULLY",
         {
           image_url: generatedSocialImage,
           descriptions: socialDescriptions,
@@ -1571,7 +1571,7 @@ export default function SocialDash() {
     triggerWebhook(
       webhookUrl,
       "post",
-      "Video posted successfully!",
+      "VIDEO PUBLISHED SUCCESSFULLY",
       {
         video_url: supabaseVideoUrl || videoUrl,
         metadata: videoMetadata,
