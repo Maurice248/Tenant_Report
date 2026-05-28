@@ -1213,9 +1213,7 @@ export default function SocialDash() {
                 <div className="sd-card-icon" style={{ background: '#f0fdfa', color: '#0d9488' }}>
                   <Zap size={20} />
                 </div>
-                <h2 className="sd-card-title">
-                  {generationType === 'images' ? 'Image Generation in Progress' : 'Video Generation in Progress'}
-                </h2>
+                <h2 className="sd-card-title">Video Generation in Progress</h2>
               </div>
               <div className="sd-card-inner">
                 <div className="sd-timeline-header">
@@ -1226,9 +1224,7 @@ export default function SocialDash() {
                   <div className="sd-timeline-progress" style={{ width: `${progress}%` }} />
                 </div>
                 <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '8px' }}>
-                  {generationType === 'images'
-                    ? 'System is currently generating your social images. This may take up to a minute.'
-                    : 'System is currently processing your request. The preview will update automatically.'}
+                  System is currently processing your request. The preview will update automatically.
                 </p>
               </div>
             </div>
