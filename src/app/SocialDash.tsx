@@ -481,23 +481,82 @@ export default function SocialDash() {
 
   const handleSocialRetrySubmit = async (retryPrompt: string) => {
     setShowSocialRetryModal(false);
-    setLoading('post_social');
-    try {
-      const webhookUrl = "https://n8n.srv1208919.hstgr.cloud/webhook/5636fbef-db11-419b-b7cf-92bff14c25b7";
-      await triggerWebhook(
-        webhookUrl,
-        "post_social",
-        "Social campaign retry submitted!",
-        {
-          image_url: generatedSocialImage,
-          descriptions: socialDescriptions,
-          status: "Reject",
-          retry_prompt: retryPrompt
-        },
-        "POST"
-      );
-    } finally {
-      setLoading(null);
+    setStatus("Regenerating images...");
+    setIsGenerating(true);
+    setGenerationType('images');
+    setProgress(0);
+    hasTriggeredInSession.current = true;
+
+    // Switch to visual workspace & show mobile screen loader instantly
+    setShowImageWorkspace(true);
+    setIsImageGenerating(true);
+    setGeneratedSocialImage(null);
+
+    const webhookUrl = process.env.NEXT_PUBLIC_N8N_SOCIAL_IMAGE_URL || "https://n8n.srv1208919.hstgr.cloud/webhook/1703fb64-ec58-4e56-9ce7-bd9e16e15220";
+    const result = await triggerWebhook(
+      webhookUrl,
+      "images",
+      "Social campaign regenerated successfully!",
+      {
+        prompt: retryPrompt,
+        text: retryPrompt,
+        ratio: imageRatio,
+        aspect_ratio: imageRatio,
+        is_retry: true,
+        status: "Reject",
+        previous_image: generatedSocialImage
+      },
+      "POST"
+    );
+
+    if (result) {
+      setProgress(100);
+      setTimeout(() => {
+        setIsGenerating(false);
+        setGenerationType(null);
+      }, 1000);
+
+      // Parse n8n response payload structure
+      try {
+        const payload = Array.isArray(result) ? result[0] : result;
+        const imageUrl = payload?.image_url || payload?.image || "https://tempfile.aiquickdraw.com/workers/nano/image_1779862412111_eo1ssy.png";
+        const platforms = payload?.platforms || {};
+
+        const instaText = platforms.instagram?.content || 
+                          platforms.instagram?.caption || 
+                          "";
+
+        const fbText = platforms.facebook?.content || 
+                       platforms.facebook?.caption || 
+                       "";
+
+        const ttText = payload?.raw?.caption ||
+                       payload?.Descriptions?.caption ||
+                       platforms.tiktok?.caption || 
+                       platforms.tiktok?.content || 
+                       platforms.tiktok?.description || 
+                       "";
+
+        const liText = platforms.linkedin?.content || 
+                       platforms.linkedin?.caption || 
+                       "";
+
+        setGeneratedSocialImage(imageUrl);
+        setSocialDescriptions({
+          instagram: instaText,
+          facebook: fbText,
+          tiktok: ttText,
+          linkedin: liText
+        });
+      } catch (err) {
+        console.error("Error parsing webhook social data in retry:", err);
+      } finally {
+        setIsImageGenerating(false);
+      }
+    } else {
+      setIsGenerating(false);
+      setGenerationType(null);
+      setIsImageGenerating(false);
     }
   };
 
