@@ -139,48 +139,36 @@ export default function GeneratorModal({ isOpen, onOpenChange, onSubmit, loading
               {/* Voice */}
               <div className="sd-form-field">
                 <label className="sd-form-label"><Mic2 size={13} /> Voice</label>
-                <div style={{ display: 'flex', gap: '6px' }}>
-                  <select 
-                    name="voice" 
-                    value={formData.voice} 
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      const label = e.target.options[e.target.selectedIndex].text;
-                      setFormData(prev => ({ ...prev, voice: val }));
-                      setVoiceLabel(label);
-                    }}
-                    className="sd-form-select"
-                    style={{ flex: 1 }}
-                  >
-                    <option value={formData.voice}>{voiceLabel}</option>
-                    {(VOICE_OPTIONS[(formData.character || "male") as 'male' | 'female'] || []).map(v => (
-                      v.id !== formData.voice && <option key={v.id} value={v.id}>{v.label}</option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => setIsVoiceModalOpen(true)}
-                    style={{
-                      background: '#d97706',
-                      color: '#ffffff',
-                      border: 'none',
-                      borderRadius: '8px',
-                      padding: '0 16px',
-                      fontSize: '12px',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      transition: 'all 0.15s'
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#b45309'}
-                    onMouseLeave={e => e.currentTarget.style.background = '#d97706'}
-                  >
-                    <Sparkles size={13} />
-                    Voices
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsVoiceModalOpen(true)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '8px',
+                    background: '#f8fafc',
+                    color: '#0f172a',
+                    outline: 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    transition: 'all 0.15s'
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = '#0284c7'; e.currentTarget.style.background = '#ffffff'; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = '#cbd5e1'; e.currentTarget.style.background = '#f8fafc'; }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Sparkles size={13} color="#0284c7" />
+                    {voiceLabel}
+                  </span>
+                  <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', background: '#e2e8f0', padding: '2px 6px', borderRadius: '4px' }}>
+                    Explore
+                  </span>
+                </button>
               </div>
 
               {/* Language */}
