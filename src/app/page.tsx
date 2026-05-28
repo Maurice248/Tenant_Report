@@ -1963,7 +1963,7 @@ export default function Dashboard() {
           </div>
 
           {/* Main Content Area */}
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <Card style={{ marginBottom: 14 }}>
               <style dangerouslySetInnerHTML={{ __html: `
                 @keyframes radar-sweep {
@@ -5501,37 +5501,40 @@ export default function Dashboard() {
           top: hoveredInputs.y,
           zIndex: 999999,
           pointerEvents: "none",
-        }} className="p-4 bg-white rounded-xl shadow-[0_12px_40px_-10px_rgba(0,0,0,0.15)] border border-slate-200 w-[300px] flex flex-col gap-3">
-          <div style={{ fontSize: 11, fontWeight: 800, color: "#0f172a", textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1.5px solid #f1f5f9", paddingBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ fontSize: 14 }}>⚙️</span> Configuration
+        }} className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.08)] border border-slate-100 w-[380px] overflow-hidden">
+          
+          <div className="bg-slate-50/80 px-5 py-3.5 border-b border-slate-100 flex items-center gap-2.5">
+            <div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]"></div>
+            <span className="text-[11px] font-bold text-slate-700 uppercase tracking-widest">Run Configuration</span>
           </div>
-          <div className="flex flex-col gap-3 max-h-[400px] overflow-hidden">
+          
+          <div className="p-5 flex flex-col gap-4 max-h-[450px] overflow-auto" style={{ scrollbarWidth: "thin" }}>
             {Object.entries(hoveredInputs.data).map(([key, value]) => {
               if (key === 'timestamp' || key === 'session_id') return null;
               
               let displayValue: React.ReactNode = String(value);
               if (Array.isArray(value)) {
                 displayValue = (
-                  <div className="flex flex-wrap gap-1.5 mt-1">
+                  <div className="flex flex-wrap gap-1.5 mt-1.5">
                     {value.map((v, i) => (
-                      <span key={i} className="px-1.5 py-0.5 bg-slate-50 text-slate-600 rounded-md text-[10px] font-semibold border border-slate-200">
+                      <span key={i} className="px-2.5 py-1 bg-slate-100 text-slate-700 rounded text-[11px] font-medium leading-none">
                         {v}
                       </span>
                     ))}
                   </div>
                 );
               } else if (typeof value === 'boolean') {
-                displayValue = <span className={`inline-block px-1.5 py-0.5 rounded-md text-[9px] font-bold ${value ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{value ? 'TRUE' : 'FALSE'}</span>;
+                displayValue = <span className={`inline-block px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider leading-none mt-1 ${value ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>{value ? 'Enabled' : 'Disabled'}</span>;
               } else if (typeof value === 'string') {
-                displayValue = <span className="text-[12px] font-bold text-slate-800 break-words">{value}</span>;
+                displayValue = <span className="text-[13px] font-medium text-slate-800 leading-snug block mt-0.5 capitalize">{value.replace(/_/g, ' ')}</span>;
               } else if (typeof value === 'number') {
-                displayValue = <span className="text-[12px] font-bold text-blue-600">{value}</span>;
+                displayValue = <span className="text-[13px] font-semibold text-slate-800 leading-snug block mt-0.5">{value}</span>;
               }
 
               return (
                 <div key={key} className="flex flex-col">
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">{key.replace(/_/g, ' ')}</span>
-                  <div>{displayValue}</div>
+                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">{key.replace(/_/g, ' ')}</span>
+                  {displayValue}
                 </div>
               );
             })}
