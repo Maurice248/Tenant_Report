@@ -243,32 +243,74 @@ export default function Dashboard() {
   const [errorNotification, setErrorNotification] = useState<string | null>(null);
   const [errorNotificationTime, setErrorNotificationTime] = useState<string | null>(null);
 
-  // ── Profile Form Data ──
-  const [profileData, setProfileData] = useState<any>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const saved = localStorage.getItem("togaah_profile_data");
-        if (saved) return JSON.parse(saved);
-      } catch (e) {}
-    }
-    return {
-      productsAndServices: "",
-      valueProposition: "",
-      brandVoice: "",
-      positioning: "",
-      competitors: "",
-      painPoints: "",
-      icpMetaAds: "",
-      icpNewsletter: "",
-      icpOutreach: ""
-    };
+  // ── Profile Form Data (Supabase Integration) ──
+  const [profileData, setProfileData] = useState<any>({
+    productsAndServices: "",
+    valueProposition: "",
+    brandVoice: "",
+    positioning: "",
+    competitors: "",
+    painPoints: "",
+    icpMetaAds: "",
+    icpNewsletter: "",
+    icpOutreach: ""
   });
+  const [profileId, setProfileId] = useState<string | null>(null);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("togaah_profile_data", JSON.stringify(profileData));
+    const fetchProfile = async () => {
+      const { data, error } = await supabase.from("brand_configs").select("*").limit(1).maybeSingle();
+      if (data) {
+        setProfileId(data.id);
+        setProfileData({
+          productsAndServices: data.products_services || "",
+          valueProposition: data.value_proposition || "",
+          brandVoice: data.brand_voice || "",
+          positioning: data.positioning || "",
+          competitors: data.competitors || "",
+          painPoints: data.pain_points || "",
+          icpMetaAds: data.icp_meta_ads || "",
+          icpNewsletter: data.icp_newsletter || "",
+          icpOutreach: data.icp_outreach || ""
+        });
+      }
+    };
+    fetchProfile();
+  }, [supabase]);
+
+  const handleSaveProfile = async () => {
+    setIsSavingProfile(true);
+    const payload = {
+      products_services: profileData.productsAndServices,
+      value_proposition: profileData.valueProposition,
+      brand_voice: profileData.brandVoice,
+      positioning: profileData.positioning,
+      competitors: profileData.competitors,
+      pain_points: profileData.painPoints,
+      icp_meta_ads: profileData.icpMetaAds,
+      icp_newsletter: profileData.icpNewsletter,
+      icp_outreach: profileData.icpOutreach
+    };
+
+    if (profileId) {
+      const { error } = await supabase.from("brand_configs").update(payload).eq("id", profileId);
+      if (error) {
+        addSbToast("Error updating profile", "error");
+      } else {
+        addSbToast("Profile saved successfully!", "success");
+      }
+    } else {
+      const { data, error } = await supabase.from("brand_configs").insert([payload]).select().single();
+      if (data) {
+        setProfileId(data.id);
+        addSbToast("Profile created successfully!", "success");
+      } else if (error) {
+        addSbToast("Error creating profile", "error");
+      }
     }
-  }, [profileData]);
+    setIsSavingProfile(false);
+  };
 
   // ── Poll for global n8n errors directly from Supabase (RLS disabled) ──
   // Strategy: track the DISMISSED ERROR MESSAGE (not timestamp).
@@ -4851,8 +4893,22 @@ export default function Dashboard() {
       {tab === "profile" && (
         <div className="animate-fade-in flex flex-col gap-8 max-w-4xl mx-auto py-4">
           
+          <div className="flex flex-col md:flex-row md:items-center justify-between bg-white p-6 rounded-2xl shadow-sm border border-slate-100 gap-4">
+            <div>
+              <h2 className="text-xl font-bold text-slate-800">Brand Configuration</h2>
+              <p className="text-sm text-slate-500 mt-1">Manage your brand voice, positioning, and ICP settings across workflows.</p>
+            </div>
+            <button
+              onClick={handleSaveProfile}
+              disabled={isSavingProfile}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-semibold shadow-sm transition-colors disabled:opacity-70 whitespace-nowrap"
+            >
+              {isSavingProfile ? <Spinner size={16} color="#fff" /> : <span>💾 Save Changes</span>}
+            </button>
+          </div>
+
           <div>
-            <SectionTitle>Profile Configuration</SectionTitle>
+            <SectionTitle>Profile Details</SectionTitle>
             <Card style={{ padding: 30 }}>
               <div className="flex flex-col gap-8">
                 {[
