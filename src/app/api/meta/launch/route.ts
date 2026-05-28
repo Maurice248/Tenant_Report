@@ -363,8 +363,8 @@ export async function POST(request) {
     const ageMin          = ad_set?.age_min            || 18;
     const ageMax          = ad_set?.age_max            || 65;
     const gender          = ad_set?.gender             ?? 0; // 0=all,1=male,2=female
-    const dsaBeneficiary  = ad_set?.dsa_beneficiary   || "Advertiser";
-    const dsaPayor        = ad_set?.dsa_payor          || "Advertiser";
+    const dsaBeneficiary  = ad_set?.dsa_beneficiary   || ad?.facebook_page || "Toga Health";
+    const dsaPayor        = ad_set?.dsa_payor          || ad?.facebook_page || "Toga Health";
     const adName          = ad?.name                  || "Ad";
     const headline        = ad?.headline              || "";
     const primaryText     = ad?.primary_text          || "";

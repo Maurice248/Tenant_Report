@@ -125,7 +125,6 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }: Camp
   const [error, setError] = useState<string>("");
   const [creating, setCreating] = useState<boolean>(false);
   const [newCampaignName, setNewCampaignName] = useState<string>("");
-  const [keywordInput, setKeywordInput] = useState<string>("");
 
   // ── Editable JSON config ──────────────────────────────────────────────────
   const [config, setConfig] = useState<any>(DEFAULT_CONFIG);
@@ -516,7 +515,6 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }: Camp
               <Row label="Age Group" value={`${config.ad_set?.age_min || 18}–${config.ad_set?.age_max || 65}`} />
               <Row label="Gender Demographic" value={GENDER_LABELS[config.ad_set?.gender ?? 0]} />
               <Row label="Clinical Budget" value={`$${(config.ad_set?.daily_budget || 0) / 100} USD/day`} />
-              <Row label="DSA Payor Entities" value={config.ad_set?.dsa_payor || "—"} />
               <Row label="Deployment Mode" value={null}>
                 <Badge
                   text={selectedId ? "Existing Pathway" : "New Pathway"}
@@ -524,16 +522,6 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }: Camp
                   color={selectedId ? "var(--amber)" : "var(--primary)"}
                 />
               </Row>
-              {config.ad_set?.targeting_keywords?.length > 0 && (
-                <div style={{ marginTop: 8 }}>
-                  <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 10, textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.05em" }}>Clinical Focus</div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                    {config.ad_set.targeting_keywords.map((kw: any) => (
-                      <span key={kw} style={{ fontSize: 11, padding: "5px 12px", borderRadius: "var(--radius-pill)", background: "var(--primary-light)", color: "var(--primary-dark)", fontWeight: 700, border: "1px solid var(--primary)15" }}>{kw}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           </Card>
         </div>
@@ -646,60 +634,6 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }: Camp
             )}
             </Card>
 
-            {/* ── Clinical Focus — left column ── */}
-            <Card style={{ border: "1.5px solid var(--border)", boxShadow: "var(--shadow-md)", opacity: showRawJson ? 0.3 : 1, pointerEvents: showRawJson ? "none" : "auto" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-                <SectionTitle style={{ marginBottom: 0 }}>Clinical Focus</SectionTitle>
-                <Badge text="Keywords" color="var(--primary)" bg="var(--primary-light)" />
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, padding: "12px 14px", border: "1.5px solid var(--border)", borderRadius: "var(--radius-md)", background: "var(--surface)", minHeight: 54 }}>
-                  {(config.ad_set?.targeting_keywords || []).map((kw: any) => (
-                    <span key={kw} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, padding: "5px 11px", borderRadius: "var(--radius-pill)", background: "var(--primary-light)", color: "var(--primary-dark)", fontWeight: 700, border: "1px solid rgba(2,132,199,0.15)" }}>
-                      {kw}
-                      <button
-                        type="button"
-                        onClick={() => setField("ad_set", "targeting_keywords", (config.ad_set?.targeting_keywords || []).filter((k: any) => k !== kw))}
-                        style={{ border: "none", background: "transparent", color: "var(--primary)", cursor: "pointer", fontSize: 14, padding: 0, display: "flex", alignItems: "center", fontWeight: "bold", lineHeight: 1 }}
-                      >&times;</button>
-                    </span>
-                  ))}
-                  {(config.ad_set?.targeting_keywords || []).length === 0 && (
-                    <span style={{ color: "var(--text-muted)", fontSize: 13, fontStyle: "italic" }}>No focus keywords yet.</span>
-                  )}
-                </div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <input
-                    type="text"
-                    value={keywordInput}
-                    onChange={(e) => setKeywordInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        const t = keywordInput.trim();
-                        if (t && !(config.ad_set?.targeting_keywords || []).includes(t)) {
-                          setField("ad_set", "targeting_keywords", [...(config.ad_set?.targeting_keywords || []), t]);
-                          setKeywordInput("");
-                        }
-                      }
-                    }}
-                    placeholder="Add keyword, press Enter..."
-                    style={{ ...inputStyle, flex: 1 }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const t = keywordInput.trim();
-                      if (t && !(config.ad_set?.targeting_keywords || []).includes(t)) {
-                        setField("ad_set", "targeting_keywords", [...(config.ad_set?.targeting_keywords || []), t]);
-                        setKeywordInput("");
-                      }
-                    }}
-                    style={{ flexShrink: 0, padding: "12px 18px", borderRadius: "var(--radius-md)", background: "var(--primary)", color: "#fff", border: "none", fontWeight: 700, fontSize: 14, cursor: "pointer" }}
-                  >+ Add</button>
-                </div>
-              </div>
-            </Card>
           </div>
           {/* Column 2: AD SET */}
           <Card style={{ border: "1.5px solid var(--border)", boxShadow: "var(--shadow-md)", opacity: showRawJson ? 0.3 : 1, pointerEvents: showRawJson ? "none" : "auto" }}>
@@ -841,14 +775,9 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }: Camp
               </FieldGroup>
               <div className="col-span-1 sm:col-span-2 p-4 sm:p-5 bg-slate-50 rounded-2xl border border-slate-200 mt-1">
                 <SectionTitle style={{ fontSize: 13, marginBottom: 16, color: "var(--primary-dark)", letterSpacing: "0.05em" }}>ACCOUNT IDENTITIES</SectionTitle>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <FieldGroup label="Facebook Page">
-                    <input value={config.ad?.facebook_page || ""} onChange={(e) => setField("ad", "facebook_page", e.target.value)} style={inputStyle} />
-                  </FieldGroup>
-                  <FieldGroup label="Instagram Profile">
-                    <input value={config.ad?.instagram_account || ""} onChange={(e) => setField("ad", "instagram_account", e.target.value)} style={inputStyle} />
-                  </FieldGroup>
-                </div>
+                <FieldGroup label="Facebook Page">
+                  <input value={config.ad?.facebook_page || ""} onChange={(e) => setField("ad", "facebook_page", e.target.value)} style={inputStyle} />
+                </FieldGroup>
               </div>
 
               <FieldGroup label="Primary Ad Text">
@@ -884,14 +813,6 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }: Camp
                     value={config.ad?.website_url || ""}
                     onChange={(e) => setField("ad", "website_url", e.target.value)}
                     style={{ ...inputStyle, background: "#fff", borderColor: "var(--primary)" }}
-                  />
-                </FieldGroup>
-                <FieldGroup label="Display Link Mask (Visual Only)">
-                  <input
-                    placeholder="e.g. yourclinic.ai/booking"
-                    value={config.ad?.display_link || ""}
-                    onChange={(e) => setField("ad", "display_link", e.target.value)}
-                    style={inputStyle}
                   />
                 </FieldGroup>
               </div>
