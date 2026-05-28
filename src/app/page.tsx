@@ -233,6 +233,8 @@ export default function Dashboard() {
   const [scenesModal, setScenesModal] = useState({ open: false, scenes: [], adLabel: "", itemId: null });
   const [editedScenes, setEditedScenes] = useState([]);     // editable copy of scenes in modal
   const [failedPrompts, setFailedPrompts] = useState<Array<{ taskId: string; prompt: string; failMsg: string }>>([]);
+  const [failedImagePrompts, setFailedImagePrompts] = useState<Array<{ prompt: string; reason: string; index: number }>>([]);
+  const [editingImagePrompt, setEditingImagePrompt] = useState<{ open: boolean; index: number; prompt: string; reason: string } | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // Approval queue
@@ -503,7 +505,7 @@ export default function Dashboard() {
   }
 
   const addSbToast = useCallback((message, type = "success") => {
-    const id = Date.now();
+    const id = crypto.randomUUID();
     setSbToasts((prev) => [...prev, { id, message, type }]);
     setTimeout(() => setSbToasts((prev) => prev.filter((t) => t.id !== id)), 3000);
   }, []);
@@ -1257,8 +1259,13 @@ export default function Dashboard() {
           const resData = await res.json();
           console.log("Accept prompts webhook response:", resData);
           const responseObj = Array.isArray(resData) ? resData[0] : resData;
-          if (responseObj && responseObj.failCount > 0 && Array.isArray(responseObj.data)) {
-            // Parse failures from the n8n response
+          // Video failure format: responseObj.data array with state === "fail"
+          const hasVideoFailures = responseObj && responseObj.failCount > 0 && Array.isArray(responseObj.data);
+          // Image failure format: responseObj.failedPrompts array OR responseObj.results with success === false
+          const rawImageFailures: any[] = responseObj?.failedPrompts || responseObj?.results?.filter((r: any) => r.success === false || r.state === "fail") || [];
+          const hasImageFailures = rawImageFailures.length > 0;
+
+          if (hasVideoFailures) {
             const failures = responseObj.data.filter((task: any) => task.state === "fail");
             setFailedPrompts(failures.map((f: any) => ({
               taskId: f.taskId || "",
@@ -1266,8 +1273,17 @@ export default function Dashboard() {
               failMsg: f.failMsg || "Generation failed — content may have been flagged as sensitive."
             })));
             addSbToast(`${responseObj.failCount} video generation task(s) failed. Open the affected ad card to fix the prompt.`, "error");
+          } else if (hasImageFailures) {
+            setFailedImagePrompts(rawImageFailures.map((f: any, i: number) => ({
+              prompt: f.prompt || "",
+              reason: f.reason || f.failMsg || "Generation failed — content may have violated policy.",
+              index: f.index ?? i
+            })));
+            const failCount = rawImageFailures.length;
+            addSbToast(`${failCount} image generation task(s) failed due to policy violation. Review and fix the prompts below.`, "error");
           } else {
             setFailedPrompts([]);
+            setFailedImagePrompts([]);
             addSbToast("All prompts successfully accepted!", "success");
             addSbToast("Refreshing Supabase Ads previews...", "info");
             await fetchAdTableLinks();
@@ -1278,6 +1294,7 @@ export default function Dashboard() {
         } catch {
           // If JSON parse fails, treat as success
           setFailedPrompts([]);
+          setFailedImagePrompts([]);
           addSbToast("Prompts successfully accepted!", "success");
           addSbToast("Refreshing Supabase Ads previews...", "info");
           await fetchAdTableLinks();
@@ -1976,78 +1993,131 @@ export default function Dashboard() {
           ADS ANALYSIS
       ═══════════════════════════════════════════════════════ */}
       {tab === "analysis" && (
-        <div className="animate-fade-in flex flex-col lg:flex-row gap-5">
-          {/* History Sidebar */}
-          <div className="w-full lg:w-[250px] lg:flex-shrink-0 lg:sticky lg:top-5" style={{
-            background: "var(--card-bg)", border: "1px solid var(--border)",
-            borderRadius: "var(--radius-lg)", padding: 18, display: "flex", flexDirection: "column", gap: 14,
-            height: "fit-content", boxShadow: "var(--shadow-sm)"
-          }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", borderBottom: "1px solid var(--border)", paddingBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
-              <span>📜</span> Previous Runs
+        <div className="animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+
+          {/* ── Page Header ── */}
+          <div style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: 20, padding: "20px 28px", boxShadow: "0 1px 4px rgba(0,0,0,0.05)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, flexWrap: "wrap" }}>
+            {/* Left: title + description */}
+            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+              <div style={{ width: 52, height: 52, borderRadius: 14, background: "#EFF6FF", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <span style={{ fontSize: 26 }}>🔍</span>
+              </div>
+              <div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: "#0F172A" }}>Competitor Ad Analysis</div>
+                <div style={{ fontSize: 13, color: "#64748B", marginTop: 3 }}>Research competitor ads, find gaps, and get ready-to-use ad scripts powered by AI</div>
+              </div>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: "70vh", overflowY: "auto", paddingRight: 4 }}>
-              {[...sbRows].reverse().map((row: any) => {
+            {/* Right: how-to steps */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              {[
+                { num: "1", label: "Add keywords & configure", icon: "⌨️" },
+                { num: "2", label: "Run the analysis", icon: "▶️" },
+                { num: "3", label: "Review insights & scripts", icon: "📋" },
+              ].map((step, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 7, background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 20, padding: "6px 12px 6px 8px" }}>
+                    <div style={{ width: 20, height: 20, borderRadius: "50%", background: "#2563EB", color: "#fff", fontSize: 10, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      {step.num}
+                    </div>
+                    <span style={{ fontSize: 12, color: "#475569", fontWeight: 500, whiteSpace: "nowrap" }}>{step.label}</span>
+                  </div>
+                  {i < 2 && <span style={{ color: "#CBD5E1", fontSize: 16, margin: "0 4px" }}>→</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* ── Sidebar + Content Row ── */}
+          <div style={{ display: "flex", gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}>
+          {/* History Sidebar */}
+          <div className="w-full lg:w-[290px] lg:flex-shrink-0 lg:sticky lg:top-5" style={{
+            background: "#fff", border: "1px solid #E2E8F0",
+            borderRadius: 20, overflow: "hidden",
+            height: "fit-content", boxShadow: "0 2px 8px rgba(0,0,0,0.06)"
+          }}>
+            {/* Sidebar Header */}
+            <div style={{ padding: "16px 20px", background: "#F8FAFC", borderBottom: "1px solid #E2E8F0", display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 34, height: 34, borderRadius: 10, background: "#EFF6FF", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <span style={{ fontSize: 16 }}>🕐</span>
+              </div>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#1E293B" }}>Previous Runs</div>
+                <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 1 }}>{sbRows.length} saved {sbRows.length === 1 ? "result" : "results"}</div>
+              </div>
+            </div>
+
+            {/* Run Cards */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 0, maxHeight: "70vh", overflowY: "auto" }}>
+              {[...sbRows].reverse().map((row: any, idx: number) => {
                 const report = parseSbReport(row);
                 const inputsObj = typeof row.inputs === 'string' ? JSON.parse(row.inputs || "{}") : (row.inputs || {});
                 const keyword = inputsObj.topic || (inputsObj.keywords && inputsObj.keywords[0]) || inputsObj.action || inputsObj.query || null;
                 const displayTitle = keyword || report.topic || `Run at ${formatSbTime(row.created_at)}`;
 
                 return (
-                  <div key={row.id} className="group relative" style={{
-                    padding: 12, borderRadius: "var(--radius-md)", border: "0.5px solid var(--border-light)",
-                    background: "var(--surface)", transition: "transform 0.15s, border-color 0.15s"
-                  }} 
+                  <div key={row.id} style={{
+                    padding: "14px 20px",
+                    borderBottom: "1px solid #F1F5F9",
+                    transition: "background 0.15s",
+                    cursor: "default"
+                  }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = "var(--primary)";
+                    e.currentTarget.style.background = "#F8FAFC";
                     if (row.inputs) {
                       if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
                       const rect = e.currentTarget.getBoundingClientRect();
                       let y = rect.top;
-                      if (y + 400 > window.innerHeight) {
-                        y = Math.max(10, window.innerHeight - 420);
-                      }
-                      setHoveredInputs({
-                        data: inputsObj,
-                        x: rect.right + 12,
-                        y: y
-                      });
+                      if (y + 420 > window.innerHeight) y = Math.max(10, window.innerHeight - 440);
+                      setHoveredInputs({ data: inputsObj, x: rect.right + 12, y });
                     }
-                  }} 
+                  }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = "var(--border-light)";
-                    hoverTimeoutRef.current = setTimeout(() => {
-                      setHoveredInputs(null);
-                    }, 200);
+                    e.currentTarget.style.background = "transparent";
+                    hoverTimeoutRef.current = setTimeout(() => setHoveredInputs(null), 200);
                   }}>
-
-                    <div style={{ fontWeight: 600, color: "var(--text)", fontSize: 11, marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textTransform: "capitalize" }}>
-                      {displayTitle}
+                    {/* Run number + title */}
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 6 }}>
+                      <div style={{ width: 22, height: 22, borderRadius: 6, background: "#EFF6FF", color: "#2563EB", fontSize: 10, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
+                        {sbRows.length - idx}
+                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "#1E293B", lineHeight: 1.35, textTransform: "capitalize", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as any }}>
+                        {displayTitle}
+                      </div>
                     </div>
-                    <div style={{ fontSize: 9, color: "var(--text-muted)", marginBottom: 10, display: "flex", alignItems: "center", gap: 4 }}>
+                    {/* Date */}
+                    <div style={{ fontSize: 11, color: "#94A3B8", marginBottom: 10, display: "flex", alignItems: "center", gap: 5, paddingLeft: 32 }}>
                       <span>📅</span> {formatSbDate(row.created_at)}
                     </div>
-                    <button
-                      onClick={() => {
-                        setAnalysisData({ ...report, id: row.id });
-                        setAnalysisStatus("done");
-                        setSelectedTopic(report.topic || TOPICS[1]);
-                        addSbToast("Loaded history: " + report.topic);
-                      }}
-                      style={{
-                        width: "100%", padding: "6px 0", borderRadius: "var(--radius-sm)", border: "none",
-                        background: "var(--primary-light)", color: "var(--primary)", fontSize: 11, fontWeight: 600, cursor: "pointer",
-                        transition: "all 0.15s"
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = "var(--primary)"; e.currentTarget.style.color = "#fff"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = "var(--primary-light)"; e.currentTarget.style.color = "var(--primary)"; }}
-                    >
-                      Use Result
-                    </button>
+                    {/* Use Result button */}
+                    <div style={{ paddingLeft: 32 }}>
+                      <button
+                        onClick={() => {
+                          setAnalysisData({ ...report, id: row.id });
+                          setAnalysisStatus("done");
+                          setSelectedTopic(report.topic || TOPICS[1]);
+                          addSbToast("Loaded history: " + report.topic);
+                        }}
+                        style={{
+                          width: "100%", padding: "8px 0", borderRadius: 10, border: "none",
+                          background: "#2563EB", color: "#fff",
+                          fontSize: 12, fontWeight: 600, cursor: "pointer", transition: "all 0.15s"
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = "#1D4ED8"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = "#2563EB"; }}
+                      >
+                        Use Result →
+                      </button>
+                    </div>
                   </div>
                 );
               })}
-              {sbRows.length === 0 && <div style={{ fontSize: 11, color: "var(--text-dim)", textAlign: "center", padding: 20 }}>No previous runs found</div>}
+              {sbRows.length === 0 && (
+                <div style={{ padding: "32px 20px", textAlign: "center" }}>
+                  <div style={{ fontSize: 28, marginBottom: 8 }}>📭</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#64748B" }}>No runs yet</div>
+                  <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 4 }}>Your analysis history will appear here</div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -2696,210 +2766,141 @@ export default function Dashboard() {
                   </Card>
                 )}
 
-                {/* 2. Competitor Ads Table */}
+                {/* 2. Competitor Ads — Card List */}
                 {(analysisData?.competitors_table?.length > 0) && (
-                  <Card style={{ marginBottom: 14, padding: 0, overflow: "hidden" }}>
-                    <div style={{ padding: "16px 20px", borderBottom: "1.5px solid var(--border-mid)" }}>
-                      <SectionTitle>Competitor Ads</SectionTitle>
+                  <div style={{ marginBottom: 20, background: "#fff", borderRadius: 16, border: "1px solid #E2E8F0", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
+                    <div style={{ padding: "16px 20px", background: "#F8FAFC", borderBottom: "1px solid #E2E8F0", display: "flex", alignItems: "center", gap: 10 }}>
+                      <span style={{ fontSize: 18 }}>🏆</span>
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: "#1E293B" }}>Competitor Ads</div>
+                        <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 1 }}>{analysisData.competitors_table.length} competitors tracked</div>
+                      </div>
                     </div>
-                    <div style={{ overflowX: "auto" }}>
-                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                        <thead>
-                          <tr style={{ background: "var(--surface)" }}>
-                            {["Name", "Ads", "Score", "Threat", "Angle", "Hook"].map((h) => (
-                              <th key={h} style={{
-                                padding: "10px 14px",
-                                textAlign: "left",
-                                fontWeight: 700,
-                                fontSize: 11,
-                                color: "var(--text-muted)",
-                                textTransform: "uppercase",
-                                letterSpacing: "0.05em",
-                                borderBottom: "1.5px solid var(--border-mid)",
-                                whiteSpace: "nowrap",
-                              }}>{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {analysisData.competitors_table.map((row, i) => (
-                            <tr key={i} style={{ borderBottom: "1px solid var(--border)" }}
-                              onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface)"}
-                              onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                            >
-                              <td style={{ padding: "11px 14px", fontWeight: 600, color: "var(--text)", whiteSpace: "nowrap" }}>{row?.name}</td>
-                              <td style={{ padding: "11px 14px", color: "var(--text-body)", whiteSpace: "nowrap" }}>{row?.ads}</td>
-                              <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}>
-                                <span style={{
-                                  display: "inline-block",
-                                  padding: "3px 9px",
-                                  borderRadius: "var(--radius-pill)",
-                                  fontSize: 11,
-                                  fontWeight: 700,
-                                  background: row?.score >= 75 ? "var(--green-light)" : row?.score >= 50 ? "var(--amber-light)" : "var(--red-error-bg)",
-                                  color: row?.score >= 75 ? "var(--green-dark)" : row?.score >= 50 ? "var(--amber-dark)" : "var(--red-dark)",
-                                  border: `1px solid ${row?.score >= 75 ? "var(--green)" : row?.score >= 50 ? "var(--amber)" : "var(--red-error)"}`,
-                                }}>{row?.score}</span>
-                              </td>
-                              <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}>
-                                <Badge
-                                  text={row?.threat}
-                                  color={row?.threat?.toLowerCase() === "high" ? "var(--red-dark)" : row?.threat?.toLowerCase() === "medium" ? "var(--amber-dark)" : "var(--green-dark)"}
-                                  bg={row?.threat?.toLowerCase() === "high" ? "var(--red-error-bg)" : row?.threat?.toLowerCase() === "medium" ? "var(--amber-light)" : "var(--green-light)"}
-                                />
-                              </td>
-                              <td style={{ padding: "11px 14px", color: "var(--text-body)", lineHeight: 1.5, minWidth: 160 }}>{row?.angle}</td>
-                              <td style={{ padding: "11px 14px", color: "var(--primary-dark)", fontStyle: "italic", lineHeight: 1.5, minWidth: 180 }}>&ldquo;{row?.hook}&rdquo;</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                    <div style={{ display: "flex", flexDirection: "column" }}>
+                      {analysisData.competitors_table.map((row: any, i: number) => {
+                        const threat = row?.threat?.toLowerCase();
+                        const threatColor = threat === "high" ? { bg: "#FEF2F2", color: "#DC2626", border: "#FECACA" } : threat === "medium" ? { bg: "#FFFBEB", color: "#D97706", border: "#FDE68A" } : { bg: "#F0FDF4", color: "#16A34A", border: "#BBF7D0" };
+                        return (
+                          <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 14, padding: "14px 20px", borderBottom: i < analysisData.competitors_table.length - 1 ? "1px solid #F1F5F9" : "none", transition: "background 0.15s" }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = "#F8FAFC"}
+                            onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                          >
+                            {/* Rank */}
+                            <div style={{ width: 28, height: 28, borderRadius: 8, background: "#F1F5F9", color: "#64748B", fontSize: 11, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }}>
+                              {i + 1}
+                            </div>
+                            {/* Name + hook */}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
+                                <span style={{ fontSize: 14, fontWeight: 700, color: "#1E293B" }}>{row?.name}</span>
+                                <span style={{ fontSize: 11, color: "#64748B", background: "#F1F5F9", padding: "2px 8px", borderRadius: 6 }}>{row?.ads} ads</span>
+                                <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: threatColor.bg, color: threatColor.color, border: `1px solid ${threatColor.border}` }}>{row?.threat}</span>
+                              </div>
+                              <div style={{ fontSize: 12, color: "#475569", marginBottom: 4 }}>
+                                <span style={{ fontWeight: 600, color: "#64748B" }}>Angle: </span>{row?.angle}
+                              </div>
+                              {row?.hook && <div style={{ fontSize: 12, color: "#2563EB", fontStyle: "italic", lineHeight: 1.5 }}>"{row?.hook}"</div>}
+                            </div>
+                            {/* Score */}
+                            <div style={{ flexShrink: 0, textAlign: "center" }}>
+                              <div style={{ width: 40, height: 40, borderRadius: "50%", border: `2px solid ${row?.score >= 9 ? "#DC2626" : row?.score >= 7 ? "#D97706" : "#16A34A"}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                <span style={{ fontSize: 13, fontWeight: 800, color: row?.score >= 9 ? "#DC2626" : row?.score >= 7 ? "#D97706" : "#16A34A" }}>{row?.score}</span>
+                              </div>
+                              <div style={{ fontSize: 9, color: "#94A3B8", marginTop: 2, textTransform: "uppercase", letterSpacing: "0.05em" }}>score</div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  </Card>
+                  </div>
                 )}
 
-                {/* 3. Top Hook Patterns Table */}
+                {/* 3. Top Hook Patterns — Cards */}
                 {(analysisData?.hooks_table?.length > 0) && (
-                  <Card style={{ marginBottom: 14, padding: 0, overflow: "hidden" }}>
-                    <div style={{ padding: "16px 20px", borderBottom: "1.5px solid var(--border-mid)" }}>
-                      <SectionTitle>Top Hook Patterns</SectionTitle>
+                  <div style={{ marginBottom: 20, background: "#fff", borderRadius: 16, border: "1px solid #E2E8F0", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
+                    <div style={{ padding: "16px 20px", background: "#F8FAFC", borderBottom: "1px solid #E2E8F0", display: "flex", alignItems: "center", gap: 10 }}>
+                      <span style={{ fontSize: 18 }}>🎣</span>
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: "#1E293B" }}>Top Hook Patterns</div>
+                        <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 1 }}>Winning formulas from competitor ads</div>
+                      </div>
                     </div>
-                    <div style={{ overflowX: "auto" }}>
-                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                        <thead>
-                          <tr style={{ background: "var(--surface)" }}>
-                            {["Pattern", "Example", "Reason", "Score"].map((h) => (
-                              <th key={h} style={{
-                                padding: "10px 14px",
-                                textAlign: "left",
-                                fontWeight: 700,
-                                fontSize: 11,
-                                color: "var(--text-muted)",
-                                textTransform: "uppercase",
-                                letterSpacing: "0.05em",
-                                borderBottom: "1.5px solid var(--border-mid)",
-                                whiteSpace: "nowrap",
-                              }}>{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {analysisData.hooks_table.map((row, i) => (
-                            <tr key={i} style={{ borderBottom: "1px solid var(--border)" }}
-                              onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface)"}
-                              onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                            >
-                              <td style={{ padding: "11px 14px", fontWeight: 600, color: "var(--text)", whiteSpace: "nowrap" }}>{row?.pattern}</td>
-                              <td style={{ padding: "11px 14px", color: "var(--primary-dark)", fontStyle: "italic", lineHeight: 1.5, minWidth: 180 }}>&ldquo;{row?.example}&rdquo;</td>
-                              <td style={{ padding: "11px 14px", color: "var(--text-body)", lineHeight: 1.6, minWidth: 200 }}>{row?.reason}</td>
-                              <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}>
-                                <span style={{
-                                  display: "inline-block",
-                                  padding: "3px 9px",
-                                  borderRadius: "var(--radius-pill)",
-                                  fontSize: 11,
-                                  fontWeight: 700,
-                                  background: "var(--primary-light)",
-                                  color: "var(--primary-dark)",
-                                  border: "1px solid var(--primary-mid)",
-                                }}>{row?.score}</span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                    <div style={{ display: "flex", flexDirection: "column" }}>
+                      {analysisData.hooks_table.map((row: any, i: number) => (
+                        <div key={i} style={{ display: "flex", gap: 16, padding: "16px 20px", borderBottom: i < analysisData.hooks_table.length - 1 ? "1px solid #F1F5F9" : "none", transition: "background 0.15s" }}
+                          onMouseEnter={(e) => e.currentTarget.style.background = "#F8FAFC"}
+                          onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                        >
+                          {/* Index */}
+                          <div style={{ width: 28, height: 28, borderRadius: 8, background: "#EFF6FF", color: "#2563EB", fontSize: 12, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }}>{i + 1}</div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            {/* Pattern name + score */}
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 6 }}>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: "#1E293B" }}>{row?.pattern}</span>
+                              <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: "#EFF6FF", color: "#2563EB", border: "1px solid #DBEAFE", flexShrink: 0 }}>{row?.score}</span>
+                            </div>
+                            {/* Example */}
+                            {row?.example && <div style={{ fontSize: 12, color: "#2563EB", fontStyle: "italic", lineHeight: 1.5, marginBottom: 6, padding: "6px 10px", background: "#EFF6FF", borderRadius: 8, borderLeft: "3px solid #2563EB" }}>"{row?.example}"</div>}
+                            {/* Reason */}
+                            {row?.reason && <div style={{ fontSize: 12, color: "#64748B", lineHeight: 1.6 }}>{row?.reason}</div>}
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  </Card>
+                  </div>
                 )}
 
                 {/* 4 + 5. Market Insights & Gap Opportunities — side by side */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-[14px] mb-[14px]">
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: 16, marginBottom: 20 }}>
 
-                  {/* 4. Market Insights Table */}
+                  {/* 4. Market Insights — Info Cards */}
                   {(analysisData?.market_insights_table?.length > 0) && (
-                    <Card style={{ padding: 0, overflow: "hidden" }}>
-                      <div style={{ padding: "16px 20px", borderBottom: "1.5px solid var(--border-mid)" }}>
-                        <SectionTitle>Market Insights</SectionTitle>
+                    <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #E2E8F0", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
+                      <div style={{ padding: "16px 20px", background: "#F8FAFC", borderBottom: "1px solid #E2E8F0", display: "flex", alignItems: "center", gap: 10 }}>
+                        <span style={{ fontSize: 18 }}>📊</span>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: "#1E293B" }}>Market Insights</div>
                       </div>
-                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                        <thead>
-                          <tr style={{ background: "var(--surface)" }}>
-                            {["Field", "Value"].map((h) => (
-                              <th key={h} style={{
-                                padding: "10px 14px",
-                                textAlign: "left",
-                                fontWeight: 700,
-                                fontSize: 11,
-                                color: "var(--text-muted)",
-                                textTransform: "uppercase",
-                                letterSpacing: "0.05em",
-                                borderBottom: "1.5px solid var(--border-mid)",
-                              }}>{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {analysisData.market_insights_table.map((row, i) => (
-                            <tr key={i} style={{ borderBottom: "1px solid var(--border)" }}
-                              onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface)"}
-                              onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                            >
-                              <td style={{ padding: "11px 14px", fontWeight: 600, color: "var(--text-muted)", fontSize: 12, whiteSpace: "nowrap" }}>{row?.field}</td>
-                              <td style={{ padding: "11px 14px", color: "var(--text)", lineHeight: 1.6 }}>{row?.value}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </Card>
+                      <div style={{ padding: "8px 0" }}>
+                        {analysisData.market_insights_table.map((row: any, i: number) => (
+                          <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "10px 20px", borderBottom: i < analysisData.market_insights_table.length - 1 ? "1px solid #F8FAFC" : "none" }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", width: 90, flexShrink: 0, paddingTop: 2 }}>{row?.field}</div>
+                            <div style={{ fontSize: 13, color: "#1E293B", lineHeight: 1.6, flex: 1 }}>{row?.value}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   )}
 
-                  {/* 5. Gap Opportunities Table */}
+                  {/* 5. Gap Opportunities — Cards */}
                   {(analysisData?.gaps_table?.length > 0) && (
-                    <Card style={{ padding: 0, overflow: "hidden" }}>
-                      <div style={{ padding: "16px 20px", borderBottom: "1.5px solid var(--border-mid)" }}>
-                        <SectionTitle>Gap Opportunities</SectionTitle>
+                    <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #E2E8F0", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
+                      <div style={{ padding: "16px 20px", background: "#F8FAFC", borderBottom: "1px solid #E2E8F0", display: "flex", alignItems: "center", gap: 10 }}>
+                        <span style={{ fontSize: 18 }}>💡</span>
+                        <div>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: "#1E293B" }}>Gap Opportunities</div>
+                          <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 1 }}>{analysisData.gaps_table.length} opportunities identified</div>
+                        </div>
                       </div>
-                      <div style={{ overflowX: "auto" }}>
-                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                          <thead>
-                            <tr style={{ background: "var(--surface)" }}>
-                              {["Gap", "Opportunity", "Priority", "Impact"].map((h) => (
-                                <th key={h} style={{
-                                  padding: "10px 14px",
-                                  textAlign: "left",
-                                  fontWeight: 700,
-                                  fontSize: 11,
-                                  color: "var(--text-muted)",
-                                  textTransform: "uppercase",
-                                  letterSpacing: "0.05em",
-                                  borderBottom: "1.5px solid var(--border-mid)",
-                                  whiteSpace: "nowrap",
-                                }}>{h}</th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {analysisData.gaps_table.map((row, i) => (
-                              <tr key={i} style={{ borderBottom: "1px solid var(--border)" }}
-                                onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface)"}
-                                onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                              >
-                                <td style={{ padding: "11px 14px", fontWeight: 600, color: "var(--text)", lineHeight: 1.5, minWidth: 140 }}>{row?.gap}</td>
-                                <td style={{ padding: "11px 14px", color: "var(--text-body)", lineHeight: 1.6, minWidth: 180 }}>{row?.opportunity}</td>
-                                <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}>
-                                  <Badge
-                                    text={row?.priority}
-                                    color={row?.priority?.toLowerCase() === "high" ? "var(--red-dark)" : row?.priority?.toLowerCase() === "medium" ? "var(--amber-dark)" : "var(--green-dark)"}
-                                    bg={row?.priority?.toLowerCase() === "high" ? "var(--red-error-bg)" : row?.priority?.toLowerCase() === "medium" ? "var(--amber-light)" : "var(--green-light)"}
-                                  />
-                                </td>
-                                <td style={{ padding: "11px 14px", color: "var(--text-body)", lineHeight: 1.6, minWidth: 180, fontSize: 12 }}>{row?.impact}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                      <div style={{ padding: "8px 0" }}>
+                        {analysisData.gaps_table.map((row: any, i: number) => {
+                          const pri = row?.priority?.toLowerCase();
+                          const priStyle = pri === "high" ? { bg: "#FEF2F2", color: "#DC2626", border: "#FECACA" } : pri === "medium" ? { bg: "#FFFBEB", color: "#D97706", border: "#FDE68A" } : { bg: "#F0FDF4", color: "#16A34A", border: "#BBF7D0" };
+                          return (
+                            <div key={i} style={{ padding: "12px 20px", borderBottom: i < analysisData.gaps_table.length - 1 ? "1px solid #F1F5F9" : "none", transition: "background 0.15s" }}
+                              onMouseEnter={(e) => e.currentTarget.style.background = "#F8FAFC"}
+                              onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                            >
+                              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: "#1E293B", lineHeight: 1.4 }}>{row?.gap}</div>
+                                <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 20, background: priStyle.bg, color: priStyle.color, border: `1px solid ${priStyle.border}`, flexShrink: 0, textTransform: "uppercase", letterSpacing: "0.04em" }}>{row?.priority}</span>
+                              </div>
+                              {row?.opportunity && <div style={{ fontSize: 12, color: "#475569", lineHeight: 1.6, marginBottom: row?.impact ? 4 : 0 }}>{row?.opportunity}</div>}
+                              {row?.impact && <div style={{ fontSize: 11, color: "#94A3B8", lineHeight: 1.5 }}>💥 {row?.impact}</div>}
+                            </div>
+                          );
+                        })}
                       </div>
-                    </Card>
+                    </div>
                   )}
                 </div>
 
@@ -2970,6 +2971,7 @@ export default function Dashboard() {
                 )}
               </div>
             )}
+          </div>
           </div>
         </div>
       )}
@@ -3837,6 +3839,59 @@ export default function Dashboard() {
 
 
 
+
+          {/* ── FAILED IMAGE PROMPTS PANEL ── */}
+          {failedImagePrompts.length > 0 && (
+            <div style={{ marginTop: 20, borderRadius: 16, overflow: "hidden", border: "2px solid #ef4444", boxShadow: "0 8px 32px rgba(220,38,38,0.18)" }}>
+              {/* Header */}
+              <div style={{ background: "linear-gradient(135deg, #dc2626, #ef4444)", padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 20 }}>⚠️</span>
+                  <div>
+                    <div style={{ color: "#fff", fontWeight: 800, fontSize: 15 }}>Image Generation Failed</div>
+                    <div style={{ color: "rgba(255,255,255,0.8)", fontSize: 12, marginTop: 2 }}>
+                      {failedImagePrompts.length} prompt{failedImagePrompts.length > 1 ? "s" : ""} violated content policy — edit and resubmit
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setFailedImagePrompts([])}
+                  style={{ background: "rgba(255,255,255,0.2)", border: "none", borderRadius: 8, color: "#fff", cursor: "pointer", padding: "6px 12px", fontSize: 12, fontWeight: 700 }}
+                >
+                  Dismiss
+                </button>
+              </div>
+              {/* Failed prompt cards */}
+              <div style={{ background: "#fff1f2", padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+                {failedImagePrompts.map((fp, i) => (
+                  <div key={i} style={{ background: "#fff", borderRadius: 12, border: "1.5px solid #fca5a5", padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ background: "#ef4444", color: "#fff", borderRadius: 8, padding: "2px 10px", fontSize: 11, fontWeight: 800 }}>
+                          Image #{fp.index + 1}
+                        </span>
+                        <span style={{ color: "#dc2626", fontSize: 12, fontWeight: 600 }}>Policy Violation</span>
+                      </div>
+                      <button
+                        onClick={() => setEditingImagePrompt({ open: true, index: fp.index, prompt: fp.prompt, reason: fp.reason })}
+                        style={{ background: "linear-gradient(135deg, #2563eb, #3b82f6)", border: "none", borderRadius: 8, color: "#fff", cursor: "pointer", padding: "7px 16px", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}
+                      >
+                        ✏️ Edit &amp; Resubmit
+                      </button>
+                    </div>
+                    <div style={{ background: "#fff1f2", border: "1px solid #fca5a5", borderRadius: 8, padding: "10px 12px" }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: "#b91c1c", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>Prompt</div>
+                      <div style={{ fontSize: 13, color: "#1e293b", lineHeight: 1.6, fontFamily: "monospace", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{fp.prompt}</div>
+                    </div>
+                    <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "8px 12px", display: "flex", gap: 8, alignItems: "flex-start" }}>
+                      <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }}>🚫</span>
+                      <div style={{ fontSize: 12, color: "#991b1b", lineHeight: 1.5 }}><b>Reason: </b>{fp.reason}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* ── AD PREVIEWS ── */}
           {(() => {
@@ -5594,6 +5649,120 @@ export default function Dashboard() {
         );
       })()}
 
+      {/* ── Edit Image Prompt Modal ── */}
+      {editingImagePrompt?.open && (
+        <div
+          onClick={() => setEditingImagePrompt(null)}
+          style={{
+            position: "fixed", inset: 0, zIndex: 10000,
+            background: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)",
+            display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: "#fff", borderRadius: 18, width: "100%", maxWidth: 680,
+              boxShadow: "0 32px 80px rgba(220,38,38,0.35)",
+              border: "2px solid #ef4444", overflow: "hidden", display: "flex", flexDirection: "column",
+            }}
+          >
+            {/* Modal Header */}
+            <div style={{ background: "linear-gradient(135deg, #dc2626, #ef4444)", padding: "18px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 20 }}>✏️</span>
+                <div>
+                  <div style={{ color: "#fff", fontWeight: 800, fontSize: 15 }}>Edit Image Prompt — Image #{(editingImagePrompt.index ?? 0) + 1}</div>
+                  <div style={{ color: "rgba(255,255,255,0.8)", fontSize: 12, marginTop: 2 }}>Modify the prompt to comply with content policy, then resubmit</div>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditingImagePrompt(null)}
+                style={{ background: "rgba(255,255,255,0.2)", border: "none", borderRadius: 8, color: "#fff", cursor: "pointer", padding: "6px 12px", fontSize: 18, fontWeight: 700, lineHeight: 1 }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 16 }}>
+              {/* Reason */}
+              <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "10px 14px", display: "flex", gap: 8, alignItems: "flex-start" }}>
+                <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>🚫</span>
+                <div style={{ fontSize: 13, color: "#991b1b", lineHeight: 1.5 }}><b>Violation reason: </b>{editingImagePrompt.reason}</div>
+              </div>
+
+              {/* Editable prompt */}
+              <div>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#374151", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  Image Prompt
+                </label>
+                <textarea
+                  value={editingImagePrompt.prompt}
+                  onChange={e => setEditingImagePrompt(prev => prev ? { ...prev, prompt: e.target.value } : null)}
+                  rows={8}
+                  style={{
+                    width: "100%", fontSize: 13, color: "#1e293b", lineHeight: 1.7,
+                    border: "1.5px solid #f87171", borderRadius: 10, padding: "12px 14px",
+                    resize: "vertical", fontFamily: "inherit", outline: "none",
+                    background: "#fff1f2", boxSizing: "border-box",
+                  }}
+                  onFocus={e => e.target.style.borderColor = "#dc2626"}
+                  onBlur={e => e.target.style.borderColor = "#f87171"}
+                />
+              </div>
+
+              {/* Actions */}
+              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                <button
+                  onClick={() => setEditingImagePrompt(null)}
+                  style={{ background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 10, color: "#475569", cursor: "pointer", padding: "10px 20px", fontSize: 13, fontWeight: 600 }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!editingImagePrompt) return;
+                    const updatedPrompt = editingImagePrompt.prompt.trim();
+                    if (!updatedPrompt) return;
+                    // Update the failedImagePrompts list with the new prompt
+                    setFailedImagePrompts(prev => prev.map(fp =>
+                      fp.index === editingImagePrompt.index ? { ...fp, prompt: updatedPrompt } : fp
+                    ));
+                    // Resubmit to single idea webhook
+                    try {
+                      const singleIdeaUrl = process.env.NEXT_PUBLIC_N8N_SINGLE_IDEA_URL || "";
+                      const res = await fetch(singleIdeaUrl, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ prompt: updatedPrompt, index: editingImagePrompt.index }),
+                      });
+                      if (res.ok) {
+                        // Remove this prompt from failed list on success
+                        setFailedImagePrompts(prev => prev.filter(fp => fp.index !== editingImagePrompt.index));
+                        addSbToast("Prompt resubmitted successfully!", "success");
+                      } else {
+                        addSbToast("Resubmit failed — please try again.", "error");
+                      }
+                    } catch {
+                      addSbToast("Error resubmitting prompt.", "error");
+                    }
+                    setEditingImagePrompt(null);
+                  }}
+                  style={{
+                    background: "linear-gradient(135deg, #2563eb, #3b82f6)", border: "none", borderRadius: 10,
+                    color: "#fff", cursor: "pointer", padding: "10px 24px", fontSize: 13, fontWeight: 700,
+                    boxShadow: "0 4px 12px rgba(37,99,235,0.3)",
+                  }}
+                >
+                  Resubmit Prompt →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       </main>
 
       {errorNotification && (
@@ -5716,54 +5885,51 @@ export default function Dashboard() {
           left: hoveredInputs.x,
           top: hoveredInputs.y,
           zIndex: 999999,
-          width: 380,
+          width: 360,
           background: "#fff",
-          borderRadius: 16,
-          boxShadow: "0 12px 48px -12px rgba(0,0,0,0.2)",
-          border: "1px solid #e2e8f0",
+          borderRadius: 18,
+          boxShadow: "0 20px 60px -10px rgba(0,0,0,0.18), 0 4px 16px rgba(0,0,0,0.08)",
+          border: "1px solid #E2E8F0",
           overflow: "hidden",
           fontFamily: "Inter, sans-serif"
         }}
-        onMouseEnter={() => {
-          if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
-        }}
-        onMouseLeave={() => {
-          hoverTimeoutRef.current = setTimeout(() => {
-            setHoveredInputs(null);
-          }, 200);
-        }}
+        onMouseEnter={() => { if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current); }}
+        onMouseLeave={() => { hoverTimeoutRef.current = setTimeout(() => setHoveredInputs(null), 200); }}
         >
-          <div style={{
-            background: "#f8fafc",
-            padding: "12px 20px",
-            borderBottom: "1px solid #f1f5f9",
-            display: "flex",
-            alignItems: "center",
-            gap: 10
-          }}>
-            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#3b82f6", boxShadow: "0 0 10px rgba(59,130,246,0.6)" }} />
-            <span style={{ fontSize: 11, fontWeight: 700, color: "#334155", textTransform: "uppercase", letterSpacing: "0.08em" }}>Run Configuration</span>
+          {/* Header */}
+          <div style={{ background: "linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)", padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <span style={{ fontSize: 14 }}>⚙️</span>
+              </div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>Run Configuration</div>
+                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.7)", marginTop: 1 }}>Inputs used for this analysis</div>
+              </div>
+            </div>
+            <button onClick={() => setHoveredInputs(null)} style={{ background: "rgba(255,255,255,0.15)", border: "none", borderRadius: 6, width: 24, height: 24, color: "#fff", fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
           </div>
-          
-          <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16, maxHeight: 450, overflowY: "auto" }}>
+
+          {/* Content */}
+          <div style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 14, maxHeight: 420, overflowY: "auto" }}>
             {Object.entries(hoveredInputs.data).map(([key, value]) => {
               if (key === 'timestamp' || key === 'session_id') return null;
-              
-              let displayValue: React.ReactNode = String(value);
-              
+
+              const label = key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+              const keyIcons: Record<string, string> = {
+                action: "⚡", topic: "🎯", keywords: "🔑", countries: "🌍",
+                max_ads: "📊", only_active: "✅", query: "🔍"
+              };
+              const icon = keyIcons[key] || "•";
+
+              let displayValue: React.ReactNode;
+
               if (Array.isArray(value)) {
                 displayValue = (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
-                    {value.map((v, i) => (
-                      <span key={i} style={{
-                        padding: "4px 10px",
-                        background: "#f1f5f9",
-                        color: "#475569",
-                        borderRadius: 6,
-                        fontSize: 11,
-                        fontWeight: 600,
-                        border: "1px solid #e2e8f0"
-                      }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6 }}>
+                    {(value as any[]).map((v, i) => (
+                      <span key={i} style={{ padding: "4px 10px", background: "#EFF6FF", color: "#2563EB", borderRadius: 20, fontSize: 11, fontWeight: 600, border: "1px solid #DBEAFE" }}>
                         {v}
                       </span>
                     ))}
@@ -5771,32 +5937,22 @@ export default function Dashboard() {
                 );
               } else if (typeof value === 'boolean') {
                 displayValue = (
-                  <div style={{ marginTop: 6 }}>
-                    <span style={{
-                      display: "inline-block",
-                      padding: "4px 10px",
-                      borderRadius: 6,
-                      fontSize: 10,
-                      fontWeight: 700,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      background: value ? "#dcfce7" : "#fee2e2",
-                      color: value ? "#166534" : "#991b1b",
-                      border: `1px solid ${value ? "#bbf7d0" : "#fecaca"}`
-                    }}>
-                      {value ? 'Enabled' : 'Disabled'}
-                    </span>
-                  </div>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 6, padding: "4px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", background: value ? "#DCFCE7" : "#FEE2E2", color: value ? "#166534" : "#991B1B", border: `1px solid ${value ? "#BBF7D0" : "#FECACA"}` }}>
+                    {value ? "✓ Enabled" : "✗ Disabled"}
+                  </span>
                 );
-              } else if (typeof value === 'string') {
-                displayValue = <span style={{ fontSize: 13, fontWeight: 600, color: "#0f172a", display: "block", marginTop: 4, textTransform: "capitalize" }}>{value.replace(/_/g, ' ')}</span>;
               } else if (typeof value === 'number') {
-                displayValue = <span style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", display: "block", marginTop: 4 }}>{value}</span>;
+                displayValue = <span style={{ fontSize: 20, fontWeight: 800, color: "#1E293B", display: "block", marginTop: 2 }}>{value}</span>;
+              } else {
+                displayValue = <span style={{ fontSize: 13, fontWeight: 600, color: "#1E293B", display: "block", marginTop: 4, textTransform: "capitalize" }}>{String(value).replace(/_/g, ' ')}</span>;
               }
 
               return (
-                <div key={key} style={{ display: "flex", flexDirection: "column" }}>
-                  <span style={{ fontSize: 10, fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em" }}>{key.replace(/_/g, ' ')}</span>
+                <div key={key} style={{ display: "flex", flexDirection: "column", padding: "10px 12px", background: "#F8FAFC", borderRadius: 10, border: "1px solid #F1F5F9" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ fontSize: 12 }}>{icon}</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em" }}>{label}</span>
+                  </div>
                   {displayValue}
                 </div>
               );

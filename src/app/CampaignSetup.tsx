@@ -51,6 +51,9 @@ const DEFAULT_CONFIG: any = {
       location_types: ["home", "recent"],
     },
     optimization_goal: "OFFSITE_CONVERSIONS",
+    publisher_platforms: ["facebook", "instagram"],
+    facebook_positions: ["feed", "story", "reels"],
+    instagram_positions: ["stream", "story", "reels"],
     targeting_keywords: [
       "healthcare services",
       "medical specialists",
@@ -130,6 +133,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }: Camp
   const [launchSuccess, setLaunchSuccess] = useState<boolean>(false);
   const [hasLaunchedThisSegment, setHasLaunchedThisSegment] = useState<boolean>(false);
 
+
   const fetchCampaigns = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -149,6 +153,8 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }: Camp
   }, []);
 
   useEffect(() => { fetchCampaigns(); }, [fetchCampaigns]);
+
+
 
   useEffect(() => {
     if (selectedAd) {
@@ -339,6 +345,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }: Camp
           </button>
         )}
       </div>
+
 
       <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
 
@@ -570,6 +577,13 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }: Camp
                 </div>
               )}
             </div>
+
+            {/* Placements — below campaign fields */}
+            {!showRawJson && (
+              <div style={{ padding: "0 20px 20px" }}>
+                <PlacementsSection config={config} setField={setField} />
+              </div>
+            )}
           </div>
 
           {/* ── COLUMN 2: Ad Set ── */}
@@ -671,6 +685,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }: Camp
                   </div>
                 </div>
               </div>
+
             </div>
           </div>
 
@@ -816,6 +831,153 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }: Camp
 }
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
+
+const FB_POSITIONS = [
+  { value: "feed", label: "Feed" },
+  { value: "story", label: "Stories" },
+  { value: "reels", label: "Reels" },
+  { value: "right_hand_column", label: "Right Column" },
+  { value: "video_feeds", label: "Video Feeds" },
+];
+
+const IG_POSITIONS = [
+  { value: "stream", label: "Feed" },
+  { value: "story", label: "Stories" },
+  { value: "reels", label: "Reels" },
+  { value: "explore", label: "Explore" },
+];
+
+function PlacementsSection({ config, setField }: { config: any; setField: (section: string, key: string, value: any) => void }) {
+  const platforms: string[] = config.ad_set?.publisher_platforms || [];
+  const fbPositions: string[] = config.ad_set?.facebook_positions || [];
+  const igPositions: string[] = config.ad_set?.instagram_positions || [];
+
+  const isFbOn = platforms.includes("facebook");
+  const isIgOn = platforms.includes("instagram");
+
+  const togglePlatform = (platform: string) => {
+    let next = platforms.includes(platform)
+      ? platforms.filter((p) => p !== platform)
+      : [...platforms, platform];
+    if (next.length === 0) return; // must have at least one
+    setField("ad_set", "publisher_platforms", next);
+  };
+
+  const togglePosition = (key: string, position: string, current: string[]) => {
+    const next = current.includes(position)
+      ? current.filter((p) => p !== position)
+      : [...current, position];
+    if (next.length === 0) return; // must have at least one
+    setField("ad_set", key, next);
+  };
+
+  return (
+    <div style={{ borderRadius: 12, border: "1.5px solid #f1f5f9", background: "#fafafa", overflow: "hidden" }}>
+      <div style={{ padding: "12px 16px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.06em" }}>Placements</span>
+        <span style={{ fontSize: 10, fontWeight: 700, color: "#0369a1", background: "#e0f2fe", padding: "2px 8px", borderRadius: 20 }}>Where your ads run</span>
+      </div>
+      <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 14 }}>
+
+        {/* Platform toggles */}
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>Platform</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            {[
+              { id: "facebook", label: "Facebook", icon: "f", color: "#1877f2", lightBg: "#eff6ff", activeBg: "#1877f2" },
+              { id: "instagram", label: "Instagram", icon: "ig", color: "#e1306c", lightBg: "#fff0f6", activeBg: "linear-gradient(135deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888)" },
+            ].map((p) => {
+              const isOn = platforms.includes(p.id);
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => togglePlatform(p.id)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 8,
+                    padding: "9px 16px", borderRadius: 10, cursor: "pointer",
+                    border: isOn ? `2px solid ${p.color}` : "1.5px solid #e2e8f0",
+                    background: isOn ? (p.id === "instagram" ? "linear-gradient(135deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888)" : p.activeBg) : "#fff",
+                    color: isOn ? "#fff" : "#475569",
+                    fontWeight: 700, fontSize: 13, transition: "all 0.18s",
+                    boxShadow: isOn ? `0 4px 12px ${p.color}40` : "none",
+                  }}
+                >
+                  <span style={{
+                    width: 20, height: 20, borderRadius: 6, fontSize: 10, fontWeight: 900,
+                    background: isOn ? "rgba(255,255,255,0.25)" : (p.id === "instagram" ? "linear-gradient(135deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888)" : "#1877f2"),
+                    color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                  }}>
+                    {p.icon === "f" ? "f" : "▣"}
+                  </span>
+                  {p.label}
+                  {isOn && <span style={{ fontSize: 12, marginLeft: 2 }}>✓</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Facebook positions */}
+        {isFbOn && (
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#1877f2", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>Facebook Positions</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {FB_POSITIONS.map((pos) => {
+                const isOn = fbPositions.includes(pos.value);
+                return (
+                  <button
+                    key={pos.value}
+                    type="button"
+                    onClick={() => togglePosition("facebook_positions", pos.value, fbPositions)}
+                    style={{
+                      padding: "5px 12px", borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                      border: isOn ? "1.5px solid #1877f2" : "1.5px solid #e2e8f0",
+                      background: isOn ? "#eff6ff" : "#fff",
+                      color: isOn ? "#1877f2" : "#64748b",
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    {isOn && <span style={{ marginRight: 4 }}>✓</span>}{pos.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Instagram positions */}
+        {isIgOn && (
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#e1306c", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>Instagram Positions</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {IG_POSITIONS.map((pos) => {
+                const isOn = igPositions.includes(pos.value);
+                return (
+                  <button
+                    key={pos.value}
+                    type="button"
+                    onClick={() => togglePosition("instagram_positions", pos.value, igPositions)}
+                    style={{
+                      padding: "5px 12px", borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                      border: isOn ? "1.5px solid #e1306c" : "1.5px solid #e2e8f0",
+                      background: isOn ? "#fff0f6" : "#fff",
+                      color: isOn ? "#e1306c" : "#64748b",
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    {isOn && <span style={{ marginRight: 4 }}>✓</span>}{pos.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
 
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
