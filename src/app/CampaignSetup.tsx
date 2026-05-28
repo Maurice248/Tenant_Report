@@ -348,7 +348,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }: Camp
           {/* Phone preview */}
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", padding: 16, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
-              <p style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 12px" }}>Ad Preview</p>
+              <p style={{ fontSize: 11, fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 12px" }}>Ad Preview</p>
               <div style={{ border: "10px solid #1c1c1e", borderRadius: 36, overflow: "hidden", boxShadow: "0 20px 48px -12px rgba(0,0,0,0.25), 0 0 0 1px #2a2a2a", position: "relative", background: "#fff" }}>
                 <div style={{ position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)", width: 90, height: 22, background: "#1c1c1e", borderBottomLeftRadius: 14, borderBottomRightRadius: 14, zIndex: 10 }} />
                 <div style={{ paddingTop: 28, background: "#fff" }}>
@@ -356,7 +356,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }: Camp
                     <div style={{ width: 32, height: 32, borderRadius: "50%", background: "linear-gradient(135deg, #2563EB, #0891B2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, color: "#fff", fontWeight: 800, flexShrink: 0 }}>H</div>
                     <div>
                       <div style={{ fontSize: 12, fontWeight: 700, color: "#0f172a" }}>{config.ad_set?.dsa_beneficiary || "HealPoint Health"}</div>
-                      <div style={{ fontSize: 10, color: "#94a3b8" }}>Sponsored · Clinical Excellence</div>
+                      <div style={{ fontSize: 10, color: "#475569" }}>Sponsored · Clinical Excellence</div>
                     </div>
                   </div>
                   <div style={{ padding: "0 14px 12px", fontSize: 12, lineHeight: 1.5, color: "#1e293b" }}>
@@ -389,8 +389,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }: Camp
           <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", padding: 20, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
               <div>
-                <p style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 2px" }}>Existing Campaigns</p>
-                <p style={{ fontSize: 15, fontWeight: 700, color: "#0f172a", margin: 0 }}>Health Operations</p>
+                <p style={{ fontSize: 15, fontWeight: 700, color: "#0f172a", margin: 0 }}>Existing Campaigns</p>
               </div>
               <button
                 onClick={fetchCampaigns}
@@ -405,7 +404,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }: Camp
               {loading ? (
                 <div style={{ textAlign: "center", padding: 48 }}><Spinner size={22} /></div>
               ) : campaigns.length === 0 ? (
-                <div style={{ fontSize: 13, color: "#94a3b8", textAlign: "center", padding: 48, background: "#f8fafc", borderRadius: 12 }}>No active campaigns found.</div>
+                <div style={{ fontSize: 13, color: "#475569", textAlign: "center", padding: 48, background: "#f8fafc", borderRadius: 12 }}>No active campaigns found.</div>
               ) : (
                 campaigns.map((c: any) => {
                   const isSelected = selectedId === c.id;
@@ -426,7 +425,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }: Camp
                     >
                       <div style={{ overflow: "hidden", flex: 1 }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: isSelected ? "#1d4ed8" : "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</div>
-                        <div style={{ fontSize: 11, color: "#94a3b8", fontFamily: "monospace", marginTop: 2 }}>ID: {c.id}</div>
+                        <div style={{ fontSize: 11, color: "#475569", fontFamily: "monospace", marginTop: 2 }}>ID: {c.id}</div>
                       </div>
                       <Badge text={c.effective_status} color={color} bg={bg} />
                     </div>
@@ -439,7 +438,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }: Camp
           {/* Summary card */}
           <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", padding: 20, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
             <div style={{ marginBottom: 16 }}>
-              <p style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 2px" }}>Targeting Summary</p>
+              <p style={{ fontSize: 11, fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 2px" }}>Targeting Summary</p>
               <p style={{ fontSize: 15, fontWeight: 700, color: "#0f172a", margin: 0 }}>Patient Parameters</p>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
@@ -491,7 +490,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }: Camp
                 <div style={{ width: 22, height: 22, borderRadius: 6, background: "var(--primary-light)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: "var(--primary)" }}>1</div>
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>Campaign</div>
-                  <div style={{ fontSize: 11, color: "#94a3b8" }}>Pathway strategy</div>
+                  <div style={{ fontSize: 11, color: "#475569" }}>Pathway strategy</div>
                 </div>
               </div>
               <button
@@ -545,7 +544,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }: Camp
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "#f8fafc", borderRadius: 12, border: "1.5px solid #f1f5f9" }}>
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>Advantage+ Budget</div>
-                      <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>AI-optimized distribution</div>
+                      <div style={{ fontSize: 11, color: "#475569", marginTop: 2 }}>AI-optimized distribution</div>
                     </div>
                     <label style={{ position: "relative", display: "inline-block", width: 40, height: 22, cursor: "pointer" }}>
                       <input
@@ -579,7 +578,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }: Camp
               <div style={{ width: 22, height: 22, borderRadius: 6, background: "#fef3c7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: "#d97706" }}>2</div>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>Ad Set</div>
-                <div style={{ fontSize: 11, color: "#94a3b8" }}>Targeting & budget</div>
+                <div style={{ fontSize: 11, color: "#475569" }}>Targeting & budget</div>
               </div>
             </div>
 
@@ -611,7 +610,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }: Camp
                     </FieldGroup>
                     <FieldGroup label={`Amount (${config.ad_set?.budget_type === "DAILY" ? "Daily" : "Lifetime"}) $`}>
                       <div style={{ position: "relative" }}>
-                        <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#94a3b8", fontWeight: 600, fontSize: 13 }}>$</span>
+                        <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#475569", fontWeight: 600, fontSize: 13 }}>$</span>
                         <input
                           type="number"
                           value={config.ad_set?.budget_type === "DAILY"
@@ -681,7 +680,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }: Camp
               <div style={{ width: 22, height: 22, borderRadius: 6, background: "#f0fdf4", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: "#16a34a" }}>3</div>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>Ad Creative</div>
-                <div style={{ fontSize: 11, color: "#94a3b8" }}>Identity & copy</div>
+                <div style={{ fontSize: 11, color: "#475569" }}>Identity & copy</div>
               </div>
             </div>
 
@@ -691,7 +690,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd }: Camp
               </FieldGroup>
 
               <div style={{ borderRadius: 12, border: "1.5px solid #f1f5f9", background: "#fafafa", padding: "14px 16px" }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 12 }}>Account Identity</div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 12 }}>Account Identity</div>
                 <FieldGroup label="Facebook Page">
                   <input value={config.ad?.facebook_page || ""} onChange={(e) => setField("ad", "facebook_page", e.target.value)} style={inputStyle} />
                 </FieldGroup>
@@ -830,7 +829,7 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
 function FieldGroup({ label, children, span }: { label: string; children: React.ReactNode; span?: number }) {
   return (
     <div className={span === 2 ? "col-span-1 sm:col-span-2 flex flex-col gap-1.5" : "flex flex-col gap-1.5"}>
-      <label style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.07em" }}>{label}</label>
+      <label style={{ fontSize: 11, fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em" }}>{label}</label>
       {children}
     </div>
   );
@@ -944,7 +943,7 @@ function LocationSearch({ geoLocations, onChange }: LocationSearchProps) {
               onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
             >
               <div style={{ fontWeight: 600, color: "#0f172a" }}>{r.name}</div>
-              <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 1 }}>{r.type?.toUpperCase()} · {r.country_name || r.country_code || "Unknown"}</div>
+              <div style={{ fontSize: 11, color: "#475569", marginTop: 1 }}>{r.type?.toUpperCase()} · {r.country_name || r.country_code || "Unknown"}</div>
             </div>
           ))}
         </div>
