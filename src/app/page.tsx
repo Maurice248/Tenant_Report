@@ -294,6 +294,32 @@ export default function Dashboard() {
       clearInterval(interval);
     };
   }, []);
+
+  const dismissError = useCallback(async (msg: string) => {
+    if (!msg) return;
+    localStorage.setItem("toga_last_dismissed_error_msg", msg.trim());
+    try {
+      await supabase
+        .from("Error Alerts")
+        .update({ Error: "" })
+        .eq("id", 1);
+    } catch (e) {
+      console.warn("Could not clear error from Supabase:", e);
+    }
+    setErrorNotification(null);
+    setErrorNotificationTime(null);
+  }, []);
+
+  // Auto-dismiss error notification after 5 seconds
+  useEffect(() => {
+    if (errorNotification) {
+      const timer = setTimeout(() => {
+        dismissError(errorNotification);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [errorNotification, dismissError]);
+
   const [sbLoading, setSbLoading] = useState(true);
   const [sbTriggeringId, setSbTriggeringId] = useState(null);
   const [sbSessionTriggered, setSbSessionTriggered] = useState(new Set());
@@ -5334,37 +5360,35 @@ export default function Dashboard() {
         <div 
           style={{
             position: 'fixed',
-            inset: 0,
+            bottom: '24px',
+            right: '24px',
             zIndex: 9999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'rgba(15, 23, 42, 0.6)',
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
-            animation: 'fadeIn 0.25s ease-out'
+            width: '100%',
+            maxWidth: '380px',
+            animation: 'sdSlideIn 0.25s ease-out forwards',
+            pointerEvents: 'auto'
           }}
         >
           <div 
             style={{
               background: '#ffffff',
               borderRadius: '16px',
-              border: '2px solid #fca5a5',
-              borderTop: '6px solid #dc2626',
-              boxShadow: '0 0 30px rgba(239, 68, 68, 0.25), 0 20px 25px -5px rgba(0, 0, 0, 0.15)',
-              width: '100%',
-              maxWidth: '480px',
-              padding: '24px',
-              margin: '20px',
-              animation: 'scaleIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
+              border: '1.5px solid #fca5a5',
+              borderLeft: '6px solid #dc2626',
+              boxShadow: '0 10px 30px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.02)',
+              padding: '16px',
+              position: 'relative',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px'
             }}
           >
-            <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
               <div 
                 style={{
                   background: '#fee2e2',
                   borderRadius: '50%',
-                  padding: '10px',
+                  padding: '8px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -5372,31 +5396,30 @@ export default function Dashboard() {
                   flexShrink: 0
                 }}
               >
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
                   <line x1="12" y1="9" x2="12" y2="13"/>
                   <line x1="12" y1="17" x2="12.01" y2="17"/>
                 </svg>
               </div>
-              <div style={{ flex: 1 }}>
+              <div style={{ flex: 1, paddingRight: '20px' }}>
                 <h3 
                   style={{
-                    fontSize: '16px',
+                    fontSize: '14px',
                     fontWeight: 800,
                     color: '#b91c1c',
-                    margin: '0 0 8px 0',
-                    lineHeight: '1.25',
-                    letterSpacing: '-0.01em'
+                    margin: '0 0 4px 0',
+                    lineHeight: '1.2'
                   }}
                 >
                   Workflow Execution Error
                 </h3>
                 <p 
                   style={{
-                    fontSize: '13px',
+                    fontSize: '12px',
                     color: '#475569',
-                    margin: '0 0 20px 0',
-                    lineHeight: '1.5',
+                    margin: 0,
+                    lineHeight: '1.4',
                     wordBreak: 'break-word',
                     whiteSpace: 'pre-wrap',
                     fontWeight: 500
@@ -5405,16 +5428,13 @@ export default function Dashboard() {
                   {errorNotification}
                 </p>
               </div>
-            </div>
-            
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+
+              {/* Small close button in top right of the toast */}
               <button
                 onClick={async () => {
-                  // Save dismissed message locally
                   if (errorNotification) {
                     localStorage.setItem("toga_last_dismissed_error_msg", errorNotification.trim());
                   }
-                  // Also clear the Error field in Supabase so it won't reappear on any session
                   try {
                     await supabase
                       .from("Error Alerts")
@@ -5427,28 +5447,23 @@ export default function Dashboard() {
                   setErrorNotificationTime(null);
                 }}
                 style={{
-                  padding: '10px 20px',
-                  borderRadius: '10px',
-                  fontSize: '13px',
-                  fontWeight: 700,
-                  color: '#ffffff',
-                  background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                  background: 'none',
                   border: 'none',
+                  color: '#94a3b8',
                   cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                  outline: 'none',
-                  boxShadow: '0 4px 12px rgba(239, 68, 68, 0.3)'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-1px)';
-                  e.currentTarget.style.boxShadow = '0 6px 16px rgba(239, 68, 68, 0.45)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.3)';
+                  fontSize: '16px',
+                  fontWeight: 600,
+                  position: 'absolute',
+                  top: '12px',
+                  right: '12px',
+                  lineHeight: 1,
+                  padding: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
                 }}
               >
-                Dismiss Error
+                ×
               </button>
             </div>
           </div>

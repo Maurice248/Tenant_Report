@@ -720,6 +720,8 @@ export default function SocialDash() {
     if (result) {
       console.log("[UI] Prompts confirmed and video created successfully:", result);
       setProgress(100);
+      setGeneratedScenes([]); // Clear the scenes card so it disappears
+      setAcceptedStory(null); // Clear the accepted story reference
       handleRefreshPreview();
       setTimeout(() => {
         setIsGenerating(false);   // Turn off loader since video is ready
@@ -1861,14 +1863,14 @@ export default function SocialDash() {
                         {isInitialLoading 
                           ? "Loading Platform Preview..." 
                           : loading === 'post_social' 
-                            ? "Regenerating Platform Creatives..." 
+                            ? "Posting Content on Social Media..." 
                             : "Drafting Platform Creatives..."}
                       </p>
                       <p style={{ color: '#64748b', fontSize: '11px', marginTop: '6px', maxWidth: '240px', margin: '6px 0 0 0' }}>
                         {isInitialLoading
                           ? "Connecting to Supabase and retrieving the latest campaign details..."
                           : loading === 'post_social'
-                            ? "Applying your custom feedback and tailoring new social copies and creatives..."
+                            ? "Broadcasting your approved campaign images and copywriting to your active channels..."
                             : "Generating scaled images & tailoring custom copywriting for social distribution"}
                       </p>
                       {generationType === 'images' && (
