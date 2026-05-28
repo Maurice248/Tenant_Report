@@ -17,7 +17,8 @@ import {
   Monitor,
   User,
   Mic2,
-  Music
+  Music,
+  Clock
 } from 'lucide-react';
 
 import { Badge, Spinner } from './components';
@@ -90,7 +91,8 @@ export default function SocialDash() {
     videoStyle: "Highly Realistic 4k, real life",
     language: "English",
     voice: "KLoLpdGWK7agg0O2TJYg",
-    backgroundSong: "Inspirational - Sunrise Bloom"
+    backgroundSong: "Inspirational - Sunrise Bloom",
+    duration: "30s"
   });
   const [imagePrompt, setImagePrompt] = useState<string>("");
   const [imageRatio, setImageRatio] = useState<'16:9' | '9:16'>('16:9');
@@ -1070,6 +1072,23 @@ export default function SocialDash() {
                     <option value="Lo-fi - Midnight Study">Lo-fi Midnight</option>
                     <option value="Cinematic - Epic Journey">Epic Journey</option>
                     <option value="Ambient - Calm Waters">Calm Waters</option>
+                  </select>
+                </div>
+
+                {/* Duration */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                    <Clock size={12} color="#d97706" /> Duration
+                  </label>
+                  <select 
+                    name="duration"
+                    value={videoFormData.duration || "30s"}
+                    onChange={(e) => setVideoFormData(prev => ({ ...prev, duration: e.target.value }))}
+                    style={{ padding: '11px 14px', fontSize: '13px', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#f8fafc', color: '#0f172a', outline: 'none' }}
+                  >
+                    <option value="30s">30 Seconds</option>
+                    <option value="60s">60 Seconds</option>
+                    <option value="90s">90 Seconds</option>
                   </select>
                 </div>
 
