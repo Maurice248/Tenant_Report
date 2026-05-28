@@ -1587,10 +1587,10 @@ export default function SocialDash() {
       {/* ---- Toast ---- */}
       {toast && (
         <div className="sd-toast">
-          <div className="sd-toast-inner" style={{ borderLeftColor: toast.type === 'success' ? '#22c55e' : medicalBlue }}>
+          <div className="sd-toast-inner">
             {toast.type === 'success'
-              ? <CheckCircle2 size={16} color="#22c55e" />
-              : <Activity size={16} color={medicalBlue} />}
+              ? <CheckCircle2 size={16} color="#86efac" />
+              : <Activity size={16} color="#86efac" />}
             {toast.message}
           </div>
         </div>
