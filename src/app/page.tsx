@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import {
   Badge,
@@ -238,6 +238,7 @@ export default function Dashboard() {
   // ── Supabase reports state ──
   const [sbRows, setSbRows] = useState([]);
   const [hoveredInputs, setHoveredInputs] = useState<any>(null);
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [errorNotification, setErrorNotification] = useState<string | null>(null);
   const [errorNotificationTime, setErrorNotificationTime] = useState<string | null>(null);
 
@@ -1919,6 +1920,7 @@ export default function Dashboard() {
                   onMouseEnter={(e) => {
                     e.currentTarget.style.borderColor = "var(--primary)";
                     if (row.inputs) {
+                      if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
                       const rect = e.currentTarget.getBoundingClientRect();
                       let y = rect.top;
                       if (y + 400 > window.innerHeight) {
@@ -1933,7 +1935,9 @@ export default function Dashboard() {
                   }} 
                   onMouseLeave={(e) => {
                     e.currentTarget.style.borderColor = "var(--border-light)";
-                    setHoveredInputs(null);
+                    hoverTimeoutRef.current = setTimeout(() => {
+                      setHoveredInputs(null);
+                    }, 200);
                   }}>
 
                     <div style={{ fontWeight: 600, color: "var(--text)", fontSize: 11, marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textTransform: "capitalize" }}>
@@ -5504,7 +5508,6 @@ export default function Dashboard() {
           left: hoveredInputs.x,
           top: hoveredInputs.y,
           zIndex: 999999,
-          pointerEvents: "none",
           width: 380,
           background: "#fff",
           borderRadius: 16,
@@ -5512,7 +5515,16 @@ export default function Dashboard() {
           border: "1px solid #e2e8f0",
           overflow: "hidden",
           fontFamily: "Inter, sans-serif"
-        }}>
+        }}
+        onMouseEnter={() => {
+          if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+        }}
+        onMouseLeave={() => {
+          hoverTimeoutRef.current = setTimeout(() => {
+            setHoveredInputs(null);
+          }, 200);
+        }}
+        >
           <div style={{
             background: "#f8fafc",
             padding: "12px 20px",
