@@ -1112,10 +1112,6 @@ pre {
   box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.1);
 }
 
-.animate-fade-in {
-  animation: sdPulse 2s ease-out forwards;
-}
-
 /* ---- Timeline Progress ---- */
 .sd-timeline-container {
   margin-top: 12px;

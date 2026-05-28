@@ -17,6 +17,18 @@ import {
   LogOut,
   LogIn,
   ShieldCheck,
+  ClipboardList,
+  Megaphone,
+  Tag,
+  Gem,
+  MessageSquare,
+  Target,
+  Users,
+  AlertTriangle,
+  LayoutGrid,
+  Mail,
+  Send,
+  Info,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useRouter } from "next/navigation";
@@ -257,10 +269,13 @@ export default function Dashboard() {
   });
   const [profileId, setProfileId] = useState<string>("d33fb700-9a07-4478-9ff1-6f636f2f3625");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
 
   useEffect(() => {
     const fetchProfile = async () => {
-      const { data, error } = await supabase.from("brand_configs").select("*").eq("id", "d33fb700-9a07-4478-9ff1-6f636f2f3625").maybeSingle();
+      const res = await fetch("/api/brand-config");
+      if (!res.ok) return;
+      const data = await res.json();
       if (data) {
         setProfileId(data.id);
         setProfileData({
@@ -277,7 +292,7 @@ export default function Dashboard() {
       }
     };
     fetchProfile();
-  }, [supabase]);
+  }, []);
 
   const handleSaveProfile = async () => {
     setIsSavingProfile(true);
@@ -293,21 +308,17 @@ export default function Dashboard() {
       icp_outreach: profileData.icpOutreach
     };
 
-    if (profileId) {
-      const { error } = await supabase.from("brand_configs").update(payload).eq("id", profileId);
-      if (error) {
-        addSbToast("Error updating profile", "error");
-      } else {
-        addSbToast("Profile saved successfully!", "success");
-      }
+    const res = await fetch("/api/brand-config", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    if (res.ok) {
+      addSbToast("Profile saved successfully!", "success");
+      setIsEditingProfile(false);
     } else {
-      const { data, error } = await supabase.from("brand_configs").insert([payload]).select().single();
-      if (data) {
-        setProfileId(data.id);
-        addSbToast("Profile created successfully!", "success");
-      } else if (error) {
-        addSbToast("Error creating profile", "error");
-      }
+      addSbToast("Error saving profile", "error");
     }
     setIsSavingProfile(false);
   };
@@ -4891,75 +4902,124 @@ export default function Dashboard() {
           PROFILE SECTION
       ═══════════════════════════════════════════════════════ */}
       {tab === "profile" && (
-        <div className="animate-fade-in flex flex-col gap-8 max-w-4xl mx-auto py-4">
-          
-          <div className="flex flex-col md:flex-row md:items-center justify-between bg-white p-6 rounded-2xl shadow-sm border border-slate-100 gap-4">
-            <div>
-              <h2 className="text-xl font-bold text-slate-800">Brand Configuration</h2>
-              <p className="text-sm text-slate-500 mt-1">Manage your brand voice, positioning, and ICP settings across workflows.</p>
+        <div className="animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: 24, maxWidth: 1200, margin: "0 auto", padding: "16px 0", width: "100%" }}>
+
+          {/* Page Header */}
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <div style={{ width: 56, height: 56, borderRadius: 16, background: "#EFF6FF", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <ClipboardList size={28} color="#3B82F6" />
             </div>
-            <button
-              onClick={handleSaveProfile}
-              disabled={isSavingProfile}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-semibold shadow-sm transition-colors disabled:opacity-70 whitespace-nowrap"
-            >
-              {isSavingProfile ? <Spinner size={16} color="#fff" /> : <span>💾 Save Changes</span>}
-            </button>
+            <div style={{ flex: 1 }}>
+              <h1 style={{ fontSize: 24, fontWeight: 700, color: "#0F172A", margin: 0 }}>Brand & ICP Configuration</h1>
+              <p style={{ fontSize: 13, color: "#64748B", margin: "4px 0 0 0" }}>Define your brand strategy and ideal customer profile</p>
+            </div>
+            {!isEditingProfile ? (
+              <button
+                onClick={() => setIsEditingProfile(true)}
+                style={{ display: "flex", alignItems: "center", gap: 8, background: "#fff", color: "#2563EB", border: "1.5px solid #2563EB", borderRadius: 12, padding: "9px 20px", fontWeight: 600, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" }}
+              >
+                ✏️ Edit
+              </button>
+            ) : (
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  onClick={() => setIsEditingProfile(false)}
+                  style={{ display: "flex", alignItems: "center", gap: 8, background: "#fff", color: "#64748B", border: "1.5px solid #E2E8F0", borderRadius: 12, padding: "9px 20px", fontWeight: 600, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveProfile}
+                  disabled={isSavingProfile}
+                  style={{ display: "flex", alignItems: "center", gap: 8, background: "#2563EB", color: "#fff", border: "none", borderRadius: 12, padding: "10px 20px", fontWeight: 600, fontSize: 13, cursor: isSavingProfile ? "not-allowed" : "pointer", opacity: isSavingProfile ? 0.7 : 1, whiteSpace: "nowrap", boxShadow: "0 1px 3px rgba(0,0,0,0.15)" }}
+                >
+                  {isSavingProfile ? <Spinner size={16} color="#fff" /> : <span>💾 Save</span>}
+                </button>
+              </div>
+            )}
           </div>
 
-          <div>
-            <SectionTitle>Profile Details</SectionTitle>
-            <Card style={{ padding: 30 }}>
-              <div className="flex flex-col gap-8">
-                {[
-                  { key: "productsAndServices", label: "Products & Services", desc: "Treatments/services offered (e.g., Hair Transplant, Dental Implants, Rhinoplasty)" },
-                  { key: "valueProposition", label: "Value Proposition", desc: "Why choose you — the core unique benefit (e.g., '50% cheaper than Europe, same quality')" },
-                  { key: "brandVoice", label: "Brand Voice", desc: "Tone of all content (e.g., Trustworthy, Empathetic, Professional, Action-oriented)" },
-                  { key: "positioning", label: "Positioning", desc: "Market placement (e.g., 'Premium affordable medical tourism for Europeans')" },
-                  { key: "competitors", label: "Competitors", desc: "Competing clinics/brands to benchmark against" },
-                  { key: "painPoints", label: "Pain Points", desc: "Core customer problems your service solves (e.g., 'High costs at home', 'Hair loss confidence')" },
-                ].map(f => (
-                  <div key={f.key} className="flex flex-col gap-3 border-b border-slate-100 pb-8 last:border-0 last:pb-0">
-                    <div>
-                      <label className="text-[14px] font-bold text-slate-800">{f.label}</label>
-                      <p className="text-[12px] text-slate-500 mt-1">{f.desc}</p>
-                    </div>
-                    <textarea 
-                      value={profileData[f.key]}
-                      onChange={(e) => setProfileData({...profileData, [f.key]: e.target.value})}
-                      placeholder={`Enter ${f.label.toLowerCase()}...`}
-                      className="w-full min-h-[90px] p-4 text-[13px] border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all resize-y shadow-sm"
-                    />
-                  </div>
-                ))}
+          {/* Brand Strategy Section */}
+          <div style={{ background: "#fff", borderRadius: 20, border: "1px solid #E2E8F0", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", overflow: "hidden" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "16px 24px", background: "#F8FAFC", borderBottom: "1px solid #E2E8F0" }}>
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: "#DBEAFE", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Megaphone size={20} color="#2563EB" />
               </div>
-            </Card>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "#2563EB" }}>Brand Strategy</div>
+                <div style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>Define your brand positioning and core messaging</div>
+              </div>
+            </div>
+            {[
+              { key: "productsAndServices", label: "Products & Services", placeholder: "Hair Transplant, Dental Implants, Rhinoplasty", iconEl: <Tag size={16} color="#059669" />, iconBg: "#ECFDF5" },
+              { key: "valueProposition", label: "Value Proposition", placeholder: 'Why choose you — the core unique benefit (e.g., "50% cheaper than Europe, same quality")', iconEl: <Gem size={16} color="#0D9488" />, iconBg: "#F0FDFA" },
+              { key: "brandVoice", label: "Brand Voice", placeholder: "Tone of all content (e.g., Trustworthy, Empathetic, Professional, Action-oriented)", iconEl: <MessageSquare size={16} color="#7C3AED" />, iconBg: "#F5F3FF" },
+              { key: "positioning", label: "Positioning", placeholder: 'Market placement (e.g., "Premium affordable medical tourism for Europeans")', iconEl: <Target size={16} color="#EA580C" />, iconBg: "#FFF7ED" },
+              { key: "competitors", label: "Competitors", placeholder: "Competing clinics/brands to benchmark against", iconEl: <Users size={16} color="#DB2777" />, iconBg: "#FDF2F8" },
+              { key: "painPoints", label: "Pain Points", placeholder: 'Core customer problems your service solves (e.g., "High costs at home", "Hair loss confidence")', iconEl: <AlertTriangle size={16} color="#D97706" />, iconBg: "#FFFBEB" },
+            ].map((f, i, arr) => (
+              <div key={f.key} style={{ display: "flex", alignItems: "flex-start", gap: 16, padding: "16px 24px", borderBottom: i < arr.length - 1 ? "1px solid #F1F5F9" : "none" }}>
+                <div style={{ width: 40, height: 40, borderRadius: 12, background: f.iconBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }}>
+                  {f.iconEl}
+                </div>
+                <div style={{ width: 160, flexShrink: 0, paddingTop: 8 }}>
+                  <label style={{ fontSize: 13, fontWeight: 600, color: "#1E293B" }}>{f.label}</label>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <textarea
+                    value={profileData[f.key]}
+                    onChange={(e) => setProfileData({...profileData, [f.key]: e.target.value})}
+                    placeholder={f.placeholder}
+                    rows={2}
+                    disabled={!isEditingProfile}
+                    style={{ width: "100%", padding: "10px 14px", fontSize: 13, border: `1.5px solid ${isEditingProfile ? "#93C5FD" : "#E2E8F0"}`, borderRadius: 12, background: isEditingProfile ? "#fff" : "#F8FAFC", color: "#334155", outline: "none", resize: "none", lineHeight: 1.6, fontFamily: "inherit", boxSizing: "border-box", cursor: isEditingProfile ? "text" : "default" }}
+                  />
+                </div>
+              </div>
+            ))}
           </div>
 
-          <div>
-            <SectionTitle>🎯 ICP Fields (separate per workflow)</SectionTitle>
-            <Card style={{ padding: 30 }}>
-              <div className="flex flex-col gap-8">
-                {[
-                  { key: "icpMetaAds", label: "ICP - Meta Ads", desc: "Audience for paid ads — age, gender, interests, behaviors Facebook targets (e.g., 'Males 35-55, UK/Canada, interested in hair loss solutions')" },
-                  { key: "icpNewsletter", label: "ICP - Newsletter", desc: "Subscriber profile — who reads your emails, what stage of journey they're in (e.g., 'Already aware of medical tourism, comparing options, needs trust-building')" },
-                  { key: "icpOutreach", label: "ICP - Outreach", desc: "Cold lead profile — job title, business type, location for scraping (e.g., 'Clinic owners in UAE, Real Estate agents in Dubai')" },
-                ].map(f => (
-                  <div key={f.key} className="flex flex-col gap-3 border-b border-slate-100 pb-8 last:border-0 last:pb-0">
-                    <div>
-                      <label className="text-[14px] font-bold text-slate-800">{f.label}</label>
-                      <p className="text-[12px] text-slate-500 mt-1">{f.desc}</p>
-                    </div>
-                    <textarea 
-                      value={profileData[f.key]}
-                      onChange={(e) => setProfileData({...profileData, [f.key]: e.target.value})}
-                      placeholder={`Enter ${f.label.toLowerCase()}...`}
-                      className="w-full min-h-[90px] p-4 text-[13px] border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all resize-y shadow-sm"
-                    />
-                  </div>
-                ))}
+          {/* ICP Fields Section */}
+          <div style={{ background: "#fff", borderRadius: 20, border: "1px solid #E2E8F0", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", overflow: "hidden" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "16px 24px", background: "#F8FAFC", borderBottom: "1px solid #E2E8F0" }}>
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: "#DBEAFE", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Users size={20} color="#2563EB" />
               </div>
-            </Card>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "#2563EB" }}>ICP Fields (Separate Per Workflow)</div>
+                <div style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>Define your ideal customer profile for targeted communication</div>
+              </div>
+            </div>
+            {[
+              { key: "icpMetaAds", label: "ICP - Meta Ads", placeholder: 'Audience for paid ads — age, gender, interests, behaviors (e.g., "Males 35-55, UK/Canada, interested in hair loss solutions")', iconEl: <LayoutGrid size={16} color="#059669" />, iconBg: "#ECFDF5" },
+              { key: "icpNewsletter", label: "ICP - Newsletter", placeholder: "Subscriber profile — who reads your emails, what stage of journey they're in (e.g., \"Already aware of medical tourism, comparing options, needs trust-building\")", iconEl: <Mail size={16} color="#7C3AED" />, iconBg: "#F5F3FF" },
+              { key: "icpOutreach", label: "ICP - Outreach", placeholder: 'Cold lead profile — job title, business type, location for scraping (e.g., "Clinic owners in UAE, Real Estate agents in Dubai")', iconEl: <Send size={16} color="#2563EB" />, iconBg: "#EFF6FF" },
+            ].map((f, i, arr) => (
+              <div key={f.key} style={{ display: "flex", alignItems: "flex-start", gap: 16, padding: "16px 24px", borderBottom: i < arr.length - 1 ? "1px solid #F1F5F9" : "none" }}>
+                <div style={{ width: 40, height: 40, borderRadius: 12, background: f.iconBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }}>
+                  {f.iconEl}
+                </div>
+                <div style={{ width: 160, flexShrink: 0, paddingTop: 8 }}>
+                  <label style={{ fontSize: 13, fontWeight: 600, color: "#1E293B" }}>{f.label}</label>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <textarea
+                    value={profileData[f.key]}
+                    onChange={(e) => setProfileData({...profileData, [f.key]: e.target.value})}
+                    placeholder={f.placeholder}
+                    rows={3}
+                    disabled={!isEditingProfile}
+                    style={{ width: "100%", padding: "10px 14px", fontSize: 13, border: `1.5px solid ${isEditingProfile ? "#93C5FD" : "#E2E8F0"}`, borderRadius: 12, background: isEditingProfile ? "#fff" : "#F8FAFC", color: "#334155", outline: "none", resize: "none", lineHeight: 1.6, fontFamily: "inherit", boxSizing: "border-box", cursor: isEditingProfile ? "text" : "default" }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Footer Note */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: "#F8FAFC", borderRadius: 12, border: "1px solid #E2E8F0" }}>
+            <Info size={15} color="#94A3B8" style={{ flexShrink: 0 }} />
+            <span style={{ fontSize: 12, color: "#64748B" }}>Use this template to maintain consistency across all marketing and communication workflows.</span>
           </div>
 
         </div>
