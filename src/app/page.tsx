@@ -255,12 +255,12 @@ export default function Dashboard() {
     icpNewsletter: "",
     icpOutreach: ""
   });
-  const [profileId, setProfileId] = useState<string | null>(null);
+  const [profileId, setProfileId] = useState<string>("d33fb700-9a07-4478-9ff1-6f636f2f3625");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   useEffect(() => {
     const fetchProfile = async () => {
-      const { data, error } = await supabase.from("brand_configs").select("*").limit(1).maybeSingle();
+      const { data, error } = await supabase.from("brand_configs").select("*").eq("id", "d33fb700-9a07-4478-9ff1-6f636f2f3625").maybeSingle();
       if (data) {
         setProfileId(data.id);
         setProfileData({
