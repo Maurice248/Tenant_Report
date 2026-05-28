@@ -149,7 +149,7 @@ export default function SocialDash() {
           setSocialDescriptions({
             instagram: [caption, tags].filter(Boolean).join('\n\n'),
             facebook:  [post, tags].filter(Boolean).join('\n\n'),
-            tiktok:    [title, caption, tags].filter(Boolean).join('\n\n'),
+            tiktok:    caption,
             linkedin:  [post, tags].filter(Boolean).join('\n\n'),
           });
         } catch {
@@ -180,7 +180,7 @@ export default function SocialDash() {
             setSocialDescriptions({
               instagram: [caption, tags].filter(Boolean).join('\n\n'),
               facebook:  [post, tags].filter(Boolean).join('\n\n'),
-              tiktok:    [title, caption, tags].filter(Boolean).join('\n\n'),
+              tiktok:    caption,
               linkedin:  [post, tags].filter(Boolean).join('\n\n'),
             });
           } catch {
