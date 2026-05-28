@@ -1207,7 +1207,7 @@ export default function SocialDash() {
           </div>
 
           {/* ---- Generation Progress Timeline ---- */}
-          {isGenerating && (
+          {isGenerating && generationType !== 'images' && (
             <div className="sd-action-card sd-action-card-success animate-fade-in">
               <div className="sd-card-head">
                 <div className="sd-card-icon" style={{ background: '#f0fdfa', color: '#0d9488' }}>
@@ -1645,6 +1645,17 @@ export default function SocialDash() {
                           ? "Applying your custom feedback and tailoring new social copies and creatives..."
                           : "Generating scaled images & tailoring custom copywriting for social distribution"}
                       </p>
+                      {generationType === 'images' && (
+                        <div style={{ width: '200px', margin: '14px auto 0 auto', display: 'flex', flexDirection: 'column', gap: '6px', textAlign: 'left' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', fontWeight: 800, color: '#0284c7', letterSpacing: '0.05em' }}>
+                            <span>PROGRESS</span>
+                            <span>{Math.round(progress)}%</span>
+                          </div>
+                          <div style={{ height: '6px', width: '100%', background: '#cbd5e1', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${progress}%`, background: '#0284c7', borderRadius: '3px', transition: 'width 0.3s ease' }} />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
