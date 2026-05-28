@@ -357,7 +357,9 @@ export default function SocialDash() {
                        platforms.facebook?.caption || 
                        "What Nobody Tells You About DHI Hair Transplants 🇹🇷\n\nWaiting for hair restoration in Canada felt endless and costly. Discovering the DHI hair transplant with TOGA Health in Turkey changed everything — a no-shave, minimally invasive method that offers precision and faster recovery. Unlike traditional transplants, DHI uses direct implantation for a natural look without long downtime. Now, I can enjoy fuller hair without hiding behind scars or shaved areas. TOGA Health helped me skip the wait and regain confidence with cutting-edge care tailored just for me. Visit TOGA Health to learn more about transforming your life\n\n#HairTransplant #HairRestoration #HairTransplantTurkey #MedicalTourismTurkey #IstanbulHealthcare #CanadianPatients #ConfidenceRestored #LifeTransformation #NewBeginnings #SelfCareJourney #TransformationStory #TOGAHealth #MedicalTourism #AffordableHealthcare";
 
-        const ttText = platforms.tiktok?.caption || 
+        const ttText = payload?.raw?.caption ||
+                       payload?.Descriptions?.caption ||
+                       platforms.tiktok?.caption || 
                        platforms.tiktok?.content || 
                        platforms.tiktok?.description || 
                        platforms.twitter?.content || 
