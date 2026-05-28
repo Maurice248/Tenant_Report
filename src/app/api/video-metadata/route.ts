@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
+// Trigger deployment build: Force route execution dynamic behavior
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
