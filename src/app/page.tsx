@@ -1906,19 +1906,27 @@ export default function Dashboard() {
               {[...sbRows].reverse().map((row: any) => {
                 const report = parseSbReport(row);
                 const inputsObj = typeof row.inputs === 'string' ? JSON.parse(row.inputs || "{}") : (row.inputs || {});
-                const keyword = inputsObj.action || inputsObj.keyword || inputsObj.topic || inputsObj.query || null;
+                const keyword = inputsObj.topic || (inputsObj.keywords && inputsObj.keywords[0]) || inputsObj.action || inputsObj.query || null;
                 const displayTitle = keyword || report.topic || `Run at ${formatSbTime(row.created_at)}`;
-                const tooltipText = row.inputs ? JSON.stringify(inputsObj, null, 2) : "No inputs recorded";
 
                 return (
-                  <div key={row.id} style={{
+                  <div key={row.id} className="group relative" style={{
                     padding: 12, borderRadius: "var(--radius-md)", border: "0.5px solid var(--border-light)",
                     background: "var(--surface)", transition: "transform 0.15s, border-color 0.15s"
                   }} 
-                  title={tooltipText}
                   onMouseEnter={(e) => e.currentTarget.style.borderColor = "var(--primary)"} 
                   onMouseLeave={(e) => e.currentTarget.style.borderColor = "var(--border-light)"}>
-                    <div style={{ fontWeight: 600, color: "var(--text)", fontSize: 11, marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    
+                    {row.inputs && (
+                      <div className="absolute left-[105%] top-0 hidden group-hover:block z-50 p-4 bg-slate-900 text-slate-300 rounded-xl shadow-2xl text-[10px] w-72 border border-slate-700 pointer-events-none" style={{ backdropFilter: "blur(8px)" }}>
+                        <div style={{ fontSize: 11, fontWeight: 800, color: "#fff", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>Run Configuration</div>
+                        <pre style={{ margin: 0, fontFamily: "monospace", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                          {JSON.stringify(inputsObj, null, 2)}
+                        </pre>
+                      </div>
+                    )}
+
+                    <div style={{ fontWeight: 600, color: "var(--text)", fontSize: 11, marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textTransform: "capitalize" }}>
                       {displayTitle}
                     </div>
                     <div style={{ fontSize: 9, color: "var(--text-muted)", marginBottom: 10, display: "flex", alignItems: "center", gap: 4 }}>
