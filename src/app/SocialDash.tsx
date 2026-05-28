@@ -138,6 +138,16 @@ export default function SocialDash() {
   const [activePlatform, setActivePlatform] = useState<'instagram' | 'facebook' | 'tiktok' | 'linkedin' | 'twitter'>('instagram');
   const [showSocialRetryModal, setShowSocialRetryModal] = useState<boolean>(false);
 
+  const [videoMetadata, setVideoMetadata] = useState<{
+    instagram?: { title?: string; content?: string; char_count?: number };
+    facebook?: { title?: string; content?: string; char_count?: number };
+    linkedin?: { title?: string; content?: string; char_count?: number };
+    tiktok?: { title?: string; caption?: string; description?: string; char_count?: number };
+    youtube?: { title?: string; description?: string; char_count?: number };
+    twitter?: { content?: string; char_count?: number };
+  } | null>(null);
+  const [activeVideoPlatform, setActiveVideoPlatform] = useState<'instagram' | 'facebook' | 'linkedin' | 'tiktok' | 'youtube' | 'twitter'>('instagram');
+
   // ── Supabase Images table: fetch & stream video_link, image_link, Descriptions from row id=1 ──
   useEffect(() => {
     const parseDescriptions = (rawDescriptions: any) => {
@@ -234,7 +244,30 @@ export default function SocialDash() {
         setIsInitialLoading(false);
       }
     };
+    const fetchVideoData = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('videos')
+          .select('video_link, metadata')
+          .eq('id', 1)
+          .single();
+        console.log('[Videos fetch] data:', data, '| error:', error);
+        if (data) {
+          if (data.video_link) {
+            setSupabaseVideoUrl(data.video_link);
+          }
+          if (data.metadata) {
+            setVideoMetadata(data.metadata);
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching initial video data from Supabase:", err);
+      }
+    };
+
     fetchImageData();
+    fetchVideoData();
+
     const channel = supabase
       .channel('images-all-cols')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'Images', filter: 'id=eq.1' }, (payload: any) => {
@@ -250,7 +283,24 @@ export default function SocialDash() {
         }
       })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+
+    const videoChannel = supabase
+      .channel('videos-all-cols')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'videos', filter: 'id=eq.1' }, (payload: any) => {
+        console.log('[Videos channel update] payload:', payload);
+        if (payload.new?.video_link) {
+          setSupabaseVideoUrl(payload.new.video_link);
+        }
+        if (payload.new?.metadata) {
+          setVideoMetadata(payload.new.metadata);
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+      supabase.removeChannel(videoChannel);
+    };
   }, []);
 
   // ── Automatically detect aspect ratio of generated/fetched image ──
@@ -1135,6 +1185,368 @@ export default function SocialDash() {
     );
   };
 
+  const getVideoPlatformConfig = (platform: 'instagram' | 'facebook' | 'linkedin' | 'tiktok' | 'youtube' | 'twitter') => {
+    switch (platform) {
+      case 'instagram':
+        return {
+          color: '#e1306c',
+          bgActive: 'rgba(225, 48, 108, 0.15)',
+          borderColor: 'rgba(225, 48, 108, 0.3)',
+          icon: (
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+              <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.051.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z" />
+            </svg>
+          )
+        };
+      case 'facebook':
+        return {
+          color: '#1877f2',
+          bgActive: 'rgba(24, 119, 242, 0.15)',
+          borderColor: 'rgba(24, 119, 242, 0.3)',
+          icon: (
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+              <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+            </svg>
+          )
+        };
+      case 'linkedin':
+        return {
+          color: '#0a66c2',
+          bgActive: 'rgba(10, 102, 194, 0.15)',
+          borderColor: 'rgba(10, 102, 194, 0.3)',
+          icon: (
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+              <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0z" />
+            </svg>
+          )
+        };
+      case 'tiktok':
+        return {
+          color: '#00f2fe',
+          bgActive: 'rgba(0, 242, 254, 0.15)',
+          borderColor: 'rgba(0, 242, 254, 0.3)',
+          icon: (
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+              <path d="M12.53.02C13.84 0 15.14.01 16.44 0c.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.07-2.88-.53-4.13-1.28-.24-.15-.47-.32-.69-.49v7.1c0 2.22-.64 4.51-2.22 6.09-1.63 1.67-4.14 2.59-6.45 2.44-2.83-.16-5.61-2.07-6.52-4.78C1.23 15.81 1.76 12 3.86 9.77c1.7-1.85 4.41-2.71 6.89-2.22V11.7c-1.39-.47-3.07-.13-4.08.88a4.13 4.13 0 00-1.07 3.52c.28 1.54 1.61 2.87 3.16 3.03 1.79.16 3.61-.95 4.09-2.67.14-.52.17-1.06.17-1.6V.02z" />
+            </svg>
+          )
+        };
+      case 'youtube':
+        return {
+          color: '#ff0000',
+          bgActive: 'rgba(255, 0, 0, 0.15)',
+          borderColor: 'rgba(255, 0, 0, 0.3)',
+          icon: (
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+              <path d="M23.498 6.163a3.003 3.003 0 0 0-2.11-2.107C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.388.511a3.002 3.002 0 0 0-2.11 2.107C0 8.053 0 12 0 12s0 3.947.502 5.837a3.003 3.003 0 0 0 2.11 2.107C4.495 20.455 12 20.455 12 20.455s7.505 0 9.388-.511a3.002 3.002 0 0 0 2.11-2.107C24 15.947 24 12 24 12s0-3.947-.502-5.837zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+            </svg>
+          )
+        };
+      case 'twitter':
+        return {
+          color: '#000000',
+          bgActive: 'rgba(0, 0, 0, 0.08)',
+          borderColor: 'rgba(0, 0, 0, 0.2)',
+          icon: (
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+              <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.734l7.736-8.852L2.017 2.25H8.1l4.261 5.632L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
+            </svg>
+          )
+        };
+    }
+  };
+
+  const renderVideoAvatar = () => (
+    <div style={{
+      width: '28px',
+      height: '28px',
+      borderRadius: '50%',
+      background: '#ffffff',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      overflow: 'hidden',
+      border: '1px solid #e2e8f0',
+      flexShrink: 0
+    }}>
+      <img src="/toga-health-logo.png" alt="Toga Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+    </div>
+  );
+
+  const renderInstagramVideoMock = (videoSrc: string, text: string) => {
+    const formattedText = text.split(/(\s+)/).map((word, i) => {
+      if (word.startsWith('#') || word.startsWith('@')) {
+        return <span key={i} style={{ color: '#00376b', fontWeight: 600 }}>{word}</span>;
+      }
+      return word;
+    });
+
+    return (
+      <div style={{ background: '#ffffff', display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', borderBottom: '1px solid #efefef' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {renderVideoAvatar()}
+            <div>
+              <p style={{ fontSize: '10px', fontWeight: 700, margin: 0, color: '#262626' }}>toga_health_ai</p>
+              <p style={{ fontSize: '8px', color: '#8e8e8e', margin: 0 }}>Istanbul, Turkey</p>
+            </div>
+          </div>
+          <span style={{ fontSize: '12px', color: '#262626', fontWeight: 700, cursor: 'pointer' }}>•••</span>
+        </div>
+
+        {/* Video Player */}
+        <div style={{ width: '100%', background: '#000000', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '240px' }}>
+          <video ref={videoRef} src={videoSrc} controls style={{ width: '100%', height: '100%', objectFit: 'contain' }} key={videoSrc} />
+        </div>
+
+        {/* Engagement Icons */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px 4px 10px' }}>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <span style={{ fontSize: '14px', cursor: 'pointer' }}>❤️</span>
+            <span style={{ fontSize: '14px', cursor: 'pointer' }}>💬</span>
+            <span style={{ fontSize: '14px', cursor: 'pointer' }}>✈️</span>
+          </div>
+          <span style={{ fontSize: '14px', cursor: 'pointer' }}>🔖</span>
+        </div>
+
+        {/* Caption */}
+        <div style={{ padding: '0 10px 12px 10px', flex: 1 }}>
+          <p style={{ fontSize: '9px', margin: '0 0 2px 0', color: '#262626', fontWeight: 700 }}>4,812 views</p>
+          <p style={{ fontSize: '9px', lineHeight: '1.4', margin: 0, color: '#262626', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
+            <span style={{ fontWeight: 700, marginRight: '4px' }}>toga_health_ai</span>
+            {formattedText}
+          </p>
+        </div>
+      </div>
+    );
+  };
+
+  const renderFacebookVideoMock = (videoSrc: string, text: string) => {
+    return (
+      <div style={{ background: '#ffffff', display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px 8px 12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {renderVideoAvatar()}
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                <p style={{ fontSize: '10px', fontWeight: 700, margin: 0, color: '#050505' }}>Toga Health AI</p>
+                <span style={{ color: '#1877f2', fontSize: '9px' }}>✓</span>
+              </div>
+              <p style={{ fontSize: '8px', color: '#65676b', margin: 0 }}>Sponsored · 🌐</p>
+            </div>
+          </div>
+          <span style={{ fontSize: '14px', color: '#65676b', cursor: 'pointer' }}>•••</span>
+        </div>
+
+        {/* Text Caption */}
+        <p style={{ fontSize: '9px', lineHeight: '1.4', padding: '0 12px 8px 12px', margin: 0, color: '#050505', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
+          {text}
+        </p>
+
+        {/* Video Player */}
+        <div style={{ width: '100%', background: '#000000', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '220px' }}>
+          <video ref={videoRef} src={videoSrc} controls style={{ width: '100%', height: '100%', objectFit: 'contain' }} key={videoSrc} />
+        </div>
+
+        {/* Action bar */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', borderTop: '1px solid #f0f2f5', borderBottom: '1px solid #f0f2f5' }}>
+          {[['👍','Like'],['💬','Comment'],['➡️','Share']].map(([icon, label], i) => (
+            <button key={i} style={{ background: 'none', border: 'none', color: '#65676b', fontSize: '9px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+              <span>{icon}</span> {label}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const renderLinkedInVideoMock = (videoSrc: string, text: string) => {
+    return (
+      <div style={{ background: '#ffffff', display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px 6px 12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {renderVideoAvatar()}
+            <div>
+              <p style={{ fontSize: '10px', fontWeight: 700, margin: 0, color: '#000000' }}>Toga Health AI</p>
+              <p style={{ fontSize: '7px', color: '#00000099', margin: '1px 0 0 0' }}>AI-Powered Healthcare Solutions</p>
+              <p style={{ fontSize: '7px', color: '#00000099', margin: 0 }}>1d · Edited · 🌐</p>
+            </div>
+          </div>
+          <span style={{ fontSize: '14px', color: '#00000099', cursor: 'pointer' }}>•••</span>
+        </div>
+
+        {/* Text Caption */}
+        <p style={{ fontSize: '9px', lineHeight: '1.4', padding: '4px 12px 8px 12px', margin: 0, color: '#000000e6', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
+          {text}
+        </p>
+
+        {/* Video Player */}
+        <div style={{ width: '100%', background: '#000000', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '220px' }}>
+          <video ref={videoRef} src={videoSrc} controls style={{ width: '100%', height: '100%', objectFit: 'contain' }} key={videoSrc} />
+        </div>
+
+        {/* Action bar */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', borderTop: '1px solid #ebebeb' }}>
+          {[['👍','Like'],['💬','Comment'],['🔁','Repost'],['✈️','Send']].map(([icon, label], i) => (
+            <button key={i} style={{ background: 'none', border: 'none', color: '#00000099', fontSize: '9px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+              <span>{icon}</span> {label}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const renderTikTokVideoMock = (videoSrc: string, text: string) => {
+    return (
+      <div style={{ height: '100%', width: '100%', background: '#000000', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', position: 'relative', overflow: 'hidden' }}>
+        
+        {/* Fullscreen Video Background */}
+        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 1 }}>
+          <video ref={videoRef} src={videoSrc} controls style={{ width: '100%', height: '100%', objectFit: 'cover' }} key={videoSrc} />
+          {/* Subtle bottom gradient cover */}
+          <div style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', height: '140px', background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)', pointerEvents: 'none' }} />
+        </div>
+
+        {/* Top Spacer */}
+        <div style={{ zIndex: 2, height: '30px' }} />
+
+        {/* Left overlays & Right engagement buttons */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', padding: '10px', zIndex: 2, marginTop: 'auto', width: '100%' }}>
+          
+          {/* User Details & Caption Overlay */}
+          <div style={{ flex: 1, paddingRight: '20px', color: '#ffffff', textShadow: '0 1px 4px rgba(0,0,0,0.8)', textAlign: 'left' }}>
+            <p style={{ fontSize: '11px', fontWeight: 700, margin: '0 0 4px 0' }}>@toga_health_ai</p>
+            <p style={{ fontSize: '9px', lineHeight: '1.4', margin: 0, maxHeight: '60px', overflowY: 'auto', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
+              {text}
+            </p>
+            <p style={{ fontSize: '8px', color: '#d4d4d8', marginTop: '4px' }}>🎵 original sound - Toga Health AI</p>
+          </div>
+
+          {/* Right Floating Actions */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+            <div style={{ position: 'relative', width: '28px', height: '28px' }}>
+              <div style={{ width: '100%', height: '100%', borderRadius: '50%', border: '1.5px solid #ffffff', overflow: 'hidden', background: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <img src="/toga-health-logo.png" alt="Toga" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+              </div>
+              <div style={{ position: 'absolute', bottom: '-4px', left: '50%', transform: 'translateX(-50%)', background: '#ff0050', color: '#ffffff', borderRadius: '50%', width: '10px', height: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '6px', fontWeight: 800 }}>+</div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <span style={{ fontSize: '14px', cursor: 'pointer' }}>❤️</span>
+              <span style={{ fontSize: '8px', color: '#ffffff', fontWeight: 600 }}>4.8K</span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <span style={{ fontSize: '14px', cursor: 'pointer' }}>💬</span>
+              <span style={{ fontSize: '8px', color: '#ffffff', fontWeight: 600 }}>188</span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <span style={{ fontSize: '14px', cursor: 'pointer' }}>➡️</span>
+              <span style={{ fontSize: '8px', color: '#ffffff', fontWeight: 600 }}>98</span>
+            </div>
+            
+            <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: '#334155', border: '3px solid #1e293b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#0284c7' }} />
+            </div>
+          </div>
+
+        </div>
+      </div>
+    );
+  };
+
+  const renderYouTubeVideoMock = (videoSrc: string, titleText: string, descriptionText: string) => {
+    return (
+      <div style={{ background: '#ffffff', display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+        {/* Video Player */}
+        <div style={{ width: '100%', background: '#000000', display: 'flex', alignItems: 'center', justifyContent: 'center', aspectRatio: '16/9' }}>
+          <video ref={videoRef} src={videoSrc} controls style={{ width: '100%', height: '100%', objectFit: 'contain' }} key={videoSrc} />
+        </div>
+
+        {/* Video metadata */}
+        <div style={{ padding: '10px 12px 12px 12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <h3 style={{ fontSize: '11px', fontWeight: 700, margin: 0, color: '#0f172a', lineHeight: '1.4' }}>
+            {titleText || "Transforming Lives with Toga Health AI"}
+          </h3>
+          <p style={{ fontSize: '7.5px', color: '#64748b', margin: 0 }}>4.2K views · 2 hours ago</p>
+
+          {/* Channel Bar */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9', padding: '6px 0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {renderVideoAvatar()}
+              <div>
+                <p style={{ fontSize: '9px', fontWeight: 700, margin: 0, color: '#0f172a' }}>Toga Health AI</p>
+                <p style={{ fontSize: '7.5px', color: '#64748b', margin: 0 }}>12.4K subscribers</p>
+              </div>
+            </div>
+            <button style={{ background: '#cc0000', border: 'none', color: '#ffffff', fontSize: '8.5px', fontWeight: 700, borderRadius: '16px', padding: '5px 10px', cursor: 'pointer' }}>
+              SUBSCRIBE
+            </button>
+          </div>
+
+          {/* Video Description Box */}
+          <div style={{ background: '#f8fafc', borderRadius: '8px', padding: '8px 10px' }}>
+            <p style={{ fontSize: '8px', color: '#334155', fontWeight: 700, margin: '0 0 4px 0' }}>Description</p>
+            <p style={{ fontSize: '8px', lineHeight: '1.4', margin: 0, color: '#475569', wordBreak: 'break-word', whiteSpace: 'pre-wrap', maxHeight: '100px', overflowY: 'auto' }}>
+              {descriptionText || "Welcome to Toga Health! Discover cutting-edge DHI hair transplant techniques and cosmetic dentistry in Istanbul, Turkey."}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderTwitterVideoMock = (videoSrc: string, text: string) => {
+    const formattedText = text.split(/(\s+)/).map((word, i) => {
+      if (word.startsWith('#') || word.startsWith('@')) {
+        return <span key={i} style={{ color: '#1d9bf0', fontWeight: 600 }}>{word}</span>;
+      }
+      return word;
+    });
+
+    return (
+      <div style={{ padding: '12px', background: '#ffffff', display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {renderVideoAvatar()}
+            <div>
+              <p style={{ fontSize: '10px', fontWeight: 800, margin: 0, color: '#0f172a' }}>Toga Health AI</p>
+              <p style={{ fontSize: '8px', color: '#64748b', margin: 0 }}>@toga_health_ai · 1h</p>
+            </div>
+          </div>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="#000000">
+            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.734l7.736-8.852L2.017 2.25H8.1l4.261 5.632L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
+          </svg>
+        </div>
+
+        {/* Tweet Content */}
+        <p style={{ fontSize: '10px', lineHeight: '1.5', margin: '0 0 10px 0', color: '#0f172a', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
+          {formattedText}
+        </p>
+
+        {/* Video Player */}
+        <div style={{ width: '100%', background: '#000000', borderRadius: '12px', overflow: 'hidden', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '200px', marginBottom: '10px' }}>
+          <video ref={videoRef} src={videoSrc} controls style={{ width: '100%', height: '100%', objectFit: 'contain' }} key={videoSrc} />
+        </div>
+
+        {/* Engagement Row */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #f1f5f9', paddingTop: '8px', marginTop: 'auto' }}>
+          {[['💬','42'],['🔁','112'],['❤️','812'],['📊','9.4K'],['🔖','']].map(([icon, count], i) => (
+            <button key={i} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '8px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer' }}>
+              {icon}{count && <span>{count}</span>}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   const handlePostVideo = () => {
     const webhookUrl = process.env.NEXT_PUBLIC_N8N_SOCIAL_POST_URL || "https://n8n.srv1208919.hstgr.cloud/webhook/8f91f8e3-d06f-4e73-a545-e18065750416";
     triggerWebhook(
@@ -1677,19 +2089,152 @@ export default function SocialDash() {
               </div>
 
 
-              {/* Video area */}
-              <div className="sd-video-area">
-                {supabaseVideoUrl || videoUrl ? (
-                  <video ref={videoRef} src={supabaseVideoUrl || videoUrl} controls>
-                    Your browser does not support the video tag.
-                  </video>
-                ) : (
-                  <div className="sd-video-placeholder">
-                    <Loader2 size={36} color="#334155" style={{ animation: 'spin 1s linear infinite' }} />
-                    <p style={{ color: '#475569', fontSize: 13, fontWeight: 500 }}>Loading preview stream...</p>
+              {/* Mobile Preview & Platform Selector */}
+              {(() => {
+                const getActiveVideoText = () => {
+                  if (videoMetadata) {
+                    const meta = videoMetadata[activeVideoPlatform];
+                    if (meta) {
+                      if (activeVideoPlatform === 'tiktok') return (meta as any).caption || (meta as any).content || "";
+                      if (activeVideoPlatform === 'youtube') return (meta as any).description || "";
+                      return (meta as any).content || (meta as any).description || (meta as any).caption || "";
+                    }
+                  }
+                  const socialFallback = (socialDescriptions as any)[activeVideoPlatform === 'youtube' ? 'instagram' : activeVideoPlatform];
+                  return socialFallback || "From Hiding My Smile to Loving It 💙 #DentalTransformation #SmileMakeover #TOGAHealth";
+                };
+
+                const getActiveVideoTitle = () => {
+                  if (videoMetadata) {
+                    const meta = videoMetadata[activeVideoPlatform];
+                    if (meta) {
+                      return (meta as any).title || "From Hiding My Smile to Loving It 💙";
+                    }
+                  }
+                  return "From Hiding My Smile to Loving It 💙";
+                };
+
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '16px 20px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                    {/* Horizontal 6 Brand Buttons Group for Video */}
+                    <div style={{
+                      display: 'flex',
+                      gap: '4px',
+                      justifyContent: 'space-between',
+                      background: '#ffffff',
+                      borderRadius: '12px',
+                      padding: '4px',
+                      border: '1px solid #e2e8f0'
+                    }}>
+                      {(['instagram', 'facebook', 'linkedin', 'tiktok', 'youtube', 'twitter'] as const).map((p) => {
+                        const isActive = activeVideoPlatform === p;
+                        const config = getVideoPlatformConfig(p);
+                        return (
+                          <button
+                            key={p}
+                            onClick={() => setActiveVideoPlatform(p)}
+                            style={{
+                              flex: 1,
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '2px',
+                              padding: '6px 2px',
+                              borderRadius: '8px',
+                              background: isActive ? config.bgActive : 'transparent',
+                              border: isActive ? `1px solid ${config.borderColor}` : '1px solid transparent',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s',
+                              color: isActive ? config.color : '#64748b'
+                            }}
+                          >
+                            <span style={{ color: isActive ? config.color : '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              {config.icon}
+                            </span>
+                            <span style={{ fontSize: '8px', fontWeight: isActive ? 700 : 500, textTransform: 'capitalize' }}>{p}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Phone Simulator Frame */}
+                    <div className="sd-phone-frame" style={{
+                      width: '100%',
+                      maxWidth: '285px',
+                      margin: '0 auto',
+                      background: '#f8fafc',
+                      border: '8px solid #cbd5e1',
+                      borderRadius: '36px',
+                      boxShadow: '0 25px 50px -12px rgba(0,0,0,0.1), inset 0 0 20px rgba(0,0,0,0.02)',
+                      overflow: 'hidden',
+                      position: 'relative',
+                      height: '460px'
+                    }}>
+                      {/* Simulated Notch / Dynamic Island */}
+                      <div style={{
+                        width: '110px',
+                        height: '20px',
+                        background: '#cbd5e1',
+                        borderRadius: '0 0 16px 16px',
+                        margin: '0 auto',
+                        position: 'absolute',
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        top: 0,
+                        zIndex: 10,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: '#64748b', marginRight: '6px' }} />
+                        <div style={{ width: '30px', height: '3px', borderRadius: '3px', background: '#94a3b8' }} />
+                      </div>
+
+                      {/* Simulated Mobile Device screen viewport */}
+                      <div style={{
+                        height: '100%',
+                        overflowY: 'auto',
+                        background: activeVideoPlatform === 'tiktok' ? '#000000' : '#ffffff',
+                        color: activeVideoPlatform === 'tiktok' ? '#ffffff' : '#0f172a',
+                        position: 'relative',
+                        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+                        paddingTop: '20px' // Leave space for simulated notch
+                      }} className="sd-phone-screen">
+                        {supabaseVideoUrl || videoUrl ? (
+                          (() => {
+                            const videoSrc = supabaseVideoUrl || videoUrl;
+                            const activeText = getActiveVideoText();
+                            const activeTitle = getActiveVideoTitle();
+
+                            switch (activeVideoPlatform) {
+                              case 'instagram':
+                                return renderInstagramVideoMock(videoSrc, activeText);
+                              case 'facebook':
+                                return renderFacebookVideoMock(videoSrc, activeText);
+                              case 'linkedin':
+                                return renderLinkedInVideoMock(videoSrc, activeText);
+                              case 'tiktok':
+                                return renderTikTokVideoMock(videoSrc, activeText);
+                              case 'youtube':
+                                return renderYouTubeVideoMock(videoSrc, activeTitle, activeText);
+                              case 'twitter':
+                                return renderTwitterVideoMock(videoSrc, activeText);
+                              default:
+                                return null;
+                            }
+                          })()
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '12px', padding: '20px' }}>
+                            <Loader2 size={36} color="#0284c7" style={{ animation: 'spin 1s linear infinite' }} />
+                            <p style={{ color: '#475569', fontSize: '11px', fontWeight: 500, textAlign: 'center' }}>Loading preview stream...</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                )}
-              </div>
+                );
+              })()}
 
               {/* Approval bar */}
               <div className="sd-approval-bar">
