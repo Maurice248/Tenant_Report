@@ -4857,11 +4857,11 @@ export default function Dashboard() {
               <div className="flex flex-col gap-8">
                 {[
                   { key: "productsAndServices", label: "Products & Services", desc: "Treatments/services offered (e.g., Hair Transplant, Dental Implants, Rhinoplasty)" },
-                  { key: "valueProposition", label: "Value Proposition", desc: "Why choose you — the core unique benefit (e.g., \\"50% cheaper than Europe, same quality\\")" },
+                  { key: "valueProposition", label: "Value Proposition", desc: "Why choose you — the core unique benefit (e.g., '50% cheaper than Europe, same quality')" },
                   { key: "brandVoice", label: "Brand Voice", desc: "Tone of all content (e.g., Trustworthy, Empathetic, Professional, Action-oriented)" },
-                  { key: "positioning", label: "Positioning", desc: "Market placement (e.g., \\"Premium affordable medical tourism for Europeans\\")" },
+                  { key: "positioning", label: "Positioning", desc: "Market placement (e.g., 'Premium affordable medical tourism for Europeans')" },
                   { key: "competitors", label: "Competitors", desc: "Competing clinics/brands to benchmark against" },
-                  { key: "painPoints", label: "Pain Points", desc: "Core customer problems your service solves (e.g., \\"High costs at home\\", \\"Hair loss confidence\\")" },
+                  { key: "painPoints", label: "Pain Points", desc: "Core customer problems your service solves (e.g., 'High costs at home', 'Hair loss confidence')" },
                 ].map(f => (
                   <div key={f.key} className="flex flex-col gap-3 border-b border-slate-100 pb-8 last:border-0 last:pb-0">
                     <div>
@@ -4885,9 +4885,9 @@ export default function Dashboard() {
             <Card style={{ padding: 30 }}>
               <div className="flex flex-col gap-8">
                 {[
-                  { key: "icpMetaAds", label: "ICP - Meta Ads", desc: "Audience for paid ads — age, gender, interests, behaviors Facebook targets (e.g., \\"Males 35-55, UK/Canada, interested in hair loss solutions\\")" },
-                  { key: "icpNewsletter", label: "ICP - Newsletter", desc: "Subscriber profile — who reads your emails, what stage of journey they're in (e.g., \\"Already aware of medical tourism, comparing options, needs trust-building\\")" },
-                  { key: "icpOutreach", label: "ICP - Outreach", desc: "Cold lead profile — job title, business type, location for scraping (e.g., \\"Clinic owners in UAE, Real Estate agents in Dubai\\")" },
+                  { key: "icpMetaAds", label: "ICP - Meta Ads", desc: "Audience for paid ads — age, gender, interests, behaviors Facebook targets (e.g., 'Males 35-55, UK/Canada, interested in hair loss solutions')" },
+                  { key: "icpNewsletter", label: "ICP - Newsletter", desc: "Subscriber profile — who reads your emails, what stage of journey they're in (e.g., 'Already aware of medical tourism, comparing options, needs trust-building')" },
+                  { key: "icpOutreach", label: "ICP - Outreach", desc: "Cold lead profile — job title, business type, location for scraping (e.g., 'Clinic owners in UAE, Real Estate agents in Dubai')" },
                 ].map(f => (
                   <div key={f.key} className="flex flex-col gap-3 border-b border-slate-100 pb-8 last:border-0 last:pb-0">
                     <div>
