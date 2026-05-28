@@ -84,7 +84,16 @@ export default function SocialDash() {
   const [generatedScenes, setGeneratedScenes] = useState<any[]>([]);
   const [acceptedStory, setAcceptedStory] = useState<string | null>(null);
   const [lastInputs, setLastInputs] = useState<any>(null);
-  const [videoFormData, setVideoFormData] = useState({
+  const [videoFormData, setVideoFormData] = useState<{
+    character: string;
+    category: string;
+    description: string;
+    videoStyle: string;
+    language: string;
+    voice: string;
+    backgroundSong: string;
+    duration: string | number;
+  }>({
     character: "male",
     category: "Hair Transplant",
     description: "",
@@ -92,7 +101,7 @@ export default function SocialDash() {
     language: "English",
     voice: "KLoLpdGWK7agg0O2TJYg",
     backgroundSong: "Inspirational - Sunrise Bloom",
-    duration: "30s"
+    duration: 30
   });
   const [imagePrompt, setImagePrompt] = useState<string>("");
   const [imageRatio, setImageRatio] = useState<'16:9' | '9:16'>('16:9');
@@ -509,7 +518,16 @@ export default function SocialDash() {
   const handleModalSubmit = async (data: any) => {
     console.log("[UI] Modal submitted with data:", data);
     setShowModal(false);
-    setLastInputs(data);
+    
+    // Normalize duration value (append 's' if numeric or missing 's')
+    const formattedData = {
+      ...data,
+      duration: typeof data.duration === 'number' || (typeof data.duration === 'string' && !data.duration.endsWith('s'))
+        ? `${data.duration}s`
+        : data.duration
+    };
+    
+    setLastInputs(formattedData);
     setGeneratedScenes([]);
 
     const webhookUrl = process.env.NEXT_PUBLIC_N8N_SOCIAL_DYNAMIC_URL || "https://n8n.srv1208919.hstgr.cloud/webhook/7be28969-c4ad-404a-b982-841dda7133af";
@@ -517,7 +535,7 @@ export default function SocialDash() {
       webhookUrl,
       "dynamic",
       "Spotlight Triggered!",
-      data
+      formattedData
     );
 
     console.log("[UI] handleModalSubmit result:", result);
@@ -1128,15 +1146,19 @@ export default function SocialDash() {
                 {/* Duration */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}>
                   <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                    <Clock size={12} color="#d97706" /> Duration
+                    <Clock size={12} color="#d97706" /> Duration (seconds)
                   </label>
                   <input 
-                    type="text"
+                    type="number"
                     name="duration"
                     value={videoFormData.duration}
-                    onChange={(e) => setVideoFormData(prev => ({ ...prev, duration: e.target.value }))}
+                    onChange={(e) => {
+                      const val = e.target.value === '' ? '' : parseInt(e.target.value, 10);
+                      setVideoFormData(prev => ({ ...prev, duration: val }));
+                    }}
+                    min={1}
                     style={{ padding: '11px 14px', fontSize: '13px', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#f8fafc', color: '#0f172a', outline: 'none' }}
-                    placeholder="e.g. 30s, 60s, 1m"
+                    placeholder="e.g. 30"
                   />
                 </div>
 
