@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Clapperboard,
   Image as ImageIcon,
@@ -1581,20 +1582,34 @@ export default function SocialDash() {
     );
   };
 
+  /* ---- Portal Toast (renders directly into document.body, fully independent) ---- */
+  const toastPortal = typeof window !== 'undefined' && toast
+    ? createPortal(
+        <div className="sd-portal-toast">
+          <div className="sd-portal-toast-inner">
+            <div className="sd-portal-toast-icon">
+              {toast.type === 'success'
+                ? <CheckCircle2 size={18} strokeWidth={2.5} color="#6ee7b7" />
+                : <Activity size={18} strokeWidth={2.5} color="#93c5fd" />}
+            </div>
+            <div className="sd-portal-toast-body">
+              <span className="sd-portal-toast-label">
+                {toast.type === 'success' ? 'Success' : 'Info'}
+              </span>
+              <span className="sd-portal-toast-msg">{toast.message}</span>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )
+    : null;
+
   return (
     <div className="sd-root">
 
-      {/* ---- Toast ---- */}
-      {toast && (
-        <div className="sd-toast">
-          <div className="sd-toast-inner">
-            {toast.type === 'success'
-              ? <CheckCircle2 size={16} color="#86efac" />
-              : <Activity size={16} color="#86efac" />}
-            {toast.message}
-          </div>
-        </div>
-      )}
+      {/* ---- Portal Toast injected outside sd-root via React Portal ---- */}
+      {toastPortal}
+
 
       {/* ---- Header ---- */}
       <header className="sd-header">
