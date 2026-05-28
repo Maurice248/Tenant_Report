@@ -124,6 +124,70 @@ export default function SocialDash() {
 
   // ── Supabase Images table: fetch & stream video_link, image_link, Descriptions from row id=1 ──
   useEffect(() => {
+    const parseDescriptions = (rawDescriptions: any) => {
+      try {
+        const desc = typeof rawDescriptions === 'string'
+          ? JSON.parse(rawDescriptions)
+          : rawDescriptions;
+        
+        let instagram = "";
+        let facebook = "";
+        let tiktok = "";
+        let linkedin = "";
+        let supabaseTitle = "";
+
+        // Check if it's the nested format
+        const hasNested = desc.instagram || desc.facebook || desc.tiktok || desc.linkedin ||
+                          desc.Instagram || desc.Facebook || desc.Tiktok || desc.Linkedin;
+
+        if (hasNested) {
+          const instaObj = desc.instagram || desc.Instagram || {};
+          const fbObj = desc.facebook || desc.Facebook || {};
+          const ttObj = desc.tiktok || desc.Tiktok || {};
+          const liObj = desc.linkedin || desc.Linkedin || {};
+
+          instagram = instaObj.content || instaObj.caption || instaObj.title || "";
+          facebook = fbObj.content || fbObj.caption || fbObj.title || "";
+          tiktok = ttObj.caption || ttObj.content || ttObj.title || "";
+          linkedin = liObj.content || liObj.caption || liObj.title || "";
+          supabaseTitle = fbObj.title || instaObj.title || desc.video_title || "";
+        } else {
+          // Flat fallback
+          const caption  = desc.caption   || '';
+          const post     = desc.post      || '';
+          const tags     = desc.tags      || '';
+          const title    = desc.video_title || '';
+          
+          supabaseTitle = title || caption;
+          instagram = [caption, tags].filter(Boolean).join('\n\n');
+          facebook = [post, tags].filter(Boolean).join('\n\n');
+          tiktok = caption;
+          linkedin = [post, tags].filter(Boolean).join('\n\n');
+        }
+
+        return {
+          supabaseTitle,
+          socialDescriptions: {
+            instagram,
+            facebook,
+            tiktok,
+            linkedin
+          }
+        };
+      } catch {
+        const descStr = typeof rawDescriptions === 'object' ? JSON.stringify(rawDescriptions) : String(rawDescriptions);
+        return {
+          supabaseTitle: descStr,
+          socialDescriptions: {
+            instagram: descStr,
+            facebook: descStr,
+            tiktok: descStr,
+            linkedin: descStr
+          }
+        };
+      }
+    };
+
     const fetchImageData = async () => {
       const { data, error } = await supabase
         .from('Images')
@@ -137,25 +201,9 @@ export default function SocialDash() {
         setShowImageWorkspace(true);
       }
       if (data?.Descriptions) {
-        try {
-          const desc = typeof data.Descriptions === 'string'
-            ? JSON.parse(data.Descriptions)
-            : data.Descriptions;
-          const caption  = desc.caption   || '';
-          const post     = desc.post      || '';
-          const tags     = desc.tags      || '';
-          const title    = desc.video_title || '';
-          setSupabaseDescription(title || caption);
-          setSocialDescriptions({
-            instagram: [caption, tags].filter(Boolean).join('\n\n'),
-            facebook:  [post, tags].filter(Boolean).join('\n\n'),
-            tiktok:    caption,
-            linkedin:  [post, tags].filter(Boolean).join('\n\n'),
-          });
-        } catch {
-          setSupabaseDescription(data.Descriptions);
-          setSocialDescriptions({ instagram: data.Descriptions, facebook: data.Descriptions, tiktok: data.Descriptions, linkedin: data.Descriptions });
-        }
+        const parsed = parseDescriptions(data.Descriptions);
+        setSupabaseDescription(parsed.supabaseTitle);
+        setSocialDescriptions(parsed.socialDescriptions);
       }
     };
     fetchImageData();
@@ -168,25 +216,9 @@ export default function SocialDash() {
           setShowImageWorkspace(true);
         }
         if (payload.new?.Descriptions) {
-          try {
-            const desc = typeof payload.new.Descriptions === 'string'
-              ? JSON.parse(payload.new.Descriptions)
-              : payload.new.Descriptions;
-            const caption  = desc.caption   || '';
-            const post     = desc.post      || '';
-            const tags     = desc.tags      || '';
-            const title    = desc.video_title || '';
-            setSupabaseDescription(title || caption);
-            setSocialDescriptions({
-              instagram: [caption, tags].filter(Boolean).join('\n\n'),
-              facebook:  [post, tags].filter(Boolean).join('\n\n'),
-              tiktok:    caption,
-              linkedin:  [post, tags].filter(Boolean).join('\n\n'),
-            });
-          } catch {
-            setSupabaseDescription(payload.new.Descriptions);
-            setSocialDescriptions({ instagram: payload.new.Descriptions, facebook: payload.new.Descriptions, tiktok: payload.new.Descriptions, linkedin: payload.new.Descriptions });
-          }
+          const parsed = parseDescriptions(payload.new.Descriptions);
+          setSupabaseDescription(parsed.supabaseTitle);
+          setSocialDescriptions(parsed.socialDescriptions);
         }
       })
       .subscribe();
