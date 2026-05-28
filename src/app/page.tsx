@@ -1920,10 +1920,14 @@ export default function Dashboard() {
                     e.currentTarget.style.borderColor = "var(--primary)";
                     if (row.inputs) {
                       const rect = e.currentTarget.getBoundingClientRect();
+                      let y = rect.top;
+                      if (y + 400 > window.innerHeight) {
+                        y = Math.max(10, window.innerHeight - 420);
+                      }
                       setHoveredInputs({
                         data: inputsObj,
-                        x: rect.right + 10,
-                        y: rect.top
+                        x: rect.right + 12,
+                        y: y
                       });
                     }
                   }} 
@@ -5501,39 +5505,78 @@ export default function Dashboard() {
           top: hoveredInputs.y,
           zIndex: 999999,
           pointerEvents: "none",
-        }} className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.08)] border border-slate-100 w-[380px] overflow-hidden">
-          
-          <div className="bg-slate-50/80 px-5 py-3.5 border-b border-slate-100 flex items-center gap-2.5">
-            <div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]"></div>
-            <span className="text-[11px] font-bold text-slate-700 uppercase tracking-widest">Run Configuration</span>
+          width: 380,
+          background: "#fff",
+          borderRadius: 16,
+          boxShadow: "0 12px 48px -12px rgba(0,0,0,0.2)",
+          border: "1px solid #e2e8f0",
+          overflow: "hidden",
+          fontFamily: "Inter, sans-serif"
+        }}>
+          <div style={{
+            background: "#f8fafc",
+            padding: "12px 20px",
+            borderBottom: "1px solid #f1f5f9",
+            display: "flex",
+            alignItems: "center",
+            gap: 10
+          }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#3b82f6", boxShadow: "0 0 10px rgba(59,130,246,0.6)" }} />
+            <span style={{ fontSize: 11, fontWeight: 700, color: "#334155", textTransform: "uppercase", letterSpacing: "0.08em" }}>Run Configuration</span>
           </div>
           
-          <div className="p-5 flex flex-col gap-4 max-h-[450px] overflow-auto" style={{ scrollbarWidth: "thin" }}>
+          <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16, maxHeight: 450, overflowY: "auto" }}>
             {Object.entries(hoveredInputs.data).map(([key, value]) => {
               if (key === 'timestamp' || key === 'session_id') return null;
               
               let displayValue: React.ReactNode = String(value);
+              
               if (Array.isArray(value)) {
                 displayValue = (
-                  <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
                     {value.map((v, i) => (
-                      <span key={i} className="px-2.5 py-1 bg-slate-100 text-slate-700 rounded text-[11px] font-medium leading-none">
+                      <span key={i} style={{
+                        padding: "4px 10px",
+                        background: "#f1f5f9",
+                        color: "#475569",
+                        borderRadius: 6,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        border: "1px solid #e2e8f0"
+                      }}>
                         {v}
                       </span>
                     ))}
                   </div>
                 );
               } else if (typeof value === 'boolean') {
-                displayValue = <span className={`inline-block px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider leading-none mt-1 ${value ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>{value ? 'Enabled' : 'Disabled'}</span>;
+                displayValue = (
+                  <div style={{ marginTop: 6 }}>
+                    <span style={{
+                      display: "inline-block",
+                      padding: "4px 10px",
+                      borderRadius: 6,
+                      fontSize: 10,
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.05em",
+                      background: value ? "#dcfce7" : "#fee2e2",
+                      color: value ? "#166534" : "#991b1b",
+                      border: `1px solid ${value ? "#bbf7d0" : "#fecaca"}`
+                    }}>
+                      {value ? 'Enabled' : 'Disabled'}
+                    </span>
+                  </div>
+                );
               } else if (typeof value === 'string') {
-                displayValue = <span className="text-[13px] font-medium text-slate-800 leading-snug block mt-0.5 capitalize">{value.replace(/_/g, ' ')}</span>;
+                displayValue = <span style={{ fontSize: 13, fontWeight: 600, color: "#0f172a", display: "block", marginTop: 4, textTransform: "capitalize" }}>{value.replace(/_/g, ' ')}</span>;
               } else if (typeof value === 'number') {
-                displayValue = <span className="text-[13px] font-semibold text-slate-800 leading-snug block mt-0.5">{value}</span>;
+                displayValue = <span style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", display: "block", marginTop: 4 }}>{value}</span>;
               }
 
               return (
-                <div key={key} className="flex flex-col">
-                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">{key.replace(/_/g, ' ')}</span>
+                <div key={key} style={{ display: "flex", flexDirection: "column" }}>
+                  <span style={{ fontSize: 10, fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em" }}>{key.replace(/_/g, ' ')}</span>
                   {displayValue}
                 </div>
               );
