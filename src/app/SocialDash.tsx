@@ -76,6 +76,8 @@ export default function SocialDash() {
   const [videoUrl, setVideoUrl] = useState<string>("");
   const [supabaseVideoUrl, setSupabaseVideoUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState<string | null>(null);
+  const [isVideoPosting, setIsVideoPosting] = useState<boolean>(false);
+  const [isImagePosting, setIsImagePosting] = useState<boolean>(false);
   const [toast, setToast] = useState<ToastState | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [status, setStatus] = useState<string>("Loading...");
@@ -406,7 +408,13 @@ export default function SocialDash() {
   };
 
   const triggerWebhook = async (url: string, label: string, successMessage: string, body: any = null, method = 'POST') => {
-    setLoading(label);
+    if (label === 'post') {
+      setIsVideoPosting(true);
+    } else if (label === 'post_social') {
+      setIsImagePosting(true);
+    } else {
+      setLoading(label);
+    }
     console.log(`[UI] Triggering webhook: ${url}`, { body, method });
     try {
       const response = await fetch('/api/proxy', {
@@ -437,7 +445,13 @@ export default function SocialDash() {
       showToast("Trigger failed. Check browser console for details.", 'info');
       return null;
     } finally {
-      setLoading(null);
+      if (label === 'post') {
+        setIsVideoPosting(false);
+      } else if (label === 'post_social') {
+        setIsImagePosting(false);
+      } else {
+        setLoading(null);
+      }
     }
   };
 
@@ -533,7 +547,7 @@ export default function SocialDash() {
   };
 
   const handleSocialPost = async () => {
-    setLoading('post_social');
+    setIsImagePosting(true);
     try {
       const webhookUrl = "https://n8n.srv1208919.hstgr.cloud/webhook/5636fbef-db11-419b-b7cf-92bff14c25b7";
       await triggerWebhook(
@@ -548,7 +562,7 @@ export default function SocialDash() {
         "POST"
       );
     } finally {
-      setLoading(null);
+      setIsImagePosting(false);
     }
   };
 
@@ -2213,7 +2227,7 @@ export default function SocialDash() {
                         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
                         paddingTop: '20px' // Leave space for simulated notch
                       }} className="sd-phone-screen">
-                        {loading === 'post' ? (
+                        {isVideoPosting ? (
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '16px', padding: '20px', background: 'rgba(255, 255, 255, 0.96)', zIndex: 20, position: 'absolute', top: 0, left: 0, width: '100%' }}>
                             <Loader2 size={36} color="#0284c7" style={{ animation: 'spin 1.5s linear infinite' }} />
                             <div style={{ textAlign: 'center' }}>
@@ -2372,10 +2386,10 @@ export default function SocialDash() {
                 <button
                   className="sd-btn-post"
                   onClick={handlePostVideo}
-                  disabled={loading === 'post'}
+                  disabled={isVideoPosting}
                   style={{ background: `linear-gradient(135deg, ${medicalBlue}, ${medicalTeal})` }}
                 >
-                  {loading === 'post'
+                  {isVideoPosting
                     ? <Spinner color="white" size={16} />
                     : <><Share2 size={16} /> Post Now</>}
                 </button>
@@ -2519,7 +2533,7 @@ export default function SocialDash() {
                 </div>
               </div>
 
-              {isInitialLoading || isImageGenerating || loading === 'post_social' ? (
+              {isInitialLoading || isImageGenerating || isImagePosting ? (
                 /* Mobile Screen - Loader State */
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '520px', background: 'rgba(255, 255, 255, 0.8)', border: '2px dashed #cbd5e1', borderRadius: '24px', position: 'relative' }}>
                   {/* Glowing light pulse */}
@@ -2534,14 +2548,14 @@ export default function SocialDash() {
                       <p style={{ color: '#0f172a', fontSize: '14px', fontWeight: 600, margin: 0 }}>
                         {isInitialLoading 
                           ? "Loading Platform Preview..." 
-                          : loading === 'post_social' 
+                          : isImagePosting 
                             ? "Posting Content on Social Media..." 
                             : "Drafting Platform Creatives..."}
                       </p>
                       <p style={{ color: '#64748b', fontSize: '11px', marginTop: '6px', maxWidth: '240px', margin: '6px 0 0 0' }}>
                         {isInitialLoading
                           ? "Connecting to Supabase and retrieving the latest campaign details..."
-                          : loading === 'post_social'
+                          : isImagePosting
                             ? "Broadcasting your approved campaign images and copywriting to your active channels..."
                             : "Generating scaled images & tailoring custom copywriting for social distribution"}
                       </p>
@@ -2766,7 +2780,7 @@ export default function SocialDash() {
                     <div style={{ display: 'flex', gap: '10px' }}>
                       <button
                         onClick={() => setShowSocialRetryModal(true)}
-                        disabled={loading === 'post_social'}
+                        disabled={isImagePosting}
                         style={{
                           background: '#f1f5f9',
                           border: '1px solid #e2e8f0',
@@ -2785,7 +2799,7 @@ export default function SocialDash() {
                       </button>
                       <button
                         onClick={handleSocialPost}
-                        disabled={loading === 'post_social'}
+                        disabled={isImagePosting}
                         style={{
                           background: `linear-gradient(135deg, ${medicalBlue}, ${medicalTeal})`,
                           border: 'none',
@@ -2801,7 +2815,7 @@ export default function SocialDash() {
                           boxShadow: '0 4px 14px rgba(2, 132, 199, 0.3)'
                         }}
                       >
-                        {loading === 'post_social' ? <Spinner size={12} color="white" /> : <Share2 size={13} />}
+                        {isImagePosting ? <Spinner size={12} color="white" /> : <Share2 size={13} />}
                         Post
                       </button>
                     </div>
