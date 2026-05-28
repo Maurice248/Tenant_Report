@@ -118,6 +118,7 @@ export default function SocialDash() {
   // ── Social Image Workspace States ──
   const [showImageWorkspace, setShowImageWorkspace] = useState<boolean>(true);
   const [isImageGenerating, setIsImageGenerating] = useState<boolean>(false);
+  const [isInitialLoading, setIsInitialLoading] = useState<boolean>(true);
   const [generatedSocialImage, setGeneratedSocialImage] = useState<string | null>(null);
   const [supabaseImageUrl, setSupabaseImageUrl] = useState<string | null>(null);
   const [supabaseDescription, setSupabaseDescription] = useState<string>('');
@@ -202,21 +203,27 @@ export default function SocialDash() {
     };
 
     const fetchImageData = async () => {
-      const { data, error } = await supabase
-        .from('Images')
-        .select('image_link, Descriptions')
-        .eq('id', 1)
-        .single();
-      console.log('[Images fetch] data:', data, '| error:', error);
-      if (data?.image_link) {
-        setSupabaseImageUrl(data.image_link);
-        setGeneratedSocialImage(data.image_link);
-        setShowImageWorkspace(true);
-      }
-      if (data?.Descriptions) {
-        const parsed = parseDescriptions(data.Descriptions);
-        setSupabaseDescription(parsed.supabaseTitle);
-        setSocialDescriptions(parsed.socialDescriptions);
+      try {
+        const { data, error } = await supabase
+          .from('Images')
+          .select('image_link, Descriptions')
+          .eq('id', 1)
+          .single();
+        console.log('[Images fetch] data:', data, '| error:', error);
+        if (data?.image_link) {
+          setSupabaseImageUrl(data.image_link);
+          setGeneratedSocialImage(data.image_link);
+          setShowImageWorkspace(true);
+        }
+        if (data?.Descriptions) {
+          const parsed = parseDescriptions(data.Descriptions);
+          setSupabaseDescription(parsed.supabaseTitle);
+          setSocialDescriptions(parsed.socialDescriptions);
+        }
+      } catch (err) {
+        console.error("Error fetching initial image data from Supabase:", err);
+      } finally {
+        setIsInitialLoading(false);
       }
     };
     fetchImageData();
@@ -448,8 +455,6 @@ export default function SocialDash() {
       setGenerationType(null);
       setIsImageGenerating(false);
       
-      // Load high-fidelity fallback/mock data so the user always has a premium experience
-      setGeneratedSocialImage("https://tempfile.aiquickdraw.com/workers/nano/image_1779862412111_eo1ssy.png");
       setSocialDescriptions({
         instagram: "What Nobody Tells You About DHI Hair Transplants 🇹🇷\n\nWaiting for hair restoration in Canada felt endless and costly. Discovering the DHI hair transplant with TOGA Health in Turkey changed everything — a no-shave, minimally invasive method that offers precision and faster recovery. Unlike traditional transplants, DHI uses direct implantation for a natural look without long downtime. Now, I can enjoy fuller hair without hiding behind scars or shaved areas. TOGA Health helped me skip the wait and regain confidence with cutting-edge care tailored just for me. Visit TOGA Health to learn more about transforming your life\n\n.\n.\n.\n#HairTransplant #HairRestoration #HairTransplantTurkey #MedicalTourismTurkey #IstanbulHealthcare #CanadianPatients #ConfidenceRestored #LifeTransformation #NewBeginnings #SelfCareJourney #TransformationStory #TOGAHealth #MedicalTourism #AffordableHealthcare",
         facebook: "What Nobody Tells You About DHI Hair Transplants 🇹🇷\n\nWaiting for hair restoration in Canada felt endless and costly. Discovering the DHI hair transplant with TOGA Health in Turkey changed everything — a no-shave, minimally invasive method that offers precision and faster recovery. Unlike traditional transplants, DHI uses direct implantation for a natural look without long downtime. Now, I can enjoy fuller hair without hiding behind scars or shaved areas. TOGA Health helped me skip the wait and regain confidence with cutting-edge care tailored just for me. Visit TOGA Health to learn more about transforming your life\n\n#HairTransplant #HairRestoration #HairTransplantTurkey #MedicalTourismTurkey #IstanbulHealthcare #CanadianPatients #ConfidenceRestored #LifeTransformation #NewBeginnings #SelfCareJourney #TransformationStory #TOGAHealth #MedicalTourism #AffordableHealthcare",
@@ -825,7 +830,7 @@ export default function SocialDash() {
         {/* Media Block */}
         <div style={{ background: '#000000', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', aspectRatio: imageRatio === '16:9' ? '16/9' : '9/16', borderTop: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9' }}>
           <img
-            src={generatedSocialImage || "https://tempfile.aiquickdraw.com/workers/nano/image_1779862412111_eo1ssy.png"}
+            src={generatedSocialImage || ""}
             alt="Instagram Mockup"
             style={{ width: '100%', height: '100%', objectFit: 'contain' }}
           />
@@ -885,7 +890,7 @@ export default function SocialDash() {
         <div style={{ background: '#f0f2f5', border: '1px solid #e4e6eb', borderRadius: '8px', overflow: 'hidden' }}>
           <div style={{ width: '100%', aspectRatio: imageRatio === '16:9' ? '16/9' : '9/16', background: '#000000' }}>
             <img
-              src={generatedSocialImage || "https://tempfile.aiquickdraw.com/workers/nano/image_1779862412111_eo1ssy.png"}
+              src={generatedSocialImage || ""}
               alt="Facebook Mockup"
               style={{ width: '100%', height: '100%', objectFit: 'contain' }}
             />
@@ -941,7 +946,7 @@ export default function SocialDash() {
         {/* Media card */}
         <div style={{ border: '1px solid #e2e8f0', borderRadius: '4px', overflow: 'hidden', background: '#000000', aspectRatio: imageRatio === '16:9' ? '16/9' : '9/16' }}>
           <img
-            src={generatedSocialImage || "https://tempfile.aiquickdraw.com/workers/nano/image_1779862412111_eo1ssy.png"}
+            src={generatedSocialImage || ""}
             alt="LinkedIn Mockup"
             style={{ width: '100%', height: '100%', objectFit: 'contain' }}
           />
@@ -972,7 +977,7 @@ export default function SocialDash() {
         {/* Background Image full fit */}
         <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 1 }}>
           <img
-            src={generatedSocialImage || "https://tempfile.aiquickdraw.com/workers/nano/image_1779862412111_eo1ssy.png"}
+            src={generatedSocialImage || ""}
             alt="TikTok Mockup"
             style={{ width: '100%', height: '100%', objectFit: 'contain', opacity: 0.85 }}
           />
@@ -1154,10 +1159,7 @@ export default function SocialDash() {
                 </div>
 
                 {/* Voice */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}>
-                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                    <Mic2 size={12} color="#d97706" /> Voice
-                  </label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <button
                     type="button"
                     onClick={() => setIsVoiceModalOpen(true)}
@@ -1165,29 +1167,47 @@ export default function SocialDash() {
                       width: '100%',
                       padding: '11px 14px',
                       fontSize: '13px',
-                      fontWeight: 600,
-                      border: '1px solid #cbd5e1',
+                      fontWeight: 700,
+                      border: 'none',
                       borderRadius: '8px',
-                      background: '#f8fafc',
-                      color: '#0f172a',
+                      background: '#d97706',
+                      color: '#ffffff',
                       outline: 'none',
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'space-between',
-                      transition: 'all 0.15s'
+                      justifyContent: 'center',
+                      gap: '6px',
+                      transition: 'background 0.15s'
                     }}
-                    onMouseEnter={e => { e.currentTarget.style.borderColor = '#d97706'; e.currentTarget.style.background = '#ffffff'; }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor = '#cbd5e1'; e.currentTarget.style.background = '#f8fafc'; }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#b45309'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = '#d97706'; }}
                   >
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Sparkles size={13} color="#d97706" />
-                      {voiceLabel}
-                    </span>
-                    <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', background: '#e2e8f0', padding: '2px 6px', borderRadius: '4px' }}>
-                      Explore
-                    </span>
+                    <Mic2 size={14} color="#ffffff" />
+                    Voices
                   </button>
+                  {voiceLabel && (
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      padding: '5px 10px',
+                      background: '#fefce8',
+                      border: '1px solid #fde68a',
+                      borderRadius: '6px',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      color: '#92400e',
+                    }}>
+                      <Mic2 size={11} color="#d97706" />
+                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {voiceLabel}
+                      </span>
+                      <span style={{ fontSize: '9px', fontWeight: 700, color: '#d97706', textTransform: 'uppercase', background: '#fef3c7', padding: '1px 5px', borderRadius: '3px', flexShrink: 0 }}>
+                        Selected
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Language */}
@@ -1236,12 +1256,14 @@ export default function SocialDash() {
                     name="duration"
                     value={videoFormData.duration}
                     onChange={(e) => {
-                      const val = e.target.value === '' ? '' : parseInt(e.target.value, 10);
+                      const raw = e.target.value === '' ? '' : parseInt(e.target.value, 10);
+                      const val = raw === '' ? '' : Math.min(90, Math.max(30, raw));
                       setVideoFormData(prev => ({ ...prev, duration: val }));
                     }}
-                    min={1}
+                    min={30}
+                    max={90}
                     style={{ padding: '11px 14px', fontSize: '13px', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#f8fafc', color: '#0f172a', outline: 'none' }}
-                    placeholder="e.g. 30"
+                    placeholder="30 – 90 seconds"
                   />
                 </div>
 
@@ -1704,7 +1726,7 @@ export default function SocialDash() {
                 </div>
               </div>
 
-              {isImageGenerating || loading === 'post_social' ? (
+              {isInitialLoading || isImageGenerating || loading === 'post_social' ? (
                 /* Mobile Screen - Loader State */
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '520px', background: 'rgba(255, 255, 255, 0.8)', border: '2px dashed #cbd5e1', borderRadius: '24px', position: 'relative' }}>
                   {/* Glowing light pulse */}
@@ -1717,12 +1739,18 @@ export default function SocialDash() {
                     </div>
                     <div style={{ textAlign: 'center' }}>
                       <p style={{ color: '#0f172a', fontSize: '14px', fontWeight: 600, margin: 0 }}>
-                        {loading === 'post_social' ? "Regenerating Platform Creatives..." : "Drafting Platform Creatives..."}
+                        {isInitialLoading 
+                          ? "Loading Platform Preview..." 
+                          : loading === 'post_social' 
+                            ? "Regenerating Platform Creatives..." 
+                            : "Drafting Platform Creatives..."}
                       </p>
                       <p style={{ color: '#64748b', fontSize: '11px', marginTop: '6px', maxWidth: '240px', margin: '6px 0 0 0' }}>
-                        {loading === 'post_social'
-                          ? "Applying your custom feedback and tailoring new social copies and creatives..."
-                          : "Generating scaled images & tailoring custom copywriting for social distribution"}
+                        {isInitialLoading
+                          ? "Connecting to Supabase and retrieving the latest campaign details..."
+                          : loading === 'post_social'
+                            ? "Applying your custom feedback and tailoring new social copies and creatives..."
+                            : "Generating scaled images & tailoring custom copywriting for social distribution"}
                       </p>
                       {generationType === 'images' && (
                         <div style={{ width: '200px', margin: '14px auto 0 auto', display: 'flex', flexDirection: 'column', gap: '6px', textAlign: 'left' }}>

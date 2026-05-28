@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
-import { X, Search, Volume2, VolumeX, Check, Sparkles, Filter, Mic2, User } from 'lucide-react';
+import { X, Search, Volume2, VolumeX, Check, Sparkles, Mic2, User, Globe, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Spinner } from './components';
 
 interface Voice {
@@ -10,6 +10,7 @@ interface Voice {
   name: string;
   gender: string;
   accent: string;
+  language: string;
   description: string;
   preview_url: string;
 }
@@ -20,6 +21,8 @@ interface VoiceExplorerModalProps {
   onSelectVoice: (voiceId: string, voiceLabel: string) => void;
   selectedVoiceId: string;
 }
+
+const VOICES_PER_PAGE = 20;
 
 export default function VoiceExplorerModal({
   isOpen,
@@ -32,10 +35,13 @@ export default function VoiceExplorerModal({
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [genderFilter, setGenderFilter] = useState<'all' | 'male' | 'female'>('all');
   const [accentFilter, setAccentFilter] = useState<string>('all');
-  
+  const [languageFilter, setLanguageFilter] = useState<string>('all');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+
   // Audio preview state
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
 
   // Fetch voices on open
   useEffect(() => {
@@ -56,12 +62,16 @@ export default function VoiceExplorerModal({
       };
       fetchVoices();
     } else {
-      // Stop any playing audio when modal closes
       stopAudio();
     }
   }, [isOpen]);
 
-  // Audio helper functions
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, genderFilter, accentFilter, languageFilter]);
+
+  // Audio helpers
   const stopAudio = () => {
     if (audioRef.current) {
       audioRef.current.pause();
@@ -72,74 +82,105 @@ export default function VoiceExplorerModal({
 
   const playPreview = (voiceId: string, previewUrl: string) => {
     if (!previewUrl) return;
-
-    if (playingVoiceId === voiceId) {
-      stopAudio();
-      return;
-    }
-
-    // Stop previous audio if any
+    if (playingVoiceId === voiceId) { stopAudio(); return; }
     stopAudio();
-
     const audio = new Audio(previewUrl);
     audioRef.current = audio;
     setPlayingVoiceId(voiceId);
-
-    audio.play().catch(err => {
-      console.error("Playback failed:", err);
-      setPlayingVoiceId(null);
-    });
-
-    audio.onended = () => {
-      setPlayingVoiceId(null);
-      audioRef.current = null;
-    };
+    audio.play().catch(() => setPlayingVoiceId(null));
+    audio.onended = () => { setPlayingVoiceId(null); audioRef.current = null; };
   };
 
-  // Clean up audio on unmount
-  useEffect(() => {
-    return () => {
-      stopAudio();
-    };
-  }, []);
+  useEffect(() => { return () => stopAudio(); }, []);
 
   // Filter logic
   const filteredVoices = voices.filter(voice => {
-    // 1. Search Query
     const query = searchQuery.toLowerCase();
-    const matchesSearch = 
+    const matchesSearch =
       voice.name.toLowerCase().includes(query) ||
       voice.accent.toLowerCase().includes(query) ||
+      voice.language.toLowerCase().includes(query) ||
       voice.description.toLowerCase().includes(query);
-
-    // 2. Gender Filter
     const matchesGender = genderFilter === 'all' || voice.gender === genderFilter;
-
-    // 3. Accent Filter
-    const matchesAccent = accentFilter === 'all' || 
-      voice.accent.toLowerCase().includes(accentFilter.toLowerCase());
-
-    return matchesSearch && matchesGender && matchesAccent;
+    const matchesAccent = accentFilter === 'all' || voice.accent.toLowerCase().includes(accentFilter.toLowerCase());
+    const matchesLanguage = languageFilter === 'all' || voice.language.toLowerCase().includes(languageFilter.toLowerCase());
+    return matchesSearch && matchesGender && matchesAccent && matchesLanguage;
   });
 
-  // Extract unique accents for filter dropdown
-  const uniqueAccents = Array.from(
-    new Set(voices.map(v => v.accent).filter(Boolean))
-  ).sort();
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(filteredVoices.length / VOICES_PER_PAGE));
+  const safePage = Math.min(currentPage, totalPages);
+  const pageStart = (safePage - 1) * VOICES_PER_PAGE;
+  const pageVoices = filteredVoices.slice(pageStart, pageStart + VOICES_PER_PAGE);
+
+  const goToPage = (p: number) => {
+    setCurrentPage(Math.max(1, Math.min(p, totalPages)));
+    gridRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Unique filter options derived from all voices
+  const uniqueAccents = Array.from(new Set(voices.map(v => v.accent).filter(Boolean))).sort();
+  const uniqueLanguages = Array.from(new Set(voices.map(v => v.language).filter(Boolean))).sort();
+
+  const clearFilters = () => {
+    setSearchQuery('');
+    setGenderFilter('all');
+    setAccentFilter('all');
+    setLanguageFilter('all');
+  };
+
+  const hasActiveFilters = searchQuery || genderFilter !== 'all' || accentFilter !== 'all' || languageFilter !== 'all';
+
+  // Pagination button helper
+  const PaginationBtn = ({ page, active }: { page: number; active: boolean }) => (
+    <button
+      onClick={() => goToPage(page)}
+      style={{
+        minWidth: '30px',
+        height: '30px',
+        padding: '0 6px',
+        borderRadius: '6px',
+        border: active ? 'none' : '1px solid #e2e8f0',
+        background: active ? '#0f172a' : '#ffffff',
+        color: active ? '#ffffff' : '#475569',
+        fontSize: '12px',
+        fontWeight: active ? 700 : 500,
+        cursor: 'pointer',
+        transition: 'all 0.15s',
+      }}
+    >
+      {page}
+    </button>
+  );
+
+  // Build visible page numbers
+  const getPageNumbers = () => {
+    const pages: (number | '...')[] = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      if (safePage > 3) pages.push('...');
+      for (let i = Math.max(2, safePage - 1); i <= Math.min(totalPages - 1, safePage + 1); i++) pages.push(i);
+      if (safePage < totalPages - 2) pages.push('...');
+      pages.push(totalPages);
+    }
+    return pages;
+  };
 
   return (
     <Dialog.Root open={isOpen} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="sd-modal-overlay" style={{ backdropFilter: 'blur(8px)', backgroundColor: 'rgba(15, 23, 42, 0.4)' }} />
-        
-        <Dialog.Content 
+
+        <Dialog.Content
           className="sd-modal-content"
           style={{
-            width: '65vw',
-            maxWidth: '900px',
-            minWidth: '650px',
-            height: '80vh',
-            maxHeight: '750px',
+            width: '70vw',
+            maxWidth: '960px',
+            minWidth: '680px',
+            height: '88vh',
+            maxHeight: '820px',
             display: 'flex',
             flexDirection: 'column',
             padding: '24px',
@@ -147,36 +188,24 @@ export default function VoiceExplorerModal({
             borderRadius: '24px',
             boxShadow: '0 25px 50px -12px rgba(2, 132, 199, 0.25)',
             border: '1px solid #cbd5e1',
-            overflow: 'hidden'
+            overflow: 'hidden',
           }}
         >
-          {/* Header */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', borderBottom: '1px solid #e2e8f0', paddingBottom: '14px' }}>
+          {/* ── Header ── */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', borderBottom: '1px solid #e2e8f0', paddingBottom: '14px' }}>
             <div style={{ textAlign: 'left' }}>
               <Dialog.Title style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
                 <Sparkles size={20} color="#0284c7" />
                 ElevenLabs Voice Explorer
               </Dialog.Title>
               <Dialog.Description style={{ fontSize: '12px', color: '#64748b', marginTop: '4px', margin: 0 }}>
-                Discover, test, and select premium AI narrator voices from the complete ElevenLabs directory.
+                {loading ? 'Loading voice library…' : `${filteredVoices.length.toLocaleString()} voices found · Page ${safePage} of ${totalPages}`}
               </Dialog.Description>
             </div>
             <Dialog.Close asChild>
-              <button 
+              <button
                 onClick={stopAudio}
-                style={{
-                  background: '#f1f5f9',
-                  border: 'none',
-                  borderRadius: '50%',
-                  width: '28px',
-                  height: '28px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  color: '#64748b',
-                  transition: 'background 0.15s'
-                }}
+                style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b', transition: 'background 0.15s' }}
                 onMouseEnter={e => e.currentTarget.style.background = '#e2e8f0'}
                 onMouseLeave={e => e.currentTarget.style.background = '#f1f5f9'}
               >
@@ -185,9 +214,9 @@ export default function VoiceExplorerModal({
             </Dialog.Close>
           </div>
 
-          {/* Search & Filter Bar */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '18px', background: '#f8fafc', padding: '14px', borderRadius: '16px', border: '1px solid #f1f5f9' }}>
-            
+          {/* ── Search & Filters ── */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px', background: '#f8fafc', padding: '14px', borderRadius: '16px', border: '1px solid #f1f5f9' }}>
+
             {/* Search Input */}
             <div style={{ position: 'relative', width: '100%' }}>
               <Search size={16} color="#94a3b8" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
@@ -195,252 +224,226 @@ export default function VoiceExplorerModal({
                 type="text"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Search voices by name, accent (e.g. British, Swedish), or description tags..."
-                style={{
-                  width: '100%',
-                  padding: '10px 12px 10px 38px',
-                  fontSize: '13px',
-                  border: '1px solid #cbd5e1',
-                  borderRadius: '10px',
-                  background: '#ffffff',
-                  color: '#0f172a',
-                  outline: 'none',
-                  transition: 'border-color 0.15s'
-                }}
+                placeholder="Search by name, accent, language or description…"
+                style={{ width: '100%', padding: '10px 12px 10px 38px', fontSize: '13px', border: '1px solid #cbd5e1', borderRadius: '10px', background: '#ffffff', color: '#0f172a', outline: 'none', boxSizing: 'border-box' }}
                 onFocus={e => e.target.style.borderColor = '#0284c7'}
                 onBlur={e => e.target.style.borderColor = '#cbd5e1'}
               />
             </div>
 
-            {/* Quick Filters */}
-            <div style={{ display: 'flex', gap: '16px', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
-              
-              {/* Gender Segmented Filter */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <User size={12} /> Gender
-                </span>
-                <div style={{ display: 'flex', background: '#cbd5e1', padding: '2px', borderRadius: '8px', gap: '2px' }}>
+            {/* Filter Row */}
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+
+              {/* Gender */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <User size={12} color="#475569" />
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>Gender</span>
+                <div style={{ display: 'flex', background: '#e2e8f0', padding: '2px', borderRadius: '8px', gap: '2px' }}>
                   {(['all', 'male', 'female'] as const).map(g => (
                     <button
                       key={g}
                       type="button"
                       onClick={() => setGenderFilter(g)}
                       style={{
-                        padding: '4px 10px',
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        borderRadius: '6px',
-                        border: 'none',
-                        cursor: 'pointer',
+                        padding: '3px 10px', fontSize: '11px', fontWeight: 600, borderRadius: '6px', border: 'none', cursor: 'pointer',
                         background: genderFilter === g ? '#ffffff' : 'transparent',
-                        color: genderFilter === g ? '#0f172a' : '#475569',
+                        color: genderFilter === g ? '#0f172a' : '#64748b',
                         boxShadow: genderFilter === g ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                        textTransform: 'capitalize',
-                        transition: 'all 0.15s'
+                        textTransform: 'capitalize', transition: 'all 0.15s'
                       }}
                     >
-                      {g === 'all' ? 'All Genders' : g}
+                      {g === 'all' ? 'All' : g.charAt(0).toUpperCase() + g.slice(1)}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Accent Dropdown Filter */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <Filter size={12} /> Accent
-                </span>
+              {/* Language */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Globe size={12} color="#475569" />
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>Language</span>
                 <select
-                  value={accentFilter}
-                  onChange={e => setAccentFilter(e.target.value)}
-                  style={{
-                    padding: '6px 12px',
-                    fontSize: '12px',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: '8px',
-                    background: '#ffffff',
-                    color: '#0f172a',
-                    outline: 'none',
-                    fontWeight: 500
-                  }}
+                  value={languageFilter}
+                  onChange={e => setLanguageFilter(e.target.value)}
+                  style={{ padding: '5px 10px', fontSize: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#ffffff', color: '#0f172a', outline: 'none', fontWeight: 500, cursor: 'pointer' }}
                 >
-                  <option value="all">All Accents</option>
-                  <option value="American">American</option>
-                  <option value="British">British</option>
-                  <option value="Australian">Australian</option>
-                  <option value="Irish">Irish</option>
-                  {uniqueAccents.map(acc => (
-                    !['american', 'british', 'australian', 'irish'].includes(acc.toLowerCase()) && (
-                      <option key={acc} value={acc}>{acc}</option>
-                    )
+                  <option value="all">All Languages</option>
+                  {uniqueLanguages.map(lang => (
+                    <option key={lang} value={lang}>{lang}</option>
                   ))}
                 </select>
               </div>
 
+              {/* Accent */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Mic2 size={12} color="#475569" />
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>Accent</span>
+                <select
+                  value={accentFilter}
+                  onChange={e => setAccentFilter(e.target.value)}
+                  style={{ padding: '5px 10px', fontSize: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#ffffff', color: '#0f172a', outline: 'none', fontWeight: 500, cursor: 'pointer' }}
+                >
+                  <option value="all">All Accents</option>
+                  {uniqueAccents.map(acc => (
+                    <option key={acc} value={acc}>{acc}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Clear Filters */}
+              {hasActiveFilters && (
+                <button
+                  onClick={clearFilters}
+                  style={{ marginLeft: 'auto', padding: '5px 12px', fontSize: '11px', fontWeight: 700, border: '1px solid #fca5a5', borderRadius: '8px', background: '#fff1f2', color: '#dc2626', cursor: 'pointer', transition: 'all 0.15s' }}
+                >
+                  ✕ Clear
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Voices Scroll Container */}
-          <div style={{ flex: 1, overflowY: 'auto', paddingRight: '4px', boxSizing: 'border-box' }} className="sd-voice-explorer-grid">
+          {/* ── Voice Grid ── */}
+          <div ref={gridRef} style={{ flex: 1, overflowY: 'auto', paddingRight: '4px' }} className="sd-voice-explorer-grid">
             {loading ? (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '10px' }}>
-                <Spinner size={32} color="#0284c7" />
-                <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 500 }}>Connecting with ElevenLabs directory...</span>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '12px' }}>
+                <Spinner size={36} color="#0284c7" />
+                <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 500 }}>Loading voice library from ElevenLabs…</span>
               </div>
-            ) : filteredVoices.length === 0 ? (
+            ) : pageVoices.length === 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: '200px', gap: '10px', background: '#f8fafc', borderRadius: '16px', border: '2px dashed #cbd5e1' }}>
                 <X size={28} color="#94a3b8" />
-                <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 600 }}>No voices match your search preferences.</span>
-                <button
-                  onClick={() => { setSearchQuery(''); setGenderFilter('all'); setAccentFilter('all'); }}
-                  style={{ background: '#0284c7', color: '#ffffff', border: 'none', borderRadius: '8px', padding: '6px 14px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
-                >
-                  Clear Filters
+                <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 600 }}>No voices match your filters.</span>
+                <button onClick={clearFilters} style={{ background: '#0284c7', color: '#ffffff', border: 'none', borderRadius: '8px', padding: '6px 14px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>
+                  Clear All Filters
                 </button>
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '14px' }}>
-                {filteredVoices.map(voice => {
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '12px' }}>
+                {pageVoices.map(voice => {
                   const isSelected = selectedVoiceId === voice.voice_id;
                   const isPlaying = playingVoiceId === voice.voice_id;
-                  
+
                   return (
-                    <div 
+                    <div
                       key={voice.voice_id}
+                      className="sd-voice-card"
                       style={{
                         padding: '14px',
                         background: '#ffffff',
-                        border: isSelected ? '2px solid #0284c7' : '1.5px solid #cbd5e1',
-                        borderRadius: '16px',
-                        boxShadow: isSelected ? '0 10px 15px -3px rgba(2, 132, 199, 0.1)' : 'none',
+                        border: isSelected ? '2px solid #0284c7' : '1.5px solid #e2e8f0',
+                        borderRadius: '14px',
+                        boxShadow: isSelected ? '0 8px 20px -4px rgba(2,132,199,0.15)' : '0 1px 3px rgba(0,0,0,0.04)',
                         transition: 'all 0.2s',
                         display: 'flex',
                         flexDirection: 'column',
                         justifyContent: 'space-between',
-                        textAlign: 'left'
+                        textAlign: 'left',
                       }}
-                      className="sd-voice-card"
                     >
                       <div>
-                        {/* Title Row */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                          <span style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a' }}>{voice.name}</span>
-                          <div style={{ display: 'flex', gap: '4px' }}>
-                            <span style={{
-                              padding: '2px 6px',
-                              borderRadius: '4px',
-                              fontSize: '8px',
-                              fontWeight: 700,
-                              textTransform: 'uppercase',
-                              background: voice.gender === 'male' ? '#e0f2fe' : '#fce7f3',
-                              color: voice.gender === 'male' ? '#0369a1' : '#be185d'
-                            }}>
+                        {/* Name + Badges */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px', gap: '6px' }}>
+                          <span style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a', lineHeight: 1.3 }}>{voice.name}</span>
+                          <div style={{ display: 'flex', gap: '3px', flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                            <span style={{ padding: '2px 6px', borderRadius: '4px', fontSize: '8px', fontWeight: 700, textTransform: 'uppercase', background: voice.gender === 'male' ? '#e0f2fe' : '#fce7f3', color: voice.gender === 'male' ? '#0369a1' : '#be185d' }}>
                               {voice.gender}
                             </span>
-                            <span style={{
-                              padding: '2px 6px',
-                              borderRadius: '4px',
-                              fontSize: '8px',
-                              fontWeight: 700,
-                              textTransform: 'uppercase',
-                              background: '#f1f5f9',
-                              color: '#475569'
-                            }}>
-                              {voice.accent}
-                            </span>
+                            {voice.accent && voice.accent !== 'Global' && (
+                              <span style={{ padding: '2px 6px', borderRadius: '4px', fontSize: '8px', fontWeight: 700, textTransform: 'uppercase', background: '#f0fdf4', color: '#15803d' }}>
+                                {voice.accent}
+                              </span>
+                            )}
                           </div>
                         </div>
 
+                        {/* Language tag */}
+                        {voice.language && (
+                          <div style={{ marginBottom: '6px' }}>
+                            <span style={{ padding: '2px 7px', borderRadius: '4px', fontSize: '9px', fontWeight: 600, background: '#f1f5f9', color: '#475569' }}>
+                              🌐 {voice.language}
+                            </span>
+                          </div>
+                        )}
+
                         {/* Description */}
-                        <p style={{ fontSize: '11px', color: '#64748b', lineHeight: '1.4', margin: '0 0 14px 0', minHeight: '32px' }}>
+                        <p style={{ fontSize: '11px', color: '#64748b', lineHeight: '1.4', margin: '0 0 12px 0', minHeight: '30px' }}>
                           {voice.description}
                         </p>
                       </div>
 
                       {/* Footer Actions */}
                       <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
-                        
-                        {/* Audio Test button */}
                         <button
                           type="button"
                           onClick={() => playPreview(voice.voice_id, voice.preview_url)}
                           disabled={!voice.preview_url}
                           style={{
-                            flex: 1,
-                            padding: '8px',
-                            borderRadius: '8px',
-                            border: '1.5px solid #cbd5e1',
-                            background: isPlaying ? 'rgba(2, 132, 199, 0.1)' : '#ffffff',
+                            flex: 1, padding: '7px', borderRadius: '8px',
+                            border: '1.5px solid #e2e8f0',
+                            background: isPlaying ? 'rgba(2,132,199,0.08)' : '#ffffff',
                             color: isPlaying ? '#0284c7' : '#475569',
                             cursor: voice.preview_url ? 'pointer' : 'not-allowed',
-                            fontSize: '11px',
-                            fontWeight: 700,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '4px',
-                            transition: 'all 0.15s'
+                            fontSize: '11px', fontWeight: 700,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px',
+                            transition: 'all 0.15s', opacity: voice.preview_url ? 1 : 0.45,
                           }}
-                          title={voice.preview_url ? "Click to play voice preview" : "No preview available"}
                         >
-                          {isPlaying ? (
-                            <>
-                              <VolumeX size={13} />
-                              Stop
-                            </>
-                          ) : (
-                            <>
-                              <Volume2 size={13} />
-                              Preview
-                            </>
-                          )}
+                          {isPlaying ? <><VolumeX size={12} /> Stop</> : <><Volume2 size={12} /> Preview</>}
                         </button>
 
-                        {/* Select button */}
                         <button
                           type="button"
-                          onClick={() => {
-                            onSelectVoice(voice.voice_id, `${voice.name} - ${voice.accent}`);
-                            stopAudio();
-                          }}
+                          onClick={() => { onSelectVoice(voice.voice_id, `${voice.name} - ${voice.accent || voice.language}`); stopAudio(); }}
                           style={{
-                            flex: 1.2,
-                            padding: '8px',
-                            borderRadius: '8px',
-                            border: 'none',
+                            flex: 1.2, padding: '7px', borderRadius: '8px', border: 'none',
                             background: isSelected ? '#10b981' : '#0f172a',
-                            color: '#ffffff',
-                            cursor: 'pointer',
-                            fontSize: '11px',
-                            fontWeight: 700,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '4px',
-                            transition: 'all 0.15s'
+                            color: '#ffffff', cursor: 'pointer',
+                            fontSize: '11px', fontWeight: 700,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px',
+                            transition: 'all 0.15s',
                           }}
                         >
-                          {isSelected ? (
-                            <>
-                              <Check size={13} />
-                              Selected
-                            </>
-                          ) : (
-                            <>
-                              <Mic2 size={13} />
-                              Use Voice
-                            </>
-                          )}
+                          {isSelected ? <><Check size={12} /> Selected</> : <><Mic2 size={12} /> Use Voice</>}
                         </button>
                       </div>
-
                     </div>
                   );
                 })}
               </div>
             )}
           </div>
+
+          {/* ── Pagination ── */}
+          {!loading && filteredVoices.length > VOICES_PER_PAGE && (
+            <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '12px', marginTop: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', flexWrap: 'wrap' }}>
+              <button
+                onClick={() => goToPage(safePage - 1)}
+                disabled={safePage === 1}
+                style={{ width: '30px', height: '30px', borderRadius: '6px', border: '1px solid #e2e8f0', background: '#ffffff', color: safePage === 1 ? '#cbd5e1' : '#475569', cursor: safePage === 1 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}
+              >
+                <ChevronLeft size={14} />
+              </button>
+
+              {getPageNumbers().map((p, i) =>
+                p === '...'
+                  ? <span key={`ellipsis-${i}`} style={{ fontSize: '12px', color: '#94a3b8', padding: '0 2px' }}>…</span>
+                  : <PaginationBtn key={p} page={p as number} active={p === safePage} />
+              )}
+
+              <button
+                onClick={() => goToPage(safePage + 1)}
+                disabled={safePage === totalPages}
+                style={{ width: '30px', height: '30px', borderRadius: '6px', border: '1px solid #e2e8f0', background: '#ffffff', color: safePage === totalPages ? '#cbd5e1' : '#475569', cursor: safePage === totalPages ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}
+              >
+                <ChevronRight size={14} />
+              </button>
+
+              <span style={{ fontSize: '11px', color: '#94a3b8', marginLeft: '8px' }}>
+                {pageStart + 1}–{Math.min(pageStart + VOICES_PER_PAGE, filteredVoices.length)} of {filteredVoices.length}
+              </span>
+            </div>
+          )}
+
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
