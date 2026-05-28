@@ -18,7 +18,8 @@ import {
   User,
   Mic2,
   Music,
-  Clock
+  Clock,
+  Sparkles
 } from 'lucide-react';
 
 import { Badge, Spinner } from './components';
@@ -27,6 +28,7 @@ import { supabase } from '../lib/supabase';
 import GeneratorModal from './GeneratorModal';
 import RetryModal from './RetryModal';
 import ImagePromptModal from './ImagePromptModal';
+import VoiceExplorerModal from './VoiceExplorerModal';
 
 const VOICE_OPTIONS = {
   male: [
@@ -110,6 +112,8 @@ export default function SocialDash() {
   const [generationType, setGenerationType] = useState<'video' | 'images' | null>(null);
   const prevStatusRef = useRef<string | undefined>(undefined); // tracks previous status to detect transitions
   const hasTriggeredInSession = useRef<boolean>(false);
+  const [isVoiceModalOpen, setIsVoiceModalOpen] = useState<boolean>(false);
+  const [voiceLabel, setVoiceLabel] = useState<string>("Charlie - Men");
 
   // ── Social Image Workspace States ──
   const [showImageWorkspace, setShowImageWorkspace] = useState<boolean>(true);
@@ -1095,16 +1099,47 @@ export default function SocialDash() {
                   <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
                     <Mic2 size={12} color="#d97706" /> Voice
                   </label>
-                  <select 
-                    name="voice"
-                    value={videoFormData.voice}
-                    onChange={(e) => setVideoFormData(prev => ({ ...prev, voice: e.target.value }))}
-                    style={{ padding: '11px 14px', fontSize: '13px', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#f8fafc', color: '#0f172a', outline: 'none' }}
-                  >
-                    {(VOICE_OPTIONS[videoFormData.character as 'male' | 'female'] || []).map(v => (
-                      <option key={v.id} value={v.id}>{v.label}</option>
-                    ))}
-                  </select>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <select 
+                      name="voice"
+                      value={videoFormData.voice}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const label = e.target.options[e.target.selectedIndex].text;
+                        setVideoFormData(prev => ({ ...prev, voice: val }));
+                        setVoiceLabel(label);
+                      }}
+                      style={{ flex: 1, padding: '11px 14px', fontSize: '13px', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#f8fafc', color: '#0f172a', outline: 'none' }}
+                    >
+                      <option value={videoFormData.voice}>{voiceLabel}</option>
+                      {(VOICE_OPTIONS[videoFormData.character as 'male' | 'female'] || []).map(v => (
+                        v.id !== videoFormData.voice && <option key={v.id} value={v.id}>{v.label}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => setIsVoiceModalOpen(true)}
+                      style={{
+                        background: '#d97706',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '8px',
+                        padding: '0 16px',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        transition: 'all 0.15s'
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#b45309'}
+                      onMouseLeave={e => e.currentTarget.style.background = '#d97706'}
+                    >
+                      <Sparkles size={13} />
+                      Voices
+                    </button>
+                  </div>
                 </div>
 
                 {/* Language */}
@@ -1938,6 +1973,17 @@ export default function SocialDash() {
         onOpenChange={setShowSocialRetryModal}
         onSubmit={handleSocialRetrySubmit}
         loading={loading === 'post_social'}
+      />
+
+      <VoiceExplorerModal 
+        isOpen={isVoiceModalOpen}
+        onOpenChange={setIsVoiceModalOpen}
+        selectedVoiceId={videoFormData.voice}
+        onSelectVoice={(id, label) => {
+          setVideoFormData(prev => ({ ...prev, voice: id }));
+          setVoiceLabel(label);
+          setIsVoiceModalOpen(false);
+        }}
       />
 
     </div>

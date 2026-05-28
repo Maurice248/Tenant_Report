@@ -2,8 +2,9 @@
 
 import React, { useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
-import { X, Wand2, Music, Mic2, Monitor, MessageSquare, Tag, User } from 'lucide-react';
+import { X, Wand2, Music, Mic2, Monitor, MessageSquare, Tag, User, Sparkles } from 'lucide-react';
 import { Spinner } from './components';
+import VoiceExplorerModal from './VoiceExplorerModal';
 
 interface GeneratorModalProps {
   isOpen: boolean;
@@ -37,10 +38,14 @@ const initialFormData = {
 
 export default function GeneratorModal({ isOpen, onOpenChange, onSubmit, loading }: GeneratorModalProps) {
   const [formData, setFormData] = useState(initialFormData);
+  const [isVoiceModalOpen, setIsVoiceModalOpen] = useState<boolean>(false);
+  const [voiceLabel, setVoiceLabel] = useState<string>("Charlie - Men");
 
   React.useEffect(() => {
     if (isOpen) {
       setFormData(initialFormData);
+      setVoiceLabel("Charlie - Men");
+      setIsVoiceModalOpen(false);
     }
   }, [isOpen]);
 
@@ -134,16 +139,48 @@ export default function GeneratorModal({ isOpen, onOpenChange, onSubmit, loading
               {/* Voice */}
               <div className="sd-form-field">
                 <label className="sd-form-label"><Mic2 size={13} /> Voice</label>
-                <select 
-                  name="voice" 
-                  value={formData.voice} 
-                  onChange={handleChange}
-                  className="sd-form-select"
-                >
-                  {(VOICE_OPTIONS[(formData.character || "male") as 'male' | 'female'] || []).map(v => (
-                    <option key={v.id} value={v.id}>{v.label}</option>
-                  ))}
-                </select>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <select 
+                    name="voice" 
+                    value={formData.voice} 
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const label = e.target.options[e.target.selectedIndex].text;
+                      setFormData(prev => ({ ...prev, voice: val }));
+                      setVoiceLabel(label);
+                    }}
+                    className="sd-form-select"
+                    style={{ flex: 1 }}
+                  >
+                    <option value={formData.voice}>{voiceLabel}</option>
+                    {(VOICE_OPTIONS[(formData.character || "male") as 'male' | 'female'] || []).map(v => (
+                      v.id !== formData.voice && <option key={v.id} value={v.id}>{v.label}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => setIsVoiceModalOpen(true)}
+                    style={{
+                      background: '#d97706',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '8px',
+                      padding: '0 16px',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      transition: 'all 0.15s'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#b45309'}
+                    onMouseLeave={e => e.currentTarget.style.background = '#d97706'}
+                  >
+                    <Sparkles size={13} />
+                    Voices
+                  </button>
+                </div>
               </div>
 
               {/* Language */}
@@ -208,6 +245,18 @@ export default function GeneratorModal({ isOpen, onOpenChange, onSubmit, loading
           </form>
         </Dialog.Content>
       </Dialog.Portal>
+
+      <VoiceExplorerModal 
+        isOpen={isVoiceModalOpen}
+        onOpenChange={setIsVoiceModalOpen}
+        selectedVoiceId={formData.voice}
+        onSelectVoice={(id, label) => {
+          setFormData(prev => ({ ...prev, voice: id }));
+          setVoiceLabel(label);
+          setIsVoiceModalOpen(false);
+        }}
+      />
+
     </Dialog.Root>
   );
 }
