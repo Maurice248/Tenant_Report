@@ -225,6 +225,22 @@ export default function SocialDash() {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
+  // ── Automatically detect aspect ratio of generated/fetched image ──
+  useEffect(() => {
+    if (generatedSocialImage) {
+      const img = new window.Image();
+      img.onload = () => {
+        const ratio = img.width / img.height;
+        if (ratio > 1) {
+          setImageRatio('16:9');
+        } else {
+          setImageRatio('9:16');
+        }
+      };
+      img.src = generatedSocialImage;
+    }
+  }, [generatedSocialImage]);
+
   // ── Clear progress from localStorage on page load (so refresh removes it) ──
   useEffect(() => {
     localStorage.removeItem('sd_generation_start');
