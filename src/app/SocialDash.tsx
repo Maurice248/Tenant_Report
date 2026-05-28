@@ -127,13 +127,15 @@ export default function SocialDash() {
     facebook: string;
     tiktok: string;
     linkedin: string;
+    twitter: string;
   }>({
     instagram: "",
     facebook: "",
     tiktok: "",
-    linkedin: ""
+    linkedin: "",
+    twitter: ""
   });
-  const [activePlatform, setActivePlatform] = useState<'instagram' | 'facebook' | 'tiktok' | 'linkedin'>('instagram');
+  const [activePlatform, setActivePlatform] = useState<'instagram' | 'facebook' | 'tiktok' | 'linkedin' | 'twitter'>('instagram');
   const [showSocialRetryModal, setShowSocialRetryModal] = useState<boolean>(false);
 
   // ── Supabase Images table: fetch & stream video_link, image_link, Descriptions from row id=1 ──
@@ -148,22 +150,25 @@ export default function SocialDash() {
         let facebook = "";
         let tiktok = "";
         let linkedin = "";
+        let twitter = "";
         let supabaseTitle = "";
 
         // Check if it's the nested format
-        const hasNested = desc.instagram || desc.facebook || desc.tiktok || desc.linkedin ||
-                          desc.Instagram || desc.Facebook || desc.Tiktok || desc.Linkedin;
+        const hasNested = desc.instagram || desc.facebook || desc.tiktok || desc.linkedin || desc.twitter ||
+                          desc.Instagram || desc.Facebook || desc.Tiktok || desc.Linkedin || desc.Twitter;
 
         if (hasNested) {
           const instaObj = desc.instagram || desc.Instagram || {};
           const fbObj = desc.facebook || desc.Facebook || {};
           const ttObj = desc.tiktok || desc.Tiktok || {};
           const liObj = desc.linkedin || desc.Linkedin || {};
+          const twObj = desc.twitter || desc.Twitter || {};
 
           instagram = instaObj.content || instaObj.caption || instaObj.title || "";
           facebook = fbObj.content || fbObj.caption || fbObj.title || "";
           tiktok = ttObj.caption || ttObj.content || ttObj.title || "";
           linkedin = liObj.content || liObj.caption || liObj.title || "";
+          twitter = twObj.content || twObj.caption || twObj.title || "";
           supabaseTitle = fbObj.title || instaObj.title || desc.video_title || "";
         } else {
           // Flat fallback
@@ -177,6 +182,7 @@ export default function SocialDash() {
           facebook = [post, tags].filter(Boolean).join('\n\n');
           tiktok = caption;
           linkedin = [post, tags].filter(Boolean).join('\n\n');
+          twitter = caption;
         }
 
         return {
@@ -185,7 +191,8 @@ export default function SocialDash() {
             instagram,
             facebook,
             tiktok,
-            linkedin
+            linkedin,
+            twitter
           }
         };
       } catch {
@@ -196,7 +203,8 @@ export default function SocialDash() {
             instagram: descStr,
             facebook: descStr,
             tiktok: descStr,
-            linkedin: descStr
+            linkedin: descStr,
+            twitter: descStr
           }
         };
       }
@@ -735,7 +743,7 @@ export default function SocialDash() {
     }
   };
 
-  const getPlatformConfig = (platform: 'instagram' | 'facebook' | 'tiktok' | 'linkedin') => {
+  const getPlatformConfig = (platform: 'instagram' | 'facebook' | 'tiktok' | 'linkedin' | 'twitter') => {
     switch (platform) {
       case 'instagram':
         return {
@@ -784,6 +792,26 @@ export default function SocialDash() {
               <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0z" />
             </svg>
           )
+        };
+      case 'twitter':
+        return {
+          color: '#000000',
+          bgActive: 'rgba(0, 0, 0, 0.08)',
+          borderColor: 'rgba(0, 0, 0, 0.2)',
+          charLimit: 280,
+          icon: (
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+              <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.734l7.736-8.852L2.017 2.25H8.1l4.261 5.632L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
+            </svg>
+          )
+        };
+      default:
+        return {
+          color: '#64748b',
+          bgActive: 'rgba(100,116,139,0.1)',
+          borderColor: 'rgba(100,116,139,0.2)',
+          charLimit: 2200,
+          icon: null
         };
     }
   };
@@ -1040,6 +1068,60 @@ export default function SocialDash() {
     );
   };
 
+  const renderTwitterMock = () => {
+    const text = socialDescriptions.twitter;
+    const formattedText = text.split(/(\s+)/).map((word, i) => {
+      if (word.startsWith('#') || word.startsWith('@')) {
+        return <span key={i} style={{ color: '#1d9bf0', fontWeight: 600 }}>{word}</span>;
+      }
+      return word;
+    });
+
+    return (
+      <div style={{ padding: '12px', background: '#ffffff' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {renderAvatar()}
+            <div>
+              <p style={{ fontSize: '11px', fontWeight: 800, margin: 0, color: '#0f172a' }}>Toga Health AI</p>
+              <p style={{ fontSize: '9px', color: '#64748b', margin: 0 }}>@toga_health_ai · 1h</p>
+            </div>
+          </div>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="#000000">
+            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.734l7.736-8.852L2.017 2.25H8.1l4.261 5.632L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
+          </svg>
+        </div>
+
+        {/* Tweet Text */}
+        <p style={{ fontSize: '12px', lineHeight: '1.6', margin: '0 0 10px 0', color: '#0f172a', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
+          {formattedText}
+        </p>
+
+        {/* Image */}
+        {generatedSocialImage && (
+          <div style={{ borderRadius: '12px', overflow: 'hidden', border: '1px solid #e2e8f0', marginBottom: '8px', background: '#000', aspectRatio: imageRatio === '16:9' ? '16/9' : '9/16' }}>
+            <img src={generatedSocialImage} alt="X Post" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+          </div>
+        )}
+
+        {/* Char count */}
+        <p style={{ fontSize: '9px', color: text.length > 280 ? '#ef4444' : '#94a3b8', margin: '0 0 8px 0', textAlign: 'right', fontWeight: 500 }}>
+          {text.length} / 280
+        </p>
+
+        {/* Engagement */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #f1f5f9', paddingTop: '8px' }}>
+          {[['💬','84'],['🔁','312'],['❤️','2.1K'],['📊','18.4K'],['🔖','']].map(([icon, count], i) => (
+            <button key={i} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '9px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer' }}>
+              {icon}{count && <span>{count}</span>}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   const handlePostVideo = () => {
     const webhookUrl = process.env.NEXT_PUBLIC_N8N_SOCIAL_POST_URL || "https://n8n.srv1208919.hstgr.cloud/webhook/8f91f8e3-d06f-4e73-a545-e18065750416";
     triggerWebhook(
@@ -1251,20 +1333,46 @@ export default function SocialDash() {
                   <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
                     <Clock size={12} color="#d97706" /> Duration (seconds)
                   </label>
-                  <input 
+                  <input
                     type="number"
                     name="duration"
                     value={videoFormData.duration}
+                    onKeyDown={(e) => {
+                      // Block e, +, -, . and decimal characters
+                      if (['e', 'E', '+', '-', '.'].includes(e.key)) {
+                        e.preventDefault();
+                        return;
+                      }
+                      // Block if adding this digit would push value above 90
+                      const current = String(videoFormData.duration ?? '');
+                      const wouldBe = parseInt(current + e.key, 10);
+                      if (!isNaN(wouldBe) && wouldBe > 90) {
+                        e.preventDefault();
+                      }
+                    }}
                     onChange={(e) => {
-                      const raw = e.target.value === '' ? '' : parseInt(e.target.value, 10);
-                      const val = raw === '' ? '' : Math.min(90, Math.max(30, raw));
-                      setVideoFormData(prev => ({ ...prev, duration: val }));
+                      const raw = parseInt(e.target.value, 10);
+                      // Hard cap at 90 immediately
+                      if (!isNaN(raw) && raw > 90) {
+                        setVideoFormData(prev => ({ ...prev, duration: 90 }));
+                      } else if (e.target.value === '') {
+                        setVideoFormData(prev => ({ ...prev, duration: '' as any }));
+                      } else if (!isNaN(raw)) {
+                        setVideoFormData(prev => ({ ...prev, duration: raw }));
+                      }
+                    }}
+                    onBlur={(e) => {
+                      // Enforce minimum of 30 when user leaves field
+                      const raw = parseInt(e.target.value, 10);
+                      const clamped = (isNaN(raw) || raw < 30) ? 30 : Math.min(raw, 90);
+                      setVideoFormData(prev => ({ ...prev, duration: clamped }));
                     }}
                     min={30}
                     max={90}
                     style={{ padding: '11px 14px', fontSize: '13px', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#f8fafc', color: '#0f172a', outline: 'none' }}
-                    placeholder="30 – 90 seconds"
+                    placeholder="30 – 90"
                   />
+                  <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 500 }}>Min 30s · Max 90s</span>
                 </div>
 
               </div>
@@ -1815,7 +1923,7 @@ export default function SocialDash() {
                       zIndex: 5,
                       position: 'relative'
                     }}>
-                      {(['instagram', 'facebook', 'tiktok', 'linkedin'] as const).map((p) => {
+                      {(['instagram', 'facebook', 'linkedin', 'tiktok', 'twitter'] as const).map((p) => {
                         const isActive = activePlatform === p;
                         const config = getPlatformConfig(p);
                         return (
@@ -1861,6 +1969,7 @@ export default function SocialDash() {
                       {activePlatform === 'facebook' && renderFacebookMock()}
                       {activePlatform === 'linkedin' && renderLinkedInMock()}
                       {activePlatform === 'tiktok' && renderTikTokMock()}
+                      {activePlatform === 'twitter' && renderTwitterMock()}
 
                     </div>
                   </div>
