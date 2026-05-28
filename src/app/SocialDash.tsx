@@ -93,6 +93,7 @@ export default function SocialDash() {
     backgroundSong: "Inspirational - Sunrise Bloom"
   });
   const [imagePrompt, setImagePrompt] = useState<string>("");
+  const [imageRatio, setImageRatio] = useState<'16:9' | '9:16'>('16:9');
   const [progress, setProgress] = useState<number>(0);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [generationType, setGenerationType] = useState<'video' | 'images' | null>(null);
@@ -329,7 +330,7 @@ export default function SocialDash() {
       webhookUrl,
       "images",
       "Images generated successfully!",
-      { prompt, text: prompt },
+      { prompt, text: prompt, ratio: imageRatio, aspect_ratio: imageRatio },
       "POST"
     );
 
@@ -689,7 +690,7 @@ export default function SocialDash() {
         </div>
 
         {/* Media Block */}
-        <div style={{ background: '#000000', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', aspectRatio: '16/9', borderTop: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9' }}>
+        <div style={{ background: '#000000', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', aspectRatio: imageRatio === '16:9' ? '16/9' : '9/16', borderTop: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9' }}>
           <img
             src={generatedSocialImage || "https://tempfile.aiquickdraw.com/workers/nano/image_1779862412111_eo1ssy.png"}
             alt="Instagram Mockup"
@@ -749,7 +750,7 @@ export default function SocialDash() {
 
         {/* Media Block */}
         <div style={{ background: '#f0f2f5', border: '1px solid #e4e6eb', borderRadius: '8px', overflow: 'hidden' }}>
-          <div style={{ width: '100%', aspectRatio: '16/9', background: '#000000' }}>
+          <div style={{ width: '100%', aspectRatio: imageRatio === '16:9' ? '16/9' : '9/16', background: '#000000' }}>
             <img
               src={generatedSocialImage || "https://tempfile.aiquickdraw.com/workers/nano/image_1779862412111_eo1ssy.png"}
               alt="Facebook Mockup"
@@ -805,7 +806,7 @@ export default function SocialDash() {
         </p>
 
         {/* Media card */}
-        <div style={{ border: '1px solid #e2e8f0', borderRadius: '4px', overflow: 'hidden', background: '#000000', aspectRatio: '16/9' }}>
+        <div style={{ border: '1px solid #e2e8f0', borderRadius: '4px', overflow: 'hidden', background: '#000000', aspectRatio: imageRatio === '16:9' ? '16/9' : '9/16' }}>
           <img
             src={generatedSocialImage || "https://tempfile.aiquickdraw.com/workers/nano/image_1779862412111_eo1ssy.png"}
             alt="LinkedIn Mockup"
@@ -1407,7 +1408,7 @@ export default function SocialDash() {
           {/* LEFT: Social Image Creator */}
           <div className="sd-left">
             {/* Social Image Creator Config Form */}
-             <div className="sd-action-card sd-action-card-sky" style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: '220px', boxSizing: 'border-box' }}>
+             <div className="sd-action-card sd-action-card-sky" style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: '270px', boxSizing: 'border-box' }}>
               <div className="sd-card-head" style={{ marginBottom: '14px', justifyContent: 'space-between', width: '100%' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                   <div className="sd-card-icon sd-card-icon-sky">
@@ -1447,6 +1448,51 @@ export default function SocialDash() {
                     }}
                     required
                   />
+                </div>
+
+                {/* Aspect Ratio Toggle Selector */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', textAlign: 'left' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                    Aspect Ratio
+                  </label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    {(['16:9', '9:16'] as const).map((ratio) => {
+                      const isActive = imageRatio === ratio;
+                      return (
+                        <button
+                          key={ratio}
+                          type="button"
+                          onClick={() => setImageRatio(ratio)}
+                          style={{
+                            flex: 1,
+                            padding: '8px 12px',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            borderRadius: '8px',
+                            border: isActive ? `1.5px solid ${medicalBlue}` : '1.5px solid #cbd5e1',
+                            background: isActive ? 'var(--primary-light)' : '#f8fafc',
+                            color: isActive ? medicalBlue : '#475569',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '6px'
+                          }}
+                        >
+                          <span style={{
+                            display: 'inline-block',
+                            width: ratio === '16:9' ? '12px' : '8px',
+                            height: ratio === '16:9' ? '8px' : '12px',
+                            border: `1.5px solid ${isActive ? medicalBlue : '#64748b'}`,
+                            borderRadius: '2px',
+                            background: isActive ? 'rgba(2, 132, 199, 0.1)' : 'transparent'
+                          }} />
+                          {ratio === '16:9' ? '16:9 Landscape' : '9:16 Portrait'}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {/* Submit Button */}
