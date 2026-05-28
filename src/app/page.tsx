@@ -5501,12 +5501,41 @@ export default function Dashboard() {
           top: hoveredInputs.y,
           zIndex: 999999,
           pointerEvents: "none",
-          backdropFilter: "blur(8px)"
-        }} className="p-4 bg-slate-900 text-slate-300 rounded-xl shadow-2xl text-[10px] w-72 border border-slate-700">
-          <div style={{ fontSize: 11, fontWeight: 800, color: "#fff", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>Run Configuration</div>
-          <pre style={{ margin: 0, fontFamily: "monospace", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-            {JSON.stringify(hoveredInputs.data, null, 2)}
-          </pre>
+        }} className="p-4 bg-white rounded-xl shadow-[0_12px_40px_-10px_rgba(0,0,0,0.15)] border border-slate-200 w-[300px] flex flex-col gap-3">
+          <div style={{ fontSize: 11, fontWeight: 800, color: "#0f172a", textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1.5px solid #f1f5f9", paddingBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 14 }}>⚙️</span> Configuration
+          </div>
+          <div className="flex flex-col gap-3 max-h-[400px] overflow-hidden">
+            {Object.entries(hoveredInputs.data).map(([key, value]) => {
+              if (key === 'timestamp' || key === 'session_id') return null;
+              
+              let displayValue: React.ReactNode = String(value);
+              if (Array.isArray(value)) {
+                displayValue = (
+                  <div className="flex flex-wrap gap-1.5 mt-1">
+                    {value.map((v, i) => (
+                      <span key={i} className="px-1.5 py-0.5 bg-slate-50 text-slate-600 rounded-md text-[10px] font-semibold border border-slate-200">
+                        {v}
+                      </span>
+                    ))}
+                  </div>
+                );
+              } else if (typeof value === 'boolean') {
+                displayValue = <span className={`inline-block px-1.5 py-0.5 rounded-md text-[9px] font-bold ${value ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{value ? 'TRUE' : 'FALSE'}</span>;
+              } else if (typeof value === 'string') {
+                displayValue = <span className="text-[12px] font-bold text-slate-800 break-words">{value}</span>;
+              } else if (typeof value === 'number') {
+                displayValue = <span className="text-[12px] font-bold text-blue-600">{value}</span>;
+              }
+
+              return (
+                <div key={key} className="flex flex-col">
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">{key.replace(/_/g, ' ')}</span>
+                  <div>{displayValue}</div>
+                </div>
+              );
+            })}
+          </div>
         </div>,
         document.body
       )}
