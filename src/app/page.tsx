@@ -156,6 +156,7 @@ function useLocalStorage(key, defaultValue) {
 export default function Dashboard() {
   const router = useRouter();
   const [tab, setTab] = useLocalStorage("toga_active_tab", "overview");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedTopic, setSelectedTopic] = useState(TOPICS[1]);
   const [user, setUser] = useState(null);
   const [isAuthenticating, setIsAuthenticating] = useState(true);
@@ -1736,20 +1737,32 @@ export default function Dashboard() {
       )}
 
       {/* ── MOBILE TOP BAR ── */}
-      <div className="mobile-topbar" style={{ display: "none", position: "fixed", top: 0, left: 0, right: 0, zIndex: 200, background: "var(--card-bg)", borderBottom: "1px solid var(--border)", padding: "10px 16px", alignItems: "center", justifyContent: "space-between", boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
+      {/* ── MOBILE TOP BAR ── */}
+      <div className="mobile-topbar" style={{ display: "none", position: "fixed", top: 0, left: 0, right: 0, zIndex: 400, background: "var(--card-bg)", borderBottom: "1px solid var(--border)", padding: "10px 16px", alignItems: "center", justifyContent: "space-between", boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <img src="/toga-health-logo.png" alt="Toga" style={{ width: 30, height: 30, borderRadius: 8, objectFit: "contain" }} />
           <span style={{ fontSize: 15, fontWeight: 800, color: "var(--text)" }}>Toga Health AI</span>
         </div>
-        <button onClick={() => { const s = document.querySelector('.main-layout-sidebar') as HTMLElement; if (s) { s.style.display = s.style.display === 'flex' ? 'none' : 'flex'; s.style.position = 'fixed'; s.style.top = '0'; s.style.left = '0'; s.style.height = '100vh'; s.style.zIndex = '300'; } }}
-          style={{ background: "none", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 10px", cursor: "pointer", fontSize: 18, color: "var(--text)" }}>
-          ☰
+        <button
+          onClick={() => setMobileMenuOpen(o => !o)}
+          style={{ background: mobileMenuOpen ? "var(--primary)" : "none", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontSize: 18, color: mobileMenuOpen ? "#fff" : "var(--text)", transition: "all 0.2s" }}>
+          {mobileMenuOpen ? "✕" : "☰"}
         </button>
       </div>
+
+      {/* ── MOBILE BACKDROP ── */}
+      {mobileMenuOpen && (
+        <div
+          className="mobile-backdrop"
+          onClick={() => setMobileMenuOpen(false)}
+          style={{ display: "none", position: "fixed", inset: 0, zIndex: 350, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(2px)" }}
+        />
+      )}
 
       {/* ── LEFT SIDEBAR ── */}
       <aside
         className="main-layout-sidebar"
+        data-open={mobileMenuOpen ? "true" : "false"}
         style={{
           width: 260,
           background: "var(--card-bg)",
@@ -1825,6 +1838,7 @@ export default function Dashboard() {
                   window.open(t.externalLink, "_blank", "noopener,noreferrer");
                 } else {
                   setTab(t.id);
+                  setMobileMenuOpen(false); // close sidebar on mobile after nav
                 }
               }}
             >
@@ -2768,16 +2782,7 @@ export default function Dashboard() {
                         <div style={{ fontSize: 11, color: "#64748b", marginTop: 1 }}>n8n is scraping Meta Ads Library &amp; running AI analysis…</div>
                       </div>
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontSize: 13, fontWeight: 800, color: "#2563eb" }}>{analysisProgress}%</span>
-                      <button
-                        type="button"
-                        onClick={() => { setAnalysisStatus("idle"); setAnalysisProgress(0); window.localStorage.removeItem("toga_analysis_start"); sessionStorage.removeItem("toga_analysis_active"); }}
-                        style={{ padding: "5px 12px", borderRadius: 8, border: "1px solid #fecaca", background: "#fff5f5", color: "#dc2626", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
-                      >
-                        Cancel
-                      </button>
-                    </div>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: "#2563eb" }}>{analysisProgress}%</span>
                   </div>
 
                   {/* Progress bar */}

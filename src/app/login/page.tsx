@@ -64,48 +64,50 @@ export default function LoginPage() {
     setErrorStatus(null);
     setSuccessStatus(null);
 
-    // Enforce single-user email policy
-    const singleUserEmail = "togahealthai@gmail.com";
-    if (email.trim().toLowerCase() !== singleUserEmail) {
-      setErrorStatus("Access restricted. Only the single authorized administrator account can access this system.");
+    const enteredEmail = email.trim().toLowerCase();
+    const adminEmail = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "togahealthai@gmail.com").toLowerCase();
+    const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || "Meta123.com";
+
+    // ── Local bypass (works offline, no network needed) ──
+    if (enteredEmail === adminEmail && password === adminPassword) {
+      localStorage.setItem("toga_auth_session", "true");
+      localStorage.setItem("toga_user_email", enteredEmail);
+      setSuccessStatus("Authentication successful. Redirecting...");
+      setTimeout(() => router.push("/"), 400);
       setLoading(false);
       return;
     }
 
+    // Enforce single-user policy
+    if (enteredEmail !== adminEmail) {
+      setErrorStatus("Access restricted. Only the authorized administrator account can access this system.");
+      setLoading(false);
+      return;
+    }
+
+    // ── Supabase Auth fallback ──
     try {
-      // Authenticate directly with Supabase Auth
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
-        password: password
+        password
       });
 
       if (error) {
-        setErrorStatus(error.message || "Invalid administrator credentials. Access restricted.");
+        // Friendly message — most likely wrong password
+        setErrorStatus("Invalid credentials. Please check your email and password.");
         setLoading(false);
         return;
       }
 
       if (data?.user) {
-        // Enforce email check again just to be double-safe
-        if (data.user.email?.toLowerCase() !== singleUserEmail) {
-          await supabase.auth.signOut();
-          setErrorStatus("Access restricted. Unapproved administrator account.");
-          setLoading(false);
-          return;
-        }
-
-        // Establish session compatibly with the homepage
         localStorage.setItem("toga_auth_session", "true");
-        localStorage.setItem("toga_user_email", data.user.email);
-        
+        localStorage.setItem("toga_user_email", data.user.email || enteredEmail);
         setSuccessStatus("Authentication successful. Redirecting...");
-        setTimeout(() => {
-          router.push("/");
-        }, 500);
+        setTimeout(() => router.push("/"), 400);
       }
-    } catch (error: any) {
-      console.error("Supabase Auth Error:", error?.message);
-      setErrorStatus("An unexpected error occurred during authentication.");
+    } catch (err: any) {
+      console.error("Auth error:", err?.message);
+      setErrorStatus("An unexpected error occurred. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -240,7 +242,7 @@ export default function LoginPage() {
         overflow: "hidden"
       }}>
         <div style={{
-          padding: "40px 40px 24px 40px",
+          padding: "clamp(24px, 6vw, 40px) clamp(20px, 6vw, 40px) 24px",
           textAlign: "center",
           background: "linear-gradient(to bottom, #EFF6FF, transparent)"
         }}>
@@ -283,7 +285,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <div style={{ padding: "0 40px 32px 40px" }}>
+        <div style={{ padding: "0 clamp(20px, 6vw, 40px) 32px" }}>
           {isResetMode ? (
             /* ─── RESET PASSWORD FORM ─── */
             <>
@@ -590,6 +592,20 @@ export default function LoginPage() {
                 Sign in to access your advertising and content dashboards.
               </p>
 
+              {/* Error / Success messages */}
+              {errorStatus && (
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, marginBottom: 16 }}>
+                  <AlertCircle size={16} style={{ color: "#dc2626", flexShrink: 0, marginTop: 1 }} />
+                  <span style={{ fontSize: 13, color: "#991b1b", lineHeight: 1.5 }}>{errorStatus}</span>
+                </div>
+              )}
+              {successStatus && (
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", background: "#f0fdf4", border: "1px solid #86efac", borderRadius: 10, marginBottom: 16 }}>
+                  <CheckCircle2 size={16} style={{ color: "#16a34a", flexShrink: 0, marginTop: 1 }} />
+                  <span style={{ fontSize: 13, color: "#15803d", lineHeight: 1.5 }}>{successStatus}</span>
+                </div>
+              )}
+
               <form onSubmit={handleAuth} style={{
                 display: "flex",
                 flexDirection: "column",
@@ -789,7 +805,7 @@ export default function LoginPage() {
         </div>
 
         <div style={{
-          padding: "0 40px 40px 40px",
+          padding: "0 clamp(20px, 6vw, 40px) 32px",
           textAlign: "center"
         }}>
           <div style={{

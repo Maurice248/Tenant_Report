@@ -1181,16 +1181,33 @@ pre {
    MOBILE RESPONSIVE OVERRIDES
    ============================================================ */
 
-/* Sidebar: collapse on mobile */
+/* Sidebar: slide-in on mobile (controlled by React state via translateX) */
 @media (max-width: 768px) {
   /* Layout */
   .main-layout-sidebar {
-    display: none !important;
+    /* Don't use display:none — translateX handles show/hide */
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    height: 100vh !important;
+    z-index: 360 !important;
+    transform: translateX(-100%);
+    transition: transform 0.28s ease !important;
+    box-shadow: none;
   }
   .main-layout-content {
     margin-left: 0 !important;
-    padding: 12px !important;
+    padding: 60px 12px 12px !important;
     width: 100% !important;
+  }
+  /* Open state: slide sidebar into view */
+  .main-layout-sidebar[data-open="true"] {
+    transform: translateX(0) !important;
+    box-shadow: 4px 0 24px rgba(0,0,0,0.18) !important;
+  }
+  /* Show backdrop on mobile when menu open */
+  .mobile-backdrop {
+    display: block !important;
   }
 
   /* Page title areas */
