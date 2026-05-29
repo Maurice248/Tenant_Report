@@ -165,10 +165,10 @@ export default function Dashboard() {
     console.log("[Diagnostics] Supabase URL:", process.env.NEXT_PUBLIC_SUPABASE_URL);
   }, []);
 
-  // Analysis state
-  const [analysisStatus, setAnalysisStatus] = useLocalStorage("toga_analysis_status", "idle");
+  // Analysis state — not persisted: results clear on refresh, use Previous Runs to reload
+  const [analysisStatus, setAnalysisStatus] = useState("idle");
   // idle | generating | waiting | done | error
-  const [analysisData, setAnalysisData] = useLocalStorage("toga_analysis_data", null);
+  const [analysisData, setAnalysisData] = useState(null);
 
   const [analysisError, setAnalysisError] = useState("");
   const [pendingAnalysisTopic, setPendingAnalysisTopic] = useLocalStorage("toga_pending_analysis_topic", null);
@@ -1132,6 +1132,7 @@ export default function Dashboard() {
         name: editingAdData.adName || (oldJson.ad?.name || oldJson.ads?.[0]?.name || "Untitled Ad"),
         type: oldJson.ad?.type || oldJson.ads?.[0]?.type || "video",
         headline: editingAdData.headline || (oldJson.ad?.headline || oldJson.ads?.[0]?.headline || "No headline provided."),
+        primary_text: editingAdData.primaryText ?? (oldJson.ad?.primary_text || oldJson.ads?.[0]?.primary_text || ""),
         call_to_action_type: editingAdData.ctaType || (oldJson.ad?.call_to_action_type || oldJson.ads?.[0]?.call_to_action_type || "WATCH_MORE"),
         website_url: editingAdData.linkData || (oldJson.ad?.website_url || oldJson.link_data || ad.text || "")
       },
@@ -1388,6 +1389,13 @@ export default function Dashboard() {
 
   // ── Action 1: Competitor Analysis ──
   async function runCompetitorAnalysis() {
+    // Read keywords directly from localStorage to avoid stale closure after async delay
+    let kwSnapshot: string[] = researchKeywords;
+    try {
+      const stored = window.localStorage.getItem("toga_research_keywords");
+      if (stored) { const parsed = JSON.parse(stored); if (Array.isArray(parsed) && parsed.length > 0) kwSnapshot = parsed; }
+    } catch {}
+
     setAnalysisData(null);
     setAnalysisError("");
     setAnalysisStatus("generating");
@@ -1396,8 +1404,8 @@ export default function Dashboard() {
 
     const result = await callWebhook({
       action: "competitor_analysis",
-      topic: researchKeywords[0] || "Dental Implants Turkey",
-      keywords: researchKeywords,
+      topic: kwSnapshot[0] || selectedTopic || "Dental Implants Turkey",
+      keywords: kwSnapshot,
       countries: researchCountries,
       max_ads: Number(researchMaxAds) || 100,
       only_active: researchOnlyActive,
@@ -1405,19 +1413,17 @@ export default function Dashboard() {
       timestamp: new Date().toISOString(),
     }, setAnalysisStatus);
 
-    if (result) {
-      if (result.error && result.isTimeout) {
-        // If it was a timeout, don't show error, just stay in waiting
-        setAnalysisStatus("waiting");
-        addSbToast("Trigger successful, waiting for results...");
-      } else {
-        setAnalysisData(result);
-        setAnalysisStatus("done");
-        setPendingAnalysisTopic(null);
-      }
-    } else if (analysisStatus !== "error") {
-      setAnalysisStatus("waiting");
+    if (result && !result.error) {
+      setAnalysisData(result);
+      setAnalysisStatus("done");
+      setPendingAnalysisTopic(null);
+      addSbToast("Analysis complete!", "success");
+    } else if (result?.error && !result?.isTimeout) {
+      // Real error (not a timeout) — show error state
+      setAnalysisStatus("error");
+      setAnalysisError(result.error);
     }
+    // If null or isTimeout: keep loader running — n8n is still processing
   }
 
   // ── Action 2: Generate Ad ──
@@ -2661,7 +2667,7 @@ export default function Dashboard() {
               )}
 
               {/* LOADING STATE: CSS-ANIMATED RADAR SWEEPER SCREEN */}
-              {(analysisStatus === "generating" || analysisStatus === "waiting") && (
+              {analysisStatus === "generating" && (
                 <div
                   className="animate-slide-up"
                   style={{
@@ -3017,78 +3023,43 @@ export default function Dashboard() {
             </div>
           )}
 
-          <Card style={{ marginBottom: 14, padding: 0, overflow: "hidden" }}>
-            {/* Header */}
-            <div style={{ padding: "16px 20px", borderBottom: "1.5px solid var(--border-mid)", display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{
-                width: 28, height: 28, borderRadius: "50%",
-                background: "var(--primary-light)", display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 14,
-              }}>💡</div>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>How to create an ad</div>
-                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>Follow these steps to generate your creatives</div>
-              </div>
-            </div>
-
-            {/* Bullet steps */}
-            <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 0 }}>
-              {[
-                {
-                  num: "1",
-                  icon: "🔢",
-                  title: "Select how many ads",
-                  desc: "Choose the total number of creatives — between 1 and 5.",
-                },
-                {
-                  num: "2",
-                  icon: "🎬",
-                  title: "Choose the type of each ad",
-                  desc: "Pick Video or Image per slot. Max 3 videos and max 2 images at a time.",
-                },
-                {
-                  num: "3",
-                  icon: "✏️",
-                  title: "Fill in the ad details",
-                  desc: "Add the hook, offer, tone, and any extra notes. Then click the black button to generate an idea from AI.",
-                },
-                {
-                  num: "4",
-                  icon: "✅",
-                  title: "Pick one generated idea",
-                  desc: "AI will suggest creative concepts — click on the one you like to select it.",
-                },
-                {
-                  num: "5",
-                  icon: "🚀",
-                  title: "Confirm & generate",
-                  desc: "Click \"Confirm & Generate Ads\" to send everything to n8n. Ready ads appear in the Approval tab.",
-                },
-              ].map((s, i, arr) => (
-                <div key={s.num} style={{
-                  display: "flex", gap: 14, alignItems: "flex-start",
-                  paddingBottom: i < arr.length - 1 ? 16 : 0,
-                  marginBottom: i < arr.length - 1 ? 16 : 0,
-                  borderBottom: i < arr.length - 1 ? "1px solid var(--border)" : "none",
-                }}>
-                  {/* Step number circle */}
-                  <div style={{
-                    width: 30, height: 30, borderRadius: "50%", flexShrink: 0,
-                    background: "var(--primary)", color: "#fff",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 12, fontWeight: 800, marginTop: 1,
-                  }}>{s.num}</div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
-                      <span style={{ fontSize: 14 }}>{s.icon}</span>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>{s.title}</span>
-                    </div>
-                    <div style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.6 }}>{s.desc}</div>
+          {/* ── Executive Summary from Analysis ── */}
+          {analysisData?.executive_summary ? (
+            <Card style={{ marginBottom: 14, padding: 0, overflow: "hidden" }}>
+              {/* Header */}
+              <div style={{ padding: "14px 20px", borderBottom: "1.5px solid var(--border-mid)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, background: "linear-gradient(135deg, #eff6ff, #f0f9ff)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: 10, background: "var(--primary)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}>📊</div>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: "var(--primary)" }}>Competitor Analysis Summary</div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>Based on your latest analysis run</div>
                   </div>
                 </div>
-              ))}
-            </div>
-          </Card>
+                {(analysisData?.topic || pendingAnalysisTopic) && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--primary)", color: "#fff", borderRadius: 20, padding: "4px 12px", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>
+                    <span>🏷️</span>
+                    <span>{analysisData?.topic || pendingAnalysisTopic}</span>
+                  </div>
+                )}
+              </div>
+              {/* Summary text */}
+              <div style={{ padding: "16px 20px" }}>
+                <p style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.7, margin: 0 }}>
+                  {analysisData.executive_summary}
+                </p>
+              </div>
+            </Card>
+          ) : (
+            <Card style={{ marginBottom: 14, padding: "14px 20px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 10, background: "var(--amber-light)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}>💡</div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>No analysis loaded</div>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>Run or load a competitor analysis from the Ads Analysis tab to power your ad creation.</div>
+                </div>
+              </div>
+            </Card>
+          )}
 
           <Card style={{ marginBottom: 14 }}>
               {/* Toggle configuration panel */}
@@ -3140,150 +3111,116 @@ export default function Dashboard() {
                   </div>
 
                   {/* ── PHASE 1: TOTAL QUANTITY ── */}
-                  <div style={{
-                    background: "linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)",
-                    borderBottom: "1.5px solid #bae6fd",
-                    padding: "20px 24px",
-                  }}>
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5" style={{ marginBottom: 20 }}>
+                  <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--border)" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
                       <div>
-                        <div style={{ fontSize: 13, fontWeight: 800, color: "#0369a1", marginBottom: 3, display: "flex", alignItems: "center", gap: 6 }}>
-                          <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 20, height: 20, borderRadius: "50%", background: "#0284c7", color: "#fff", fontSize: 11, fontWeight: 800 }}>1</span>
-                          HOW MANY ADS?
+                        <div style={{ fontSize: 12, fontWeight: 800, color: "var(--primary)", marginBottom: 2, display: "flex", alignItems: "center", gap: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                          <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 20, height: 20, borderRadius: "50%", background: "var(--primary)", color: "#fff", fontSize: 10, fontWeight: 800 }}>1</span>
+                          How many ads?
                         </div>
-                        <div style={{ fontSize: 11, color: "#0284c7" }}>
-                          Pick the total number of creatives you want to generate.
-                        </div>
+                        <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Choose between 1 and 5 creatives.</div>
                       </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         {[1, 2, 3, 4, 5].map((n) => (
                           <button
                             key={n}
                             onClick={() => updateCreateTabTotalAds(n)}
                             type="button"
                             style={{
-                              width: 40, height: 40, borderRadius: "10px",
-                              border: createTabAdsConfig.totalAds === n ? "2px solid #0284c7" : "1.5px solid #bae6fd",
-                              background: createTabAdsConfig.totalAds === n ? "#0284c7" : "#fff",
-                              color: createTabAdsConfig.totalAds === n ? "#fff" : "#0284c7",
-                              fontSize: 14, fontWeight: 800, cursor: "pointer", transition: "all 0.18s",
-                              fontFamily: "inherit", boxShadow: createTabAdsConfig.totalAds === n ? "0 4px 12px rgba(2,132,199,0.35)" : "none",
+                              width: 38, height: 38, borderRadius: 10,
+                              border: createTabAdsConfig.totalAds === n ? "2px solid var(--primary)" : "1.5px solid var(--border)",
+                              background: createTabAdsConfig.totalAds === n ? "var(--primary)" : "var(--surface)",
+                              color: createTabAdsConfig.totalAds === n ? "#fff" : "var(--text-muted)",
+                              fontSize: 14, fontWeight: 800, cursor: "pointer", transition: "all 0.15s", fontFamily: "inherit",
+                              boxShadow: createTabAdsConfig.totalAds === n ? "0 4px 10px rgba(2,132,199,0.3)" : "none",
                             }}
-                          >
-                            {n}
-                          </button>
+                          >{n}</button>
                         ))}
-                      </div>
-                    </div>
-
-                    {/* ── PHASE 2: ALLOCATION ── */}
-                    <div style={{ borderTop: "1.5px solid #bae6fd", paddingTop: 20, background: "linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)", margin: "0 -24px -20px", padding: "20px 24px 24px" }}>
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5" style={{ marginBottom: 16 }}>
-                        <div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                            <div style={{ fontSize: 13, fontWeight: 800, color: "#78350f", display: "flex", alignItems: "center", gap: 6 }}>
-                              <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 20, height: 20, borderRadius: "50%", background: "#d97706", color: "#fff", fontSize: 11, fontWeight: 800 }}>2</span>
-                              ALLOCATE TYPES
-                            </div>
-                            <div style={{
-                              fontSize: 10, padding: "2px 7px", borderRadius: 5,
-                              background: "#fef3c7", color: "#b45309", fontWeight: 800,
-                              border: "1px solid #fde68a"
-                            }}>
-                              MAX 3🎬 / 2🖼️
-                            </div>
-                          </div>
-                          <div style={{ fontSize: 11, color: "#b45309" }}>
-                            Divide your {createTabAdsConfig.totalAds} ads into Videos and Images.
-                          </div>
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#fff", padding: "6px 12px", borderRadius: "var(--radius-md)", border: "1.5px solid #fde68a" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, color: "#0284c7" }}>
-                            🎬 {createTabAdsConfig.videoCount}/3
-                          </div>
-                          <div style={{ width: 1, height: 16, background: "#fde68a" }} />
-                          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, color: "#d97706" }}>
-                            🖼️ {createTabAdsConfig.imageCount}/2
-                          </div>
-                        </div>
-                      </div>
-
-                      <div style={{ display: "flex", flexDirection: "row", gap: 12 }}>
-                        {createTabAdsConfig.items.map((item, idx) => {
-                          const videoDisabled = item.type !== "video" && createTabAdsConfig.videoCount >= 3;
-                          const imageDisabled = item.type !== "image" && createTabAdsConfig.imageCount >= 2;
-
-                          return (
-                            <div key={item.id} style={{
-                              flex: "1 1 0", display: "flex", flexDirection: "column", gap: 6
-                            }}>
-                              <div style={{ fontSize: 10, fontWeight: 800, color: "#b45309", marginLeft: 2, textTransform: "uppercase", letterSpacing: "0.05em" }}>AD {idx + 1}</div>
-                              <div style={{
-                                display: "flex", borderRadius: 10, overflow: "hidden",
-                                border: item.type === "video" ? "2px solid #0284c7" : item.type === "image" ? "2px solid #d97706" : "1.5px solid #bae6fd",
-                                background: "#fff", boxShadow: "0 2px 8px rgba(2,132,199,0.1)"
-                              }}>
-                                <button
-                                  onClick={() => setCreateTabItemType(idx, "video")}
-                                  type="button"
-                                  style={{
-                                    flex: 1, padding: "12px 0", border: "none", cursor: videoDisabled ? "not-allowed" : "pointer",
-                                    background: item.type === "video" ? "linear-gradient(135deg, #f0f9ff, #e0f2fe)" : "transparent",
-                                    color: item.type === "video" ? "#0284c7" : "#9ca3af",
-                                    fontSize: 18, transition: "all 0.15s",
-                                    opacity: videoDisabled ? 0.3 : 1
-                                  }}
-                                  title={videoDisabled ? "3 Video maximum reached" : "Video"}
-                                >
-                                  🎬
-                                </button>
-                                <button
-                                  onClick={() => setCreateTabItemType(idx, "image")}
-                                  type="button"
-                                  style={{
-                                    flex: 1, padding: "12px 0", border: "none", cursor: imageDisabled ? "not-allowed" : "pointer",
-                                    background: item.type === "image" ? "linear-gradient(135deg, #fffbeb, #fef3c7)" : "transparent",
-                                    color: item.type === "image" ? "#b45309" : "#9ca3af",
-                                    fontSize: 18, transition: "all 0.15s",
-                                    opacity: imageDisabled ? 0.3 : 1
-                                  }}
-                                  title={imageDisabled ? "2 Image maximum reached" : "Image"}
-                                >
-                                  🖼️
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
                       </div>
                     </div>
                   </div>
 
+                  {/* ── PHASE 2: ALLOCATION ── */}
+                  <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--border)", background: "var(--surface)" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 14 }}>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 800, color: "var(--text)", display: "flex", alignItems: "center", gap: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                          <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 20, height: 20, borderRadius: "50%", background: "var(--primary)", color: "#fff", fontSize: 10, fontWeight: 800 }}>2</span>
+                          Allocate Types
+                          <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 20, background: "var(--primary-light)", color: "var(--primary)", fontWeight: 700 }}>Max 3🎬 / 2🖼️</span>
+                        </div>
+                        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>Divide your {createTabAdsConfig.totalAds} ads into Videos and Images.</div>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--card-bg)", padding: "6px 14px", borderRadius: 20, border: "1px solid var(--border)" }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: "var(--primary)" }}>🎬 {createTabAdsConfig.videoCount}/3</span>
+                        <div style={{ width: 1, height: 14, background: "var(--border)" }} />
+                        <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)" }}>🖼️ {createTabAdsConfig.imageCount}/2</span>
+                      </div>
+                    </div>
+
+                    <div style={{ display: "flex", flexDirection: "row", gap: 10 }}>
+                      {createTabAdsConfig.items.map((item, idx) => {
+                        const videoDisabled = item.type !== "video" && createTabAdsConfig.videoCount >= 3;
+                        const imageDisabled = item.type !== "image" && createTabAdsConfig.imageCount >= 2;
+                        const isVideo = item.type === "video";
+                        const isImage = item.type === "image";
+                        return (
+                          <div key={item.id} style={{ flex: "1 1 0", display: "flex", flexDirection: "column", gap: 5 }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", marginLeft: 2, textTransform: "uppercase", letterSpacing: "0.05em" }}>Ad {idx + 1}</div>
+                            <div style={{
+                              display: "flex", borderRadius: 10, overflow: "hidden",
+                              border: isVideo ? "1.5px solid var(--primary)" : isImage ? "1.5px solid #64748b" : "1.5px solid var(--border)",
+                              background: "var(--card-bg)", boxShadow: "var(--shadow-sm)"
+                            }}>
+                              <button onClick={() => setCreateTabItemType(idx, "video")} type="button" style={{
+                                flex: 1, padding: "11px 0", border: "none", cursor: videoDisabled ? "not-allowed" : "pointer",
+                                background: isVideo ? "var(--primary-light)" : "transparent",
+                                fontSize: 17, transition: "all 0.15s", opacity: videoDisabled ? 0.25 : 1
+                              }} title={videoDisabled ? "3 Video max" : "Video"}>🎬</button>
+                              <div style={{ width: 1, background: "var(--border)" }} />
+                              <button onClick={() => setCreateTabItemType(idx, "image")} type="button" style={{
+                                flex: 1, padding: "11px 0", border: "none", cursor: imageDisabled ? "not-allowed" : "pointer",
+                                background: isImage ? "#f1f5f9" : "transparent",
+                                fontSize: 17, transition: "all 0.15s", opacity: imageDisabled ? 0.25 : 1
+                              }} title={imageDisabled ? "2 Image max" : "Image"}>🖼️</button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                   {/* ── PHASE 3: DETAILED CONFIG ── */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 0, padding: "20px 24px" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, padding: "20px 24px" }}>
                     {createTabAdsConfig.items.map((item, idx) => {
                       const isVideo = item.type === "video";
                       return (
                         <div key={item.id} style={{
                           borderRadius: 14,
-                          background: doesSlotHaveError(item.id) ? "#fff1f2" : isVideo ? "#f0f9ff" : "#fffbeb",
-                          border: doesSlotHaveError(item.id) ? "2px solid #ef4444" : `2px solid ${isVideo ? "#bae6fd" : "#fde68a"}`,
+                          background: "#fff",
+                          border: doesSlotHaveError(item.id) ? "2px solid #ef4444" : isVideo ? "1.5px solid #bfdbfe" : "1.5px solid #e2e8f0",
                           overflow: "hidden",
-                          boxShadow: doesSlotHaveError(item.id)
-                            ? "0 4px 20px rgba(239,68,68,0.18)"
-                            : isVideo ? "0 4px 16px rgba(2,132,199,0.08)" : "0 4px 16px rgba(217,119,6,0.08)"
+                          boxShadow: doesSlotHaveError(item.id) ? "0 4px 20px rgba(239,68,68,0.12)" : "0 2px 12px rgba(0,0,0,0.06)"
                         }}>
                           {/* Config card header */}
                           <div style={{
-                            padding: "14px 20px",
+                            padding: "12px 18px",
                             background: doesSlotHaveError(item.id)
-                              ? "linear-gradient(135deg, #dc2626, #ef4444)"
-                              : isVideo ? "linear-gradient(135deg, #0284c7, #38bdf8)" : "linear-gradient(135deg, #b45309, #d97706)",
+                              ? "linear-gradient(135deg, #fef2f2, #fee2e2)"
+                              : isVideo ? "linear-gradient(135deg, #eff6ff, #dbeafe)" : "linear-gradient(135deg, #f8fafc, #f1f5f9)",
                             display: "flex", alignItems: "center", gap: 10,
+                            borderBottom: doesSlotHaveError(item.id) ? "1.5px solid #fecaca" : isVideo ? "1.5px solid #bfdbfe" : "1.5px solid #e2e8f0"
                           }}>
-                            <span style={{ fontSize: 22 }}>{isVideo ? "🎬" : "🖼️"}</span>
-                            <div style={{ fontSize: 13, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                              {isVideo ? "Video" : "Image"} {idx + 1} — Configuration
+                            <div style={{ width: 32, height: 32, borderRadius: 10, background: doesSlotHaveError(item.id) ? "#fee2e2" : isVideo ? "#dbeafe" : "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>
+                              {doesSlotHaveError(item.id) ? "⚠️" : isVideo ? "🎬" : "🖼️"}
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 800, color: doesSlotHaveError(item.id) ? "#dc2626" : isVideo ? "#1d4ed8" : "#475569" }}>
+                                {isVideo ? "Video" : "Image"} {idx + 1}
+                              </div>
+                              <div style={{ fontSize: 10, color: doesSlotHaveError(item.id) ? "#ef4444" : isVideo ? "#3b82f6" : "#94a3b8", marginTop: 1, fontWeight: 600 }}>
+                                {doesSlotHaveError(item.id) ? "Policy violation — fix prompt" : "Configuration"}
+                              </div>
                             </div>
                           </div>
                           <div style={{ padding: 20 }}>
@@ -3292,7 +3229,7 @@ export default function Dashboard() {
                             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                                 <div>
-                                  <div style={{ fontSize: 10, fontWeight: 800, color: "#0284c7", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Duration</div>
+                                  <div style={{ fontSize: 10, fontWeight: 800, color: "#64748b", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Duration</div>
                                   <select
                                     value={item.duration}
                                     onChange={(e) => updateCreateTabItemField(idx, "duration", e.target.value)}
@@ -3306,7 +3243,7 @@ export default function Dashboard() {
                                   </select>
                                 </div>
                                 <div>
-                                  <div style={{ fontSize: 10, fontWeight: 800, color: "#0284c7", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Audio Style</div>
+                                  <div style={{ fontSize: 10, fontWeight: 800, color: "#64748b", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Audio Style</div>
                                   <select
                                     value={item.audioStyle}
                                     onChange={(e) => updateCreateTabItemField(idx, "audioStyle", e.target.value)}
@@ -3322,7 +3259,7 @@ export default function Dashboard() {
                               </div>
                               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                                 <div>
-                                  <div style={{ fontSize: 10, fontWeight: 800, color: "#0284c7", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Character</div>
+                                  <div style={{ fontSize: 10, fontWeight: 800, color: "#64748b", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Character</div>
                                   <select
                                     value={item.character || "male"}
                                     onChange={(e) => {
@@ -3378,7 +3315,7 @@ export default function Dashboard() {
                               </div>
                               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                                 <div>
-                                  <div style={{ fontSize: 10, fontWeight: 800, color: "#0284c7", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Visual Style</div>
+                                  <div style={{ fontSize: 10, fontWeight: 800, color: "#64748b", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Visual Style</div>
                                   <select
                                     value={item.videoStyle}
                                     onChange={(e) => updateCreateTabItemField(idx, "videoStyle", e.target.value)}
@@ -3392,7 +3329,7 @@ export default function Dashboard() {
                                   </select>
                                 </div>
                                 <div>
-                                  <div style={{ fontSize: 10, fontWeight: 800, color: "#0284c7", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Language</div>
+                                  <div style={{ fontSize: 10, fontWeight: 800, color: "#64748b", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Language</div>
                                   <select
                                     value={item.language || "English"}
                                     onChange={(e) => updateCreateTabItemField(idx, "language", e.target.value)}
@@ -3512,7 +3449,7 @@ export default function Dashboard() {
                           ) : (
                             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                               <div>
-                                <div style={{ fontSize: 10, fontWeight: 800, color: "#92400e", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Visual Style</div>
+                                <div style={{ fontSize: 10, fontWeight: 800, color: "#64748b", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Visual Style</div>
                                 <select
                                   value={item.imageStyle || "Bold & Colorful"}
                                   onChange={(e) => updateCreateTabItemField(idx, "imageStyle", e.target.value)}
@@ -4115,49 +4052,30 @@ export default function Dashboard() {
                             setCustomUploadError("");
 
                             try {
-                              const timestamp = new Date().toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }).replace(',', '').replace(/\//g, '-').replace(' ', '_').replace(':', '-').replace(' pm', 'PM').replace(' am', 'AM');
-                              const ext = file.name.split('.').pop();
-                              const randomId = Math.floor(Math.random() * 10000);
-                              const fileName = `${timestamp}_${randomId}.${ext}`;
+                              const formData = new FormData();
+                              formData.append("file", file);
 
-                              const { data, error } = await supabase.storage.from("AD1").upload(fileName, file);
-                              if (error) throw error;
+                              const res = await fetch("/api/upload-ad", { method: "POST", body: formData });
+                              const result = await res.json();
+                              if (!res.ok || result.error) throw new Error(result.error || "Upload failed");
 
-                              const { data: publicUrlData } = supabase.storage.from("AD1").getPublicUrl(fileName);
-                              const publicUrl = publicUrlData.publicUrl;
-
-                              const isVideo = file.type.startsWith("video/");
                               const newAd = {
-                                id: 1, // Defaulting to AD1 category
-                                time: new Date().toISOString(),
-                                text: publicUrl,
-                                format: isVideo ? "Video" : "Image",
+                                id: Date.now(),
+                                time: result.time,
+                                text: result.publicUrl,
+                                format: result.format,
                                 Approved: "true"
                               };
 
-                              // RLS is disabled, use client directly
-                              const { error: dbError } = await supabase
-                                .from("your_name_table")
-                                .insert([{
-                                  id: 4,
-                                  text: publicUrl,
-                                  time: new Date().toISOString(),
-                                  format: isVideo ? "Video" : "Image",
-                                  Approved: "true"
-                                }]);
-
-                              if (dbError) throw dbError;
-
-
                               setAllApprovedAds(prev => [newAd, ...prev]);
-                              await fetchAdTableLinks(); // Refresh to ensure UI is in sync
-
-                              try { addSbToast("Media uploaded and approved!", "success"); } catch (err) { }
-                            } catch (err) {
+                              await fetchAdTableLinks();
+                              addSbToast("Media uploaded and approved!", "success");
+                            } catch (err: any) {
                               setCustomUploadError(err.message || "Upload failed");
                               console.error(err);
                             } finally {
                               setCustomUploadLoading(false);
+                              e.target.value = "";
                             }
                           }}
                         />
@@ -4179,23 +4097,41 @@ export default function Dashboard() {
       ═══════════════════════════════════════════════════════ */}
       {tab === "approval" && (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500" style={{ paddingBottom: 40 }}>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4" style={{ marginBottom: 20 }}>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
             <div>
-              <SectionTitle style={{ marginBottom: 4 }}>Ad Approval Queue</SectionTitle>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                <SectionTitle style={{ marginBottom: 0 }}>Ad Approval Queue</SectionTitle>
+                {/* Filter pills — left side, next to title */}
+                <div style={{ display: "flex", background: "#e2e8f0", borderRadius: 8, padding: 2, gap: 1 }}>
+                  {[
+                    { value: "all", label: "All" },
+                    { value: "video", label: "🎬 Video" },
+                    { value: "image", label: "🖼️ Image" },
+                  ].map(f => (
+                    <button
+                      key={f.value}
+                      onClick={() => setApprovalFilter(f.value)}
+                      style={{
+                        padding: "6px 16px", borderRadius: 8, border: "none", cursor: "pointer",
+                        fontFamily: "inherit", fontSize: 13, fontWeight: 700, transition: "all 0.15s",
+                        background: approvalFilter === f.value ? "#1e293b" : "transparent",
+                        color: approvalFilter === f.value ? "#fff" : "#475569",
+                      }}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
                 Review and launch your final approved creatives from the database.
               </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{
-                background: "var(--green-light)", padding: "8px 16px", borderRadius: "var(--radius-md)",
-                border: "1px solid var(--green)", display: "flex", alignItems: "center", gap: 8
-              }}>
-                <span style={{ fontSize: 18 }}>✓</span>
-                <div>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: "var(--green)", textTransform: "uppercase" }}>Approved</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: "var(--green)" }}>{allApprovedAds.length}</div>
-                </div>
+            <div style={{ background: "var(--green-light)", padding: "8px 16px", borderRadius: "var(--radius-md)", border: "1px solid var(--green)", display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 18 }}>✓</span>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--green)", textTransform: "uppercase" }}>Approved</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: "var(--green)" }}>{allApprovedAds.length}</div>
               </div>
             </div>
           </div>
@@ -4284,45 +4220,45 @@ export default function Dashboard() {
                   );
                 };
 
-                const approvedVideos = allApprovedAds
-                  .filter(ad => (ad.format || "").toLowerCase() === "video")
-                  .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+                const sorted = [...allApprovedAds].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+                const videos = sorted.filter(ad => (ad.format || "").toLowerCase() === "video");
+                const images = sorted.filter(ad => (ad.format || "").toLowerCase() !== "video");
 
-                const approvedImages = allApprovedAds
-                  .filter(ad => (ad.format || "").toLowerCase() !== "video")
-                  .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+                if (approvalFilter === "video") {
+                  return (
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+                      {videos.map(renderApprovalCard)}
+                    </div>
+                  );
+                }
+                if (approvalFilter === "image") {
+                  return (
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+                      {images.map(renderApprovalCard)}
+                    </div>
+                  );
+                }
 
+                // "All" — left 2 cols: videos, separator, right 2 cols: images
                 return (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12" style={{ padding: "0 20px" }}>
-                    {/* Left Column: Videos */}
-                    <div className="flex flex-col gap-4">
-                      <SectionTitle style={{ marginBottom: 8, fontSize: 16 }}>Approved Videos</SectionTitle>
-                      {approvedVideos.length > 0 ? (
-                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                          {approvedVideos.map(renderApprovalCard)}
-                        </div>
-                      ) : (
-                        <div style={{ padding: "30px", textAlign: "center", border: "1px dashed var(--border)", borderRadius: "var(--radius-lg)", color: "var(--text-dim)", fontSize: 13 }}>
-                          No videos approved yet.
-                        </div>
-                      )}
+                  <div style={{ display: "flex", gap: 0 }}>
+                    {/* Videos — 2 columns */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <SectionTitle style={{ marginBottom: 12, fontSize: 14 }}>Approved Videos</SectionTitle>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16 }}>
+                        {videos.map(renderApprovalCard)}
+                      </div>
                     </div>
 
-                    {/* Right Column: Images */}
-                    <div className="flex flex-col gap-4 relative">
-                      {/* Vertical separator visible only on large screens */}
-                      <div className="hidden lg:block absolute left-[-24px] top-0 bottom-0 w-[2px] bg-black" style={{ marginLeft: "-1px", borderRadius: "2px", opacity: 1 }}></div>
+                    {/* Separator */}
+                    <div style={{ width: 2, background: "#0f172a", margin: "0 24px", borderRadius: 2, flexShrink: 0 }} />
 
-                      <SectionTitle style={{ marginBottom: 8, fontSize: 16 }}>Approved Images</SectionTitle>
-                      {approvedImages.length > 0 ? (
-                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                          {approvedImages.map(renderApprovalCard)}
-                        </div>
-                      ) : (
-                        <div style={{ padding: "30px", textAlign: "center", border: "1px dashed var(--border)", borderRadius: "var(--radius-lg)", color: "var(--text-dim)", fontSize: 13 }}>
-                          No images approved yet.
-                        </div>
-                      )}
+                    {/* Images — 2 columns */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <SectionTitle style={{ marginBottom: 12, fontSize: 14 }}>Approved Images</SectionTitle>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16 }}>
+                        {images.map(renderApprovalCard)}
+                      </div>
                     </div>
                   </div>
                 );
@@ -4339,6 +4275,7 @@ export default function Dashboard() {
         <CampaignSetup
           selectedId={selectedMetaCampaign?.id}
           selectedAd={launchAdCandidate}
+          approvedAds={allApprovedAds}
           onSelect={(campaign) => setSelectedMetaCampaign(campaign)}
         />
       )}
@@ -5151,182 +5088,157 @@ export default function Dashboard() {
             onClick={() => { setSelectedAdForDetails(null); setIsEditingAd(false); setIsRetryingAd(false); setRetryPrompt(""); }}
           >
             <div
-              className="animate-in zoom-in-95 duration-300"
-              style={{
-                background: "var(--card-bg)", width: "100%", maxWidth: 900,
-                borderRadius: "var(--radius-lg)", overflow: "hidden", display: "flex",
-                flexDirection: "column", maxHeight: "90vh", boxShadow: "0 20px 50px rgba(0,0,0,0.5)",
-                border: "1px solid var(--border)",
-                position: "relative"
-              }}
               onClick={(e) => e.stopPropagation()}
+              style={{
+                background: "#fff", width: "100%", maxWidth: 860,
+                borderRadius: 20, overflow: "hidden", display: "flex",
+                flexDirection: "column", maxHeight: "92vh",
+                boxShadow: "0 24px 64px rgba(0,0,0,0.4)",
+                border: "1px solid #e2e8f0",
+              }}
             >
-              {/* Header */}
-              <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-light)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              {/* ── Modal Header ── */}
+              <div style={{ padding: "16px 24px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#f8fafc" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <Badge
-                    text={isVid ? "Video Ads" : "Image Ads"}
-                    color={isVid ? "var(--primary)" : "var(--amber)"}
-                    bg={isVid ? "var(--primary-light)" : "var(--amber-light)"}
-                  />
-                  <span style={{ fontWeight: 700, fontSize: 14 }}>AD ID: {ad.id}</span>
+                  <div style={{ padding: "4px 12px", borderRadius: 20, fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", background: isVid ? "#eff6ff" : "#fffbeb", color: isVid ? "#1d4ed8" : "#b45309", border: `1px solid ${isVid ? "#bfdbfe" : "#fde68a"}` }}>
+                    {isVid ? "🎬 Video" : "🖼️ Image"}
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#0f172a" }}>Ad ID: <span style={{ fontFamily: "monospace", color: "#475569" }}>{ad.id}</span></div>
+                  <div style={{ fontSize: 11, color: "#94a3b8" }}>· {new Date(ad.time).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   {!isEditingAd && !isRetryingAd && (
-                    <>
-                      <button
-                        onClick={() => {
-                          setIsEditingAd(true);
-                          const firstAd = jsonData.ad || jsonData.ads?.[0] || {};
-                          setEditingAdData({
-                            campaignName: jsonData.campaign?.name || "Untitled Campaign",
-                            adName: firstAd.name || "Untitled Ad",
-                            headline: firstAd.headline || "No headline provided.",
-                            ctaType: firstAd.call_to_action_type || "WATCH_MORE",
-                            linkData: jsonData.link_data || ad.text || ""
-                          });
-                        }}
-                        style={{
-                          padding: "5px 12px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)",
-                          background: "var(--surface)", color: "var(--primary)", fontSize: 11, fontWeight: 600, cursor: "pointer",
-                          display: "flex", alignItems: "center", gap: 4
-                        }}
-                      >
-                        ✎ Edit
-                      </button>
-                    </>
+                    <button
+                      onClick={() => {
+                        setIsEditingAd(true);
+                        const firstAd = jsonData.ad || jsonData.ads?.[0] || {};
+                        setEditingAdData({
+                          campaignName: jsonData.campaign?.name || "Untitled Campaign",
+                          adName: firstAd.name || "Untitled Ad",
+                          headline: firstAd.headline || "No headline provided.",
+                          primaryText: firstAd.primary_text || "",
+                          ctaType: firstAd.call_to_action_type || "WATCH_MORE",
+                          linkData: jsonData.link_data || ad.text || ""
+                        });
+                      }}
+                      style={{ padding: "7px 16px", borderRadius: 9, border: "1.5px solid #e2e8f0", background: "#fff", color: "#2563eb", fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}
+                    >
+                      ✎ Edit
+                    </button>
                   )}
                   <button
                     onClick={() => { setSelectedAdForDetails(null); setIsEditingAd(false); setIsRetryingAd(false); setRetryPrompt(""); }}
-                    style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: "var(--text-dim)", marginLeft: 8 }}
+                    style={{ width: 32, height: 32, borderRadius: "50%", border: "1px solid #e2e8f0", background: "#fff", fontSize: 18, cursor: "pointer", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}
                   >
-                    &times;
+                    ×
                   </button>
                 </div>
               </div>
 
-              {/* Body */}
-              <div className="flex flex-col lg:flex-row flex-1 overflow-hidden">
-                {/* Media Column */}
-                <div className="w-full lg:w-[40%] bg-[#000] flex items-center justify-center border-b lg:border-b-0 lg:border-r border-[var(--border-light)] min-h-[300px]">
+              {/* ── Modal Body ── */}
+              <div style={{ display: "flex", flex: 1, overflow: "hidden", minHeight: 0 }}>
+                {/* Media Panel */}
+                <div style={{ width: "42%", flexShrink: 0, background: "#0f172a", display: "flex", alignItems: "center", justifyContent: "center", borderRight: "1px solid #1e293b" }}>
                   {isVid ? (
-                    <video src={ad.text} controls autoPlay={false} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                    <video src={ad.text} controls style={{ width: "100%", height: "100%", objectFit: "contain", maxHeight: "80vh" }} />
                   ) : (
-                    <img src={ad.text} alt="Ad detail" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                    <img src={ad.text} alt="Ad" style={{ width: "100%", height: "100%", objectFit: "contain", maxHeight: "80vh" }} />
                   )}
                 </div>
 
-                {/* Info Column */}
-                <div className="w-full lg:w-[60%] p-4 lg:p-6 overflow-y-auto flex flex-col gap-5">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Info Panel */}
+                <div style={{ flex: 1, padding: "24px", overflowY: "auto", display: "flex", flexDirection: "column", gap: 20 }}>
+
+                  {/* Campaign & Ad Name */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                     <div>
-                      <label style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Campaign Name</label>
+                      <div style={{ fontSize: 10, fontWeight: 800, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>Campaign Name</div>
                       {isEditingAd ? (
-                        <input
-                          value={editingAdData.campaignName}
-                          onChange={(e) => setEditingAdData({ ...editingAdData, campaignName: e.target.value })}
-                          style={{
-                            width: "100%", padding: "8px 12px", borderRadius: "var(--radius-md)",
-                            border: "1px solid var(--primary)", background: "var(--card-bg)", fontSize: 14, fontWeight: 600, outline: "none"
-                          }}
-                        />
+                        <input value={editingAdData.campaignName} onChange={(e) => setEditingAdData({ ...editingAdData, campaignName: e.target.value })}
+                          style={{ width: "100%", padding: "9px 12px", borderRadius: 9, border: "1.5px solid #2563eb", background: "#fff", fontSize: 13, fontWeight: 600, outline: "none", boxSizing: "border-box" }} />
                       ) : (
-                        <div style={{ fontSize: 15, fontWeight: 600 }}>{jsonData.campaign?.name || "Untitled Campaign"}</div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>{jsonData.campaign?.name || "Untitled Campaign"}</div>
                       )}
                     </div>
                     <div>
-                      <label style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Ad Name</label>
+                      <div style={{ fontSize: 10, fontWeight: 800, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>Ad Name</div>
                       {isEditingAd ? (
-                        <input
-                          value={editingAdData.adName}
-                          onChange={(e) => setEditingAdData({ ...editingAdData, adName: e.target.value })}
-                          style={{
-                            width: "100%", padding: "8px 12px", borderRadius: "var(--radius-md)",
-                            border: "1px solid var(--primary)", background: "var(--card-bg)", fontSize: 14, fontWeight: 600, outline: "none"
-                          }}
-                        />
+                        <input value={editingAdData.adName} onChange={(e) => setEditingAdData({ ...editingAdData, adName: e.target.value })}
+                          style={{ width: "100%", padding: "9px 12px", borderRadius: 9, border: "1.5px solid #2563eb", background: "#fff", fontSize: 13, fontWeight: 600, outline: "none", boxSizing: "border-box" }} />
                       ) : (
-                        <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text-body)" }}>{jsonData.ad?.name || jsonData.ads?.[0]?.name || "Untitled Ad"}</div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>{jsonData.ad?.name || jsonData.ads?.[0]?.name || "Untitled Ad"}</div>
                       )}
                     </div>
                   </div>
 
+                  {/* Headline */}
                   <div>
-                    <label style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Ad Headline</label>
+                    <div style={{ fontSize: 10, fontWeight: 800, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>Ad Headline</div>
                     {isEditingAd ? (
-                      <textarea
-                        value={editingAdData.headline}
-                        onChange={(e) => setEditingAdData({ ...editingAdData, headline: e.target.value })}
-                        style={{
-                          width: "100%", minHeight: 80, padding: 12, borderRadius: "var(--radius-md)",
-                          border: "1px solid var(--primary)", background: "var(--card-bg)", fontSize: 14, lineHeight: 1.6, outline: "none", resize: "vertical"
-                        }}
-                      />
+                      <textarea value={editingAdData.headline} onChange={(e) => setEditingAdData({ ...editingAdData, headline: e.target.value })}
+                        style={{ width: "100%", minHeight: 72, padding: "10px 12px", borderRadius: 9, border: "1.5px solid #2563eb", background: "#fff", fontSize: 13, lineHeight: 1.6, outline: "none", resize: "vertical", boxSizing: "border-box", fontFamily: "inherit" }} />
                     ) : (
-                      <div style={{ fontSize: 14, lineHeight: 1.6, color: "var(--text)", background: "var(--surface)", padding: 12, borderRadius: "var(--radius-md)", border: "1px solid var(--border-light)" }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: "#0f172a", lineHeight: 1.6, padding: "12px 14px", background: "#f8fafc", borderRadius: 10, border: "1px solid #e2e8f0" }}>
                         {jsonData.ad?.headline || jsonData.ads?.[0]?.headline || jsonData.description || "No headline provided."}
                       </div>
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Primary Text */}
+                  {(isEditingAd || jsonData.ad?.primary_text || jsonData.ads?.[0]?.primary_text) && (
                     <div>
-                      <label style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Call to Action (Type)</label>
+                      <div style={{ fontSize: 10, fontWeight: 800, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>Primary Text</div>
                       {isEditingAd ? (
-                        <select
-                          value={editingAdData.ctaType}
-                          onChange={(e) => {
-                            const newCta = e.target.value;
-                            const suggestions = {
-                              WHATSAPP_MESSAGE: "+10000000000",
-                              CONTACT_US: "https://togahh.com/contact",
-                              MESSAGE_PAGE: "https://m.me/togahh",
-                            };
-                            setEditingAdData({ 
-                              ...editingAdData, 
-                              ctaType: newCta,
-                              linkData: suggestions[newCta] || "https://togahh.com/"
-                            });
-                          }}
-                          style={{
-                            width: "100%", padding: "8px 12px", borderRadius: "var(--radius-md)",
-                            border: "1px solid var(--primary)", background: "var(--card-bg)", fontSize: 13, fontWeight: 600, outline: "none"
-                          }}
-                        >
-                          <option value="WATCH_MORE">WATCH_MORE</option>
-                          <option value="LEARN_MORE">LEARN_MORE</option>
-                          <option value="BOOK_NOW">BOOK_NOW</option>
-                          <option value="SHOP_NOW">SHOP_NOW</option>
-                          <option value="SIGN_UP">SIGN_UP</option>
-                          <option value="CONTACT_US">CONTACT_US</option>
-                          <option value="APPLY_NOW">APPLY_NOW</option>
-                          <option value="GET_OFFER">GET_OFFER</option>
-                          <option value="WHATSAPP_MESSAGE">WHATSAPP_MESSAGE</option>
-                          <option value="MESSAGE_PAGE">MESSAGE_PAGE</option>
+                        <textarea
+                          value={editingAdData.primaryText || ""}
+                          onChange={(e) => setEditingAdData({ ...editingAdData, primaryText: e.target.value })}
+                          rows={4}
+                          style={{ width: "100%", padding: "10px 12px", borderRadius: 9, border: "1.5px solid #2563eb", background: "#fff", fontSize: 13, lineHeight: 1.6, outline: "none", resize: "vertical", boxSizing: "border-box", fontFamily: "inherit" }}
+                        />
+                      ) : (
+                        <div style={{ fontSize: 13, color: "#475569", lineHeight: 1.7, padding: "12px 14px", background: "#f8fafc", borderRadius: 10, border: "1px solid #e2e8f0" }}>
+                          {jsonData.ad?.primary_text || jsonData.ads?.[0]?.primary_text}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* CTA + Link */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                    <div>
+                      <div style={{ fontSize: 10, fontWeight: 800, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>Call to Action</div>
+                      {isEditingAd ? (
+                        <select value={editingAdData.ctaType} onChange={(e) => {
+                          const newCta = e.target.value;
+                          const suggestions: Record<string, string> = { WHATSAPP_MESSAGE: "+10000000000", CONTACT_US: "https://togahh.com/contact", MESSAGE_PAGE: "https://m.me/togahh" };
+                          setEditingAdData({ ...editingAdData, ctaType: newCta, linkData: suggestions[newCta] || "https://togahh.com/" });
+                        }} style={{ width: "100%", padding: "9px 12px", borderRadius: 9, border: "1.5px solid #2563eb", background: "#fff", fontSize: 13, fontWeight: 600, outline: "none" }}>
+                          <option value="WATCH_MORE">Watch More</option>
+                          <option value="LEARN_MORE">Learn More</option>
+                          <option value="BOOK_NOW">Book Now</option>
+                          <option value="SHOP_NOW">Shop Now</option>
+                          <option value="SIGN_UP">Sign Up</option>
+                          <option value="CONTACT_US">Contact Us</option>
+                          <option value="APPLY_NOW">Apply Now</option>
+                          <option value="GET_OFFER">Get Offer</option>
+                          <option value="WHATSAPP_MESSAGE">WhatsApp</option>
+                          <option value="MESSAGE_PAGE">Message Page</option>
                         </select>
                       ) : (
-                        <div style={{
-                          display: "inline-block", padding: "6px 12px", background: "var(--primary-light)",
-                          color: "var(--primary)", borderRadius: "var(--radius-pill)", fontSize: 13, fontWeight: 600
-                        }}>
-                          {jsonData.ad?.call_to_action_type || jsonData.ads?.[0]?.call_to_action_type || jsonData.cta || "WATCH_MORE"}
+                        <div style={{ display: "inline-flex", alignItems: "center", padding: "6px 14px", background: "#eff6ff", color: "#1d4ed8", borderRadius: 20, fontSize: 12, fontWeight: 700, border: "1px solid #bfdbfe" }}>
+                          {(jsonData.ad?.call_to_action_type || jsonData.ads?.[0]?.call_to_action_type || "WATCH_MORE").replace(/_/g, " ")}
                         </div>
                       )}
                     </div>
                     <div>
-                      <label style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Media Link / Link Data</label>
+                      <div style={{ fontSize: 10, fontWeight: 800, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>Destination URL</div>
                       {isEditingAd ? (
-                        <input
-                          value={editingAdData.linkData}
-                          onChange={(e) => setEditingAdData({ ...editingAdData, linkData: e.target.value })}
-                          style={{
-                            width: "100%", padding: "8px 12px", borderRadius: "var(--radius-md)",
-                            border: "1px solid var(--primary)", background: "var(--card-bg)", fontSize: 13, outline: "none"
-                          }}
-                        />
+                        <input value={editingAdData.linkData} onChange={(e) => setEditingAdData({ ...editingAdData, linkData: e.target.value })}
+                          style={{ width: "100%", padding: "9px 12px", borderRadius: 9, border: "1.5px solid #2563eb", background: "#fff", fontSize: 13, outline: "none", boxSizing: "border-box" }} />
                       ) : (
-                        <a href={jsonData.link_data || jsonData.link || ad.text} target="_blank" rel="noopener noreferrer" style={{ color: "var(--primary)", fontSize: 13, textDecoration: "none", fontWeight: 500 }}>
-                          {(jsonData.link_data || jsonData.link || ad.text) ? "View Link ↗" : "N/A"}
+                        <a href={jsonData.link_data || jsonData.ad?.website_url || ad.text} target="_blank" rel="noopener noreferrer"
+                          style={{ fontSize: 13, color: "#2563eb", fontWeight: 600, textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}>
+                          {jsonData.ad?.website_url || jsonData.link_data ? (jsonData.ad?.website_url || jsonData.link_data) : "View media ↗"}
                         </a>
                       )}
                     </div>
@@ -5382,7 +5294,7 @@ export default function Dashboard() {
                             opacity: approvingId === (ad.id + "_" + ad.time) ? 0.7 : 1,
                             transition: "all 0.2s"
                           }}
-                          disabled={ad.Approved || approvingId === (ad.id + "_" + ad.time)}
+                          disabled={ad.Approved === "true" || ad.Approved === true || approvingId === (ad.id + "_" + ad.time)}
                           onClick={async () => {
                             await handleApproveAd(ad);
                           }}

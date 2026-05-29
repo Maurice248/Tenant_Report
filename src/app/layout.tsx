@@ -15,9 +15,9 @@ export const metadata = {
   description:
     "Professional AI-powered advertising and marketing automation for hospitals, clinics, and healthcare providers. Managed campaigns, competitor clinical analysis, and patient growth automation.",
   icons: {
-    icon: "/toga-health-logo.png",
-    shortcut: "/toga-health-logo.png",
-    apple: "/toga-health-logo.png",
+    icon: "/favicon.ico",
+    shortcut: "/favicon.ico",
+    apple: "/apple-touch-icon.png",
   },
 };
 
