@@ -5,8 +5,8 @@ if (dns.setDefaultResultOrder) {
   dns.setDefaultResultOrder('ipv4first');
 }
 
-// Allow up to 10 minutes for long-running n8n workflows (AI analysis, scraping)
-export const maxDuration = 600;
+// Max 300s allowed on Vercel Hobby plan
+export const maxDuration = 300;
 
 // ============================================================
 // API PROXY — /api/trigger-n8n
