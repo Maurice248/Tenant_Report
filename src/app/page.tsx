@@ -1396,6 +1396,11 @@ export default function Dashboard() {
       if (stored) { const parsed = JSON.parse(stored); if (Array.isArray(parsed) && parsed.length > 0) kwSnapshot = parsed; }
     } catch {}
 
+    if (kwSnapshot.length === 0) {
+      addSbToast("Please add at least one keyword before running analysis.", "error");
+      return;
+    }
+
     setAnalysisData(null);
     setAnalysisError("");
     setAnalysisStatus("generating");
@@ -1664,8 +1669,21 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* ── MOBILE TOP BAR ── */}
+      <div className="mobile-topbar" style={{ display: "none", position: "fixed", top: 0, left: 0, right: 0, zIndex: 200, background: "var(--card-bg)", borderBottom: "1px solid var(--border)", padding: "10px 16px", alignItems: "center", justifyContent: "space-between", boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <img src="/toga-health-logo.png" alt="Toga" style={{ width: 30, height: 30, borderRadius: 8, objectFit: "contain" }} />
+          <span style={{ fontSize: 15, fontWeight: 800, color: "var(--text)" }}>Toga Health AI</span>
+        </div>
+        <button onClick={() => { const s = document.querySelector('.main-layout-sidebar') as HTMLElement; if (s) { s.style.display = s.style.display === 'flex' ? 'none' : 'flex'; s.style.position = 'fixed'; s.style.top = '0'; s.style.left = '0'; s.style.height = '100vh'; s.style.zIndex = '300'; } }}
+          style={{ background: "none", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 10px", cursor: "pointer", fontSize: 18, color: "var(--text)" }}>
+          ☰
+        </button>
+      </div>
+
       {/* ── LEFT SIDEBAR ── */}
       <aside
+        className="main-layout-sidebar"
         style={{
           width: 260,
           background: "var(--card-bg)",
@@ -1805,6 +1823,7 @@ export default function Dashboard() {
 
       {/* ── RIGHT MAIN CONTENT ── */}
       <main
+        className="main-layout-content"
         style={{
           flex: 1,
           padding: "24px 32px 4rem",
@@ -3281,6 +3300,7 @@ export default function Dashboard() {
                                   </select>
                                 </div>
                                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                  <div style={{ fontSize: 10, fontWeight: 800, color: "#64748b", marginBottom: 0, textTransform: "uppercase", letterSpacing: "0.06em" }}>Voice</div>
                                   <button
                                     type="button"
                                     onClick={() => setVoiceModalOpenForId(item.id)}
@@ -4056,7 +4076,8 @@ export default function Dashboard() {
                               formData.append("file", file);
 
                               const res = await fetch("/api/upload-ad", { method: "POST", body: formData });
-                              const result = await res.json();
+                              let result: any;
+                              try { result = await res.json(); } catch { throw new Error(`Upload failed (${res.status})`); }
                               if (!res.ok || result.error) throw new Error(result.error || "Upload failed");
 
                               const newAd = {

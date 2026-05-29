@@ -1177,3 +1177,138 @@ pre {
   color: #1e293b;
   border-color: #cbd5e1;
 }
+/* ============================================================
+   MOBILE RESPONSIVE OVERRIDES
+   ============================================================ */
+
+/* Sidebar: collapse on mobile */
+@media (max-width: 768px) {
+  /* Layout */
+  .main-layout-sidebar {
+    display: none !important;
+  }
+  .main-layout-content {
+    margin-left: 0 !important;
+    padding: 12px !important;
+    width: 100% !important;
+  }
+
+  /* Page title areas */
+  h2 { font-size: 18px !important; }
+
+  /* Card grid: stack to 1 col */
+  .grid-cols-3, .lg\:grid-cols-3 {
+    grid-template-columns: 1fr !important;
+  }
+  .grid-cols-2, .md\:grid-cols-2, .lg\:grid-cols-2 {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Flex rows: wrap on mobile */
+  .flex-row { flex-wrap: wrap !important; }
+
+  /* Create Ad: stack ad config cards */
+  [style*="gridTemplateColumns: \"1fr 1fr 1fr\""],
+  [style*='gridTemplateColumns: "1fr 1fr 1fr"'] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Approval grid: 2 col on mobile */
+  [style*="gridTemplateColumns: \"repeat(4, 1fr)\""],
+  [style*='gridTemplateColumns: "repeat(4, 1fr)"'] {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Campaign wizard */
+  [style*="gridTemplateColumns: \"1fr 1fr\""],
+  [style*='gridTemplateColumns: "1fr 1fr"'] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Modals: full width */
+  [style*="maxWidth: 900"],
+  [style*="maxWidth: 860"],
+  [style*="maxWidth: 980"] {
+    max-width: 100% !important;
+    margin: 8px !important;
+    border-radius: 12px !important;
+  }
+
+  /* Ads Analysis: sidebar + content */
+  .ads-analysis-container {
+    flex-direction: column !important;
+  }
+  .ads-analysis-sidebar {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Social Dash: stack left/right panels */
+  .sd-left, .sd-right {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Buttons: full width on mobile */
+  .mobile-full-btn {
+    width: 100% !important;
+  }
+
+  /* Step wizard: compact stepper */
+  .campaign-stepper-step-label {
+    font-size: 11px !important;
+  }
+  .campaign-stepper-step-sub {
+    display: none !important;
+  }
+
+  /* Tables: horizontal scroll */
+  table { 
+    display: block !important;
+    overflow-x: auto !important;
+    white-space: nowrap !important;
+  }
+
+  /* Overview cards: 2 per row */
+  .overview-metric-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Tab nav: horizontal scroll */
+  .tab-nav {
+    overflow-x: auto !important;
+    white-space: nowrap !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  /* Placement buttons: wrap */
+  .placement-btn-group {
+    flex-wrap: wrap !important;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Extra small: single column everything */
+  [style*="gridTemplateColumns: \"repeat(4, 1fr)\""],
+  [style*='gridTemplateColumns: "repeat(4, 1fr)"'] {
+    grid-template-columns: 1fr !important;
+  }
+  [style*="gridTemplateColumns: \"repeat(2, 1fr)\""],
+  [style*='gridTemplateColumns: "repeat(2, 1fr)"'] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Font size reductions */
+  body { font-size: 13px !important; }
+  h2 { font-size: 16px !important; }
+}
+
+/* Mobile top bar */
+@media (max-width: 768px) {
+  .mobile-topbar {
+    display: flex !important;
+  }
+  .main-layout-content {
+    padding-top: 60px !important;
+  }
+}
