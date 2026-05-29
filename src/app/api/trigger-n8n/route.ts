@@ -1,73 +1,102 @@
 import dns from 'node:dns';
+import { request as httpsRequest } from 'node:https';
 
-// Force IPv4 to prevent connection timeouts on some networks
-if (dns.setDefaultResultOrder) {
-  dns.setDefaultResultOrder('ipv4first');
-}
-
-// Max 300s allowed on Vercel Hobby plan
+// Max 300s on Vercel Hobby plan
 export const maxDuration = 300;
 
-// ============================================================
-// API PROXY — /api/trigger-n8n
-// Routes each action to its own n8n webhook URL (fixes CORS)
-// ============================================================
-
-const WEBHOOKS = {
-  competitor_analysis:  process.env.N8N_COMPETITOR_ANALYSIS_URL || "https://n8n.srv881198.hstgr.cloud/webhook/meta_ads_scraper",
-  generate_ad:          process.env.NEXT_PUBLIC_N8N_GENERATE_AD_URL || "https://n8n.srv881198.hstgr.cloud/webhook/generate_ad",
+const WEBHOOKS: Record<string, string> = {
+  competitor_analysis: process.env.N8N_COMPETITOR_ANALYSIS_URL || "https://n8n.srv1208919.hstgr.cloud/webhook/meta_ads_scraper",
+  generate_ad: process.env.NEXT_PUBLIC_N8N_GENERATE_AD_URL || "https://n8n.srv881198.hstgr.cloud/webhook/generate_ad",
 };
 
-export async function POST(request) {
+// Fetch using explicit IPv4 + proper SNI so SSL cert validation still works
+function fetchIPv4(urlStr: string, body: string): Promise<{ status: number; text: string }> {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(urlStr);
+
+    dns.lookup(parsed.hostname, { family: 4 }, (err, address) => {
+      if (err) {
+        // Fall back to normal connection if IPv4 lookup fails
+        address = parsed.hostname;
+      }
+
+      const path = parsed.pathname + (parsed.search || '');
+      const req = httpsRequest(
+        {
+          hostname: address,            // connect via IPv4
+          port: 443,
+          path,
+          method: 'POST',
+          servername: parsed.hostname,  // SNI — keeps SSL cert valid
+          headers: {
+            'Content-Type': 'application/json',
+            'Host': parsed.hostname,
+            'Content-Length': Buffer.byteLength(body),
+          },
+          timeout: 295_000,
+        },
+        (res) => {
+          let data = '';
+          res.on('data', (chunk) => { data += chunk; });
+          res.on('end', () => resolve({ status: res.statusCode ?? 0, text: data }));
+        }
+      );
+
+      req.on('error', reject);
+      req.on('timeout', () => {
+        req.destroy();
+        reject(new Error('Request timed out'));
+      });
+      req.write(body);
+      req.end();
+    });
+  });
+}
+
+export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { action } = body;
 
     const url = WEBHOOKS[action];
     if (!url) {
+      return Response.json({ error: `Unknown action: ${action}` }, { status: 400 });
+    }
+
+    console.log(`[trigger-n8n] ${action} → ${url}`);
+
+    const bodyStr = JSON.stringify(body);
+    let result: { status: number; text: string };
+
+    try {
+      result = await fetchIPv4(url, bodyStr);
+    } catch (fetchErr: any) {
+      console.error('[trigger-n8n] fetch error:', fetchErr.message);
       return Response.json(
-        { error: `Unknown action: ${action}` },
-        { status: 400 }
+        { error: fetchErr.message, isTimeout: true, action },
+        { status: 200 }
       );
     }
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    console.log(`[trigger-n8n] response ${result.status}:`, result.text.slice(0, 300));
 
-    const text = await response.text();
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      data = { rawResponse: text, ok: response.ok };
-    }
+    let data: any;
+    try { data = JSON.parse(result.text); }
+    catch { data = { rawResponse: result.text, ok: result.status < 400 }; }
 
-    // If n8n itself returned an error status, wrap it in a 200 so the
-    // client's catch block handles it gracefully instead of throwing.
-    if (!response.ok) {
+    if (result.status >= 400) {
       return Response.json(
-        { error: data?.error || `n8n returned ${response.status}`, rawResponse: text },
+        { error: data?.error || data?.message || `n8n returned ${result.status}`, rawResponse: result.text },
         { status: 200 }
       );
     }
 
     return Response.json(data, { status: 200 });
-  } catch (err) {
-    // Network / parse errors
-    console.error("API Proxy Error:", err);
-    
-    // If it's a long-running action, it might just be a timeout
-    const isLongRunning = ["competitor_analysis", "generate_ad"].includes(request.headers.get("x-action") || "");
-    
+
+  } catch (err: any) {
+    console.error('[trigger-n8n] unexpected error:', err);
     return Response.json(
-      { 
-        error: err.message || "Failed to reach n8n",
-        isTimeout: true, // Hint to the frontend that it might still be running
-        action: request.headers.get("x-action")
-      },
+      { error: err.message || 'Failed to reach n8n', isTimeout: true },
       { status: 200 }
     );
   }

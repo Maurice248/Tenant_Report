@@ -165,10 +165,11 @@ export default function Dashboard() {
     console.log("[Diagnostics] Supabase URL:", process.env.NEXT_PUBLIC_SUPABASE_URL);
   }, []);
 
-  // Analysis state — not persisted: results clear on refresh, use Previous Runs to reload
-  const [analysisStatus, setAnalysisStatus] = useState("idle");
-  // idle | generating | waiting | done | error
+  // Analysis state — status persists across refresh so progress bar survives reload
+  const [analysisStatus, setAnalysisStatus] = useLocalStorage("toga_analysis_status", "idle");
+  // idle | generating | done | error
   const [analysisData, setAnalysisData] = useState(null);
+  const [analysisProgress, setAnalysisProgress] = useState(0);
 
   const [analysisError, setAnalysisError] = useState("");
   const [pendingAnalysisTopic, setPendingAnalysisTopic] = useLocalStorage("toga_pending_analysis_topic", null);
@@ -798,6 +799,18 @@ export default function Dashboard() {
     }
   }, []);
 
+  // On mount: if analysisStatus is "generating" but no sessionStorage flag,
+  // it means the page was refreshed mid-analysis — reset to idle so user can re-trigger
+  useEffect(() => {
+    const isActiveSession = sessionStorage.getItem("toga_analysis_active");
+    if (!isActiveSession) {
+      // No active fetch in this session — clear any stale generating state
+      setAnalysisStatus("idle");
+      setAnalysisProgress(0);
+      window.localStorage.removeItem("toga_analysis_start");
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     async function fetchReports() {
       const { data, error } = await supabase
@@ -940,6 +953,36 @@ export default function Dashboard() {
     }
     return () => { if (interval) clearInterval(interval); };
   }, [isStatusPolling, adStatus, fetchAdTableLinks, addSbToast]);
+
+  // ── Analysis progress bar: increments over time, persists across refresh ──
+  useEffect(() => {
+    if (analysisStatus !== "generating") {
+      setAnalysisProgress(analysisStatus === "done" ? 100 : 0);
+      return;
+    }
+
+    const startRaw = window.localStorage.getItem("toga_analysis_start");
+    const startTime = startRaw ? Number(startRaw) : null;
+    const MAX_DURATION = 300_000; // 5 min max (proxy maxDuration)
+
+    // Auto-reset if start time is missing or > 6 min old (stale from previous session)
+    if (!startTime || (Date.now() - startTime) > 360_000) {
+      setAnalysisStatus("idle");
+      setAnalysisProgress(0);
+      window.localStorage.removeItem("toga_analysis_start");
+      return;
+    }
+
+    const tick = () => {
+      const elapsed = Date.now() - startTime;
+      const raw = Math.min(0.88, elapsed / MAX_DURATION);
+      const eased = 1 - Math.pow(1 - raw / 0.88, 2);
+      setAnalysisProgress(Math.round(eased * 88) + 2); // start at 2%
+    };
+    tick();
+    const timer = setInterval(tick, 2000);
+    return () => clearInterval(timer);
+  }, [analysisStatus]);
 
   function parseSbReport(row) {
     let rd = row.report_data;
@@ -1403,32 +1446,55 @@ export default function Dashboard() {
 
     setAnalysisData(null);
     setAnalysisError("");
+    setAnalysisProgress(0);
+    window.localStorage.setItem("toga_analysis_start", String(Date.now()));
+    sessionStorage.setItem("toga_analysis_active", "1"); // marks this session as the one that fired
     setAnalysisStatus("generating");
     setPendingAnalysisTopic(selectedTopic);
     await new Promise((r) => setTimeout(r, 100));
 
-    const result = await callWebhook({
-      action: "competitor_analysis",
-      topic: kwSnapshot[0] || selectedTopic || "Dental Implants Turkey",
-      keywords: kwSnapshot,
-      countries: researchCountries,
-      max_ads: Number(researchMaxAds) || 100,
-      only_active: researchOnlyActive,
-      sort: researchSort,
-      timestamp: new Date().toISOString(),
-    }, setAnalysisStatus);
+    console.log("[Analysis] Triggering webhook with keywords:", kwSnapshot);
 
-    if (result && !result.error) {
-      setAnalysisData(result);
-      setAnalysisStatus("done");
-      setPendingAnalysisTopic(null);
-      addSbToast("Analysis complete!", "success");
-    } else if (result?.error && !result?.isTimeout) {
-      // Real error (not a timeout) — show error state
+    try {
+      const result = await callWebhook({
+        action: "competitor_analysis",
+        topic: kwSnapshot[0] || selectedTopic || "Dental Implants Turkey",
+        keywords: kwSnapshot,
+        countries: researchCountries,
+        max_ads: Number(researchMaxAds) || 100,
+        only_active: researchOnlyActive,
+        sort: researchSort,
+        timestamp: new Date().toISOString(),
+      }, setAnalysisStatus);
+
+      console.log("[Analysis] Webhook response:", result);
+
+      if (result && !result.error) {
+        setAnalysisData(result);
+        setAnalysisStatus("done");
+        setAnalysisProgress(100);
+        window.localStorage.removeItem("toga_analysis_start");
+        sessionStorage.removeItem("toga_analysis_active");
+        setPendingAnalysisTopic(null);
+        addSbToast("Analysis complete!", "success");
+      } else if (result?.error && !result?.isTimeout) {
+        setAnalysisStatus("error");
+        setAnalysisProgress(0);
+        window.localStorage.removeItem("toga_analysis_start");
+        sessionStorage.removeItem("toga_analysis_active");
+        setAnalysisError(result.error);
+        addSbToast(`Analysis failed: ${result.error}`, "error");
+      }
+      // null or isTimeout → keep progress bar, n8n still processing
+    } catch (err: any) {
+      console.error("[Analysis] Unexpected error:", err);
       setAnalysisStatus("error");
-      setAnalysisError(result.error);
+      setAnalysisProgress(0);
+      window.localStorage.removeItem("toga_analysis_start");
+      sessionStorage.removeItem("toga_analysis_active");
+      setAnalysisError(err.message || "Unexpected error");
+      addSbToast(`Analysis error: ${err.message || "Unknown"}`, "error");
     }
-    // If null or isTimeout: keep loader running — n8n is still processing
   }
 
   // ── Action 2: Generate Ad ──
@@ -2685,97 +2751,67 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {/* LOADING STATE: CSS-ANIMATED RADAR SWEEPER SCREEN */}
+              {/* ANALYSIS PROGRESS BAR */}
               {analysisStatus === "generating" && (
-                <div
-                  className="animate-slide-up"
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    gap: 0,
-                    background: "var(--card-bg)",
-                    borderRadius: "var(--radius-md)",
-                    border: "1.5px solid var(--border-mid)",
-                    boxShadow: "var(--shadow-md)",
-                    color: "var(--text)",
-                    textAlign: "center",
-                    overflow: "hidden",
-                  }}
-                >
-                  {/* Top section: radar + status text */}
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 20, padding: "30px 20px", width: "100%" }}>
-                    {/* Circular radar scanner */}
-                    <div
-                      style={{
-                        width: 200,
-                        height: 200,
-                        borderRadius: "50%",
-                        border: "2px solid var(--primary-mid)",
-                        background: "var(--surface)",
-                        position: "relative",
-                        overflow: "hidden",
-                        boxShadow: "0 0 0 6px var(--primary-light), var(--shadow-md)",
-                      }}
-                    >
-                      {/* Concentric grids */}
-                      <div style={{ width: 50, height: 50, border: "1px dashed rgba(37, 99, 235, 0.2)", borderRadius: "50%", position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)" }} />
-                      <div style={{ width: 100, height: 100, border: "1px dashed rgba(37, 99, 235, 0.2)", borderRadius: "50%", position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)" }} />
-                      <div style={{ width: 150, height: 150, border: "1px solid rgba(37, 99, 235, 0.15)", borderRadius: "50%", position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)" }} />
-                      {/* Axes */}
-                      <div style={{ width: "100%", height: 1, background: "rgba(37, 99, 235, 0.12)", position: "absolute", top: "50%", left: 0 }} />
-                      <div style={{ height: "100%", width: 1, background: "rgba(37, 99, 235, 0.12)", position: "absolute", left: "50%", top: 0 }} />
-                      {/* Rotating radar sweep */}
-                      <div
-                        style={{
-                          position: "absolute", top: 0, left: 0, width: "100%", height: "100%",
-                          borderRadius: "50%",
-                          background: "conic-gradient(from 0deg at 50% 50%, rgba(37, 99, 235, 0.3) 0deg, rgba(37, 99, 235, 0) 90deg)",
-                          animation: "radar-sweep 3s linear infinite",
-                        }}
-                      />
-                      {/* Target blips */}
-                      <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#10B981", position: "absolute", top: "25%", left: "65%", transform: "translate(-50%, -50%)", animation: "blip-glow 2.5s ease-in-out infinite", animationDelay: "0.2s" }} />
-                      <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#10B981", position: "absolute", top: "60%", left: "30%", transform: "translate(-50%, -50%)", animation: "blip-glow 2.5s ease-in-out infinite", animationDelay: "1.1s" }} />
-                      <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#3B82F6", position: "absolute", top: "75%", left: "55%", transform: "translate(-50%, -50%)", animation: "blip-glow 2.5s ease-in-out infinite", animationDelay: "0.6s" }} />
-                      <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#10B981", position: "absolute", top: "40%", left: "80%", transform: "translate(-50%, -50%)", animation: "blip-glow 2.5s ease-in-out infinite", animationDelay: "1.8s" }} />
+                <div className="animate-fade-in" style={{
+                  background: "#fff", borderRadius: 14, border: "1.5px solid #bfdbfe",
+                  padding: "20px 24px", boxShadow: "0 2px 12px rgba(37,99,235,0.08)"
+                }}>
+                  {/* Header row */}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: 10, background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <Spinner size={16} color="#2563eb" />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>Competitor Analysis Running</div>
+                        <div style={{ fontSize: 11, color: "#64748b", marginTop: 1 }}>n8n is scraping Meta Ads Library &amp; running AI analysis…</div>
+                      </div>
                     </div>
-
-                    {/* Status text */}
-                    <div>
-                      <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text)", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 6 }}>
-                        <Spinner size={14} color="var(--primary)" />
-                        {analysisStatus === "generating" ? "Contacting n8n endpoint..." : "Competitor radar active — scanning ad libraries"}
-                      </div>
-                      <div style={{ fontSize: 12, color: "var(--text-muted)", maxWidth: 380, lineHeight: 1.6, margin: "0 auto" }}>
-                        {analysisStatus === "generating"
-                          ? "Establishing proxy connection & posting query payload..."
-                          : "n8n is running the competitor scraping pipeline. Claude is analyzing creative angles & CTR gaps. Results will appear below momentarily."}
-                      </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: "#2563eb" }}>{analysisProgress}%</span>
+                      <button
+                        type="button"
+                        onClick={() => { setAnalysisStatus("idle"); setAnalysisProgress(0); window.localStorage.removeItem("toga_analysis_start"); sessionStorage.removeItem("toga_analysis_active"); }}
+                        style={{ padding: "5px 12px", borderRadius: 8, border: "1px solid #fecaca", background: "#fff5f5", color: "#dc2626", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
+                      >
+                        Cancel
+                      </button>
                     </div>
                   </div>
 
-                  {/* Footer: Cancel only */}
-                  <div style={{ width: "100%", borderTop: "1.5px solid var(--border-mid)", padding: "14px 20px", display: "flex", justifyContent: "center" }}>
-                    <button
-                      type="button"
-                      onClick={() => setAnalysisStatus("idle")}
-                      style={{
-                        padding: "7px 20px",
-                        borderRadius: "var(--radius-sm)",
-                        border: "1px solid var(--border-mid)",
-                        background: "var(--surface)",
-                        color: "var(--text-muted)",
-                        fontSize: 12,
-                        fontWeight: 500,
-                        cursor: "pointer",
-                        transition: "all 0.2s",
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = "var(--red-light)"; e.currentTarget.style.borderColor = "var(--red-dark)"; e.currentTarget.style.color = "var(--red-dark)"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = "var(--surface)"; e.currentTarget.style.borderColor = "var(--border-mid)"; e.currentTarget.style.color = "var(--text-muted)"; }}
-                    >
-                      Cancel
-                    </button>
+                  {/* Progress bar */}
+                  <div style={{ height: 8, background: "#e2e8f0", borderRadius: 8, overflow: "hidden" }}>
+                    <div style={{
+                      height: "100%",
+                      width: `${analysisProgress}%`,
+                      background: "linear-gradient(90deg, #2563eb, #0ea5e9)",
+                      borderRadius: 8,
+                      transition: "width 1.8s ease-out",
+                      boxShadow: "0 0 8px rgba(37,99,235,0.4)"
+                    }} />
+                  </div>
+
+                  {/* Step indicators */}
+                  <div style={{ display: "flex", gap: 6, marginTop: 12, flexWrap: "wrap" }}>
+                    {[
+                      { label: "Connecting to n8n", pct: 5 },
+                      { label: "Scraping Meta Ads Library", pct: 25 },
+                      { label: "AI competitor analysis", pct: 55 },
+                      { label: "Generating insights", pct: 80 },
+                    ].map((s) => (
+                      <div key={s.label} style={{
+                        display: "flex", alignItems: "center", gap: 5,
+                        padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600,
+                        background: analysisProgress >= s.pct ? "#eff6ff" : "#f8fafc",
+                        color: analysisProgress >= s.pct ? "#1d4ed8" : "#94a3b8",
+                        border: `1px solid ${analysisProgress >= s.pct ? "#bfdbfe" : "#e2e8f0"}`,
+                        transition: "all 0.5s"
+                      }}>
+                        <span>{analysisProgress >= s.pct ? "✓" : "○"}</span>
+                        {s.label}
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
@@ -3276,8 +3312,8 @@ export default function Dashboard() {
                                   </select>
                                 </div>
                               </div>
-                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                                <div>
+                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, minWidth: 0 }}>
+                                <div style={{ minWidth: 0 }}>
                                   <div style={{ fontSize: 10, fontWeight: 800, color: "#64748b", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Character</div>
                                   <select
                                     value={item.character || "male"}
@@ -3299,7 +3335,7 @@ export default function Dashboard() {
                                     <option value="female">👩 Female</option>
                                   </select>
                                 </div>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
                                   <div style={{ fontSize: 10, fontWeight: 800, color: "#64748b", marginBottom: 0, textTransform: "uppercase", letterSpacing: "0.06em" }}>Voice</div>
                                   <button
                                     type="button"
@@ -3318,16 +3354,16 @@ export default function Dashboard() {
                                   </button>
                                   {voiceLabels[item.id] && (
                                     <div style={{
-                                      display: "flex", alignItems: "center", gap: 5,
-                                      padding: "4px 10px", background: "#eff6ff",
+                                      display: "flex", alignItems: "center", gap: 4, minWidth: 0,
+                                      padding: "4px 8px", background: "#eff6ff",
                                       border: "1px solid #bfdbfe", borderRadius: 6,
-                                      fontSize: 11, fontWeight: 600, color: "#1d4ed8",
+                                      overflow: "hidden",
                                     }}>
-                                      <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                      <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 10, fontWeight: 600, color: "#1d4ed8" }}>
                                         {voiceLabels[item.id]}
                                       </span>
-                                      <span style={{ fontSize: 9, fontWeight: 700, color: "#2563eb", textTransform: "uppercase", background: "#dbeafe", padding: "1px 5px", borderRadius: 3, flexShrink: 0 }}>
-                                        Selected
+                                      <span style={{ fontSize: 9, fontWeight: 700, color: "#2563eb", textTransform: "uppercase", background: "#dbeafe", padding: "1px 4px", borderRadius: 3, flexShrink: 0 }}>
+                                        ✓
                                       </span>
                                     </div>
                                   )}
