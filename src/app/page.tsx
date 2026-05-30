@@ -34,6 +34,7 @@ import { supabase } from "../lib/supabase";
 import { useRouter } from "next/navigation";
 import CampaignSetup from "./CampaignSetup";
 import SocialDash from "./SocialDash";
+import CustomSelect from "./CustomSelect";
 import VoiceExplorerModal from "./VoiceExplorerModal";
 import "./globals.css";
 
@@ -257,6 +258,7 @@ export default function Dashboard() {
 
   // ── Supabase reports state ──
   const [sbRows, setSbRows] = useState([]);
+  const [showPreviousRuns, setShowPreviousRuns] = useState(false);
   const [hoveredInputs, setHoveredInputs] = useState<any>(null);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [errorNotification, setErrorNotification] = useState<string | null>(null);
@@ -1908,7 +1910,10 @@ export default function Dashboard() {
           flex: 1,
           padding: "24px 32px 4rem",
           minWidth: 0,
+          maxWidth: "100%",
+          overflowX: "hidden",
           overflowY: "auto",
+          boxSizing: "border-box",
         }}
       >
 
@@ -1977,28 +1982,26 @@ export default function Dashboard() {
               className="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-4"
             >
               {/* Left Column */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div className="overview-left-col" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
                 {/* Account Health Window */}
-                <Card style={{ background: "linear-gradient(135deg, #f8fafc, #eff6ff)", border: "1px solid #bfdbfe", padding: "20px 24px" }}>
+                <Card className="account-health-card" style={{ background: "linear-gradient(135deg, #f8fafc, #eff6ff)", border: "1px solid #bfdbfe", padding: "20px 24px" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
                     <SectionTitle style={{ margin: 0, color: "var(--primary)" }}>Account Health Snapshot</SectionTitle>
                     <Badge text="Live Data" color="var(--primary)" bg="var(--primary-light)" />
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div style={{ background: "#ffffff", padding: 16, borderRadius: "var(--radius-md)", boxShadow: "0 2px 8px rgba(0,0,0,0.02)", border: "1px solid var(--border-light)" }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>Total Inv.</div>
-                      <div style={{ fontSize: 24, fontWeight: 800, color: "var(--text)", marginTop: 6 }}>${spendTotal.toFixed(2)}</div>
-                    </div>
-                    <div style={{ background: "#ffffff", padding: 16, borderRadius: "var(--radius-md)", boxShadow: "0 2px 8px rgba(0,0,0,0.02)", border: "1px solid var(--border-light)" }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>Total Reach</div>
-                      <div style={{ fontSize: 24, fontWeight: 800, color: "var(--text)", marginTop: 6 }}>{impressionsTotal.toLocaleString()}</div>
-                    </div>
-                    <div style={{ background: "#ffffff", padding: 16, borderRadius: "var(--radius-md)", boxShadow: "0 2px 8px rgba(0,0,0,0.02)", border: "1px solid var(--border-light)" }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>Avg CPM</div>
-                      <div style={{ fontSize: 24, fontWeight: 800, color: "var(--primary)", marginTop: 6 }}>${cpm}</div>
-                    </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+                    {[
+                      { label: "Total Inv.", value: `$${spendTotal.toFixed(2)}`, color: "var(--text)" },
+                      { label: "Total Reach", value: impressionsTotal.toLocaleString(), color: "var(--text)" },
+                      { label: "Avg CPM", value: `$${cpm}`, color: "var(--primary)" },
+                    ].map((stat) => (
+                      <div key={stat.label} style={{ background: "#ffffff", padding: "12px 10px", borderRadius: "var(--radius-md)", border: "1px solid var(--border-light)", textAlign: "center" }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 4 }}>{stat.label}</div>
+                        <div style={{ fontSize: 20, fontWeight: 800, color: stat.color }}>{stat.value}</div>
+                      </div>
+                    ))}
                   </div>
                 </Card>
 
@@ -2035,7 +2038,7 @@ export default function Dashboard() {
               </div>
 
               {/* Right Column: Quick Actions */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div className="overview-right-col" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 <Card>
                   <SectionTitle>Quick Actions</SectionTitle>
                   <div
@@ -2144,19 +2147,24 @@ export default function Dashboard() {
             borderRadius: 20, overflow: "hidden",
             height: "fit-content", boxShadow: "0 2px 8px rgba(0,0,0,0.06)"
           }}>
-            {/* Sidebar Header */}
-            <div style={{ padding: "16px 20px", background: "#F8FAFC", borderBottom: "1px solid #E2E8F0", display: "flex", alignItems: "center", gap: 10 }}>
+            {/* Sidebar Header — on mobile acts as toggle */}
+            <div
+              onClick={() => setShowPreviousRuns(o => !o)}
+              style={{ padding: "14px 20px", background: "#F8FAFC", borderBottom: showPreviousRuns ? "1px solid #E2E8F0" : "none", display: "flex", alignItems: "center", gap: 10, cursor: "pointer", userSelect: "none" }}
+            >
               <div style={{ width: 34, height: 34, borderRadius: 10, background: "#EFF6FF", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 <span style={{ fontSize: 16 }}>🕐</span>
               </div>
-              <div>
+              <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: "#1E293B" }}>Previous Runs</div>
                 <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 1 }}>{sbRows.length} saved {sbRows.length === 1 ? "result" : "results"}</div>
               </div>
+              {/* Toggle chevron — visible on mobile, hidden on desktop */}
+              <span className="prev-runs-chevron" style={{ fontSize: 13, color: "#64748b", fontWeight: 700, transition: "transform 0.2s", display: "inline-block", transform: showPreviousRuns ? "rotate(180deg)" : "rotate(0deg)" }}>▼</span>
             </div>
 
-            {/* Run Cards */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 0, maxHeight: "70vh", overflowY: "auto" }}>
+            {/* Run Cards — toggled on mobile, always shown on desktop via CSS */}
+            <div className="prev-runs-list" style={{ display: showPreviousRuns ? "flex" : "none", flexDirection: "column", gap: 0, maxHeight: "70vh", overflowY: "auto" }}>
               {[...sbRows].reverse().map((row: any, idx: number) => {
                 const report = parseSbReport(row);
                 const inputsObj = typeof row.inputs === 'string' ? JSON.parse(row.inputs || "{}") : (row.inputs || {});
@@ -3050,7 +3058,7 @@ export default function Dashboard() {
           CREATE AD
       ═══════════════════════════════════════════════════════ */}
       {tab === "create" && (
-        <div className="animate-fade-in">
+        <div className="animate-fade-in" style={{ maxWidth: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
           {!analysisData && (
             <div
               style={{
@@ -3121,7 +3129,7 @@ export default function Dashboard() {
             </Card>
           )}
 
-          <Card style={{ marginBottom: 14 }}>
+          <Card style={{ marginBottom: 14, maxWidth: "100%", overflow: "hidden", boxSizing: "border-box" }}>
               {/* Toggle configuration panel */}
               {!createTabConfigOpen ? (
                 <button
@@ -3218,14 +3226,14 @@ export default function Dashboard() {
                       </div>
                     </div>
 
-                    <div style={{ display: "flex", flexDirection: "row", gap: 10 }}>
+                    <div className="create-ads-allocate-row" style={{ display: "flex", flexDirection: "row", gap: 10, flexWrap: "wrap" }}>
                       {createTabAdsConfig.items.map((item, idx) => {
                         const videoDisabled = item.type !== "video" && createTabAdsConfig.videoCount >= 3;
                         const imageDisabled = item.type !== "image" && createTabAdsConfig.imageCount >= 2;
                         const isVideo = item.type === "video";
                         const isImage = item.type === "image";
                         return (
-                          <div key={item.id} style={{ flex: "1 1 0", display: "flex", flexDirection: "column", gap: 5 }}>
+                          <div key={item.id} style={{ flex: "1 1 80px", minWidth: 80, maxWidth: 120, display: "flex", flexDirection: "column", gap: 5 }}>
                             <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", marginLeft: 2, textTransform: "uppercase", letterSpacing: "0.05em" }}>Ad {idx + 1}</div>
                             <div style={{
                               display: "flex", borderRadius: 10, overflow: "hidden",
@@ -3251,7 +3259,7 @@ export default function Dashboard() {
                   </div>
 
                   {/* ── PHASE 3: DETAILED CONFIG ── */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, padding: "20px 24px" }}>
+                  <div className="create-ads-config-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, padding: "20px 24px", maxWidth: "100%", boxSizing: "border-box", overflowX: "hidden" }}>
                     {createTabAdsConfig.items.map((item, idx) => {
                       const isVideo = item.type === "video";
                       return (
@@ -3260,7 +3268,8 @@ export default function Dashboard() {
                           background: "#fff",
                           border: doesSlotHaveError(item.id) ? "2px solid #ef4444" : isVideo ? "1.5px solid #bfdbfe" : "1.5px solid #e2e8f0",
                           overflow: "hidden",
-                          boxShadow: doesSlotHaveError(item.id) ? "0 4px 20px rgba(239,68,68,0.12)" : "0 2px 12px rgba(0,0,0,0.06)"
+                          boxShadow: doesSlotHaveError(item.id) ? "0 4px 20px rgba(239,68,68,0.12)" : "0 2px 12px rgba(0,0,0,0.06)",
+                          maxWidth: "100%", boxSizing: "border-box", minWidth: 0
                         }}>
                           {/* Config card header */}
                           <div style={{
@@ -3283,62 +3292,42 @@ export default function Dashboard() {
                               </div>
                             </div>
                           </div>
-                          <div style={{ padding: 20 }}>
+                          <div style={{ padding: 20, maxWidth: "100%", boxSizing: "border-box", overflowX: "hidden" }}>
 
                           {isVideo ? (
                             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                              <div className="config-input-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                                 <div>
                                   <div style={{ fontSize: 10, fontWeight: 800, color: "#64748b", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Duration</div>
-                                  <select
+                                  <CustomSelect
                                     value={item.duration}
-                                    onChange={(e) => updateCreateTabItemField(idx, "duration", e.target.value)}
-                                    style={{
-                                      width: "100%", padding: "10px", borderRadius: "var(--radius-md)",
-                                      border: "1px solid var(--border)", background: "var(--card-bg)",
-                                      fontSize: 12, outline: "none", color: "var(--text)", fontFamily: "inherit"
-                                    }}
-                                  >
-                                    {DURATIONS.map(d => <option key={d} value={d}>{d}</option>)}
-                                  </select>
+                                    onChange={(v) => updateCreateTabItemField(idx, "duration", v)}
+                                    options={DURATIONS.map(d => ({ value: d, label: d }))}
+                                  />
                                 </div>
                                 <div>
                                   <div style={{ fontSize: 10, fontWeight: 800, color: "#64748b", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Audio Style</div>
-                                  <select
+                                  <CustomSelect
                                     value={item.audioStyle}
-                                    onChange={(e) => updateCreateTabItemField(idx, "audioStyle", e.target.value)}
-                                    style={{
-                                      width: "100%", padding: "10px", borderRadius: "var(--radius-md)",
-                                      border: "1px solid var(--border)", background: "var(--card-bg)",
-                                      fontSize: 12, outline: "none", color: "var(--text)", fontFamily: "inherit"
-                                    }}
-                                  >
-                                    {AUDIO_STYLES.map(a => <option key={a} value={a}>{a}</option>)}
-                                  </select>
+                                    onChange={(v) => updateCreateTabItemField(idx, "audioStyle", v)}
+                                    options={AUDIO_STYLES.map(a => ({ value: a, label: a }))}
+                                  />
                                 </div>
                               </div>
-                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, minWidth: 0 }}>
+                              <div className="config-input-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, minWidth: 0 }}>
                                 <div style={{ minWidth: 0 }}>
                                   <div style={{ fontSize: 10, fontWeight: 800, color: "#64748b", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Character</div>
-                                  <select
+                                  <CustomSelect
                                     value={item.character || "male"}
-                                    onChange={(e) => {
-                                      const newChar = e.target.value;
+                                    onChange={(v) => {
                                       setCreateTabAdsConfig((prev) => {
                                         const newItems = [...prev.items];
-                                        newItems[idx] = { ...newItems[idx], character: newChar };
+                                        newItems[idx] = { ...newItems[idx], character: v };
                                         return { ...prev, items: newItems };
                                       });
                                     }}
-                                    style={{
-                                      width: "100%", padding: "10px", borderRadius: "var(--radius-md)",
-                                      border: "1px solid var(--border)", background: "var(--card-bg)",
-                                      fontSize: 12, outline: "none", color: "var(--text)", fontFamily: "inherit"
-                                    }}
-                                  >
-                                    <option value="male">👨 Male</option>
-                                    <option value="female">👩 Female</option>
-                                  </select>
+                                    options={[{ value: "male", label: "👨 Male" }, { value: "female", label: "👩 Female" }]}
+                                  />
                                 </div>
                                 <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
                                   <div style={{ fontSize: 10, fontWeight: 800, color: "#64748b", marginBottom: 0, textTransform: "uppercase", letterSpacing: "0.06em" }}>Voice</div>
@@ -3374,34 +3363,22 @@ export default function Dashboard() {
                                   )}
                                 </div>
                               </div>
-                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                              <div className="config-input-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                                 <div>
                                   <div style={{ fontSize: 10, fontWeight: 800, color: "#64748b", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Visual Style</div>
-                                  <select
+                                  <CustomSelect
                                     value={item.videoStyle}
-                                    onChange={(e) => updateCreateTabItemField(idx, "videoStyle", e.target.value)}
-                                    style={{
-                                      width: "100%", padding: "10px", borderRadius: "var(--radius-md)",
-                                      border: "1px solid var(--border)", background: "var(--card-bg)",
-                                      fontSize: 12, outline: "none", color: "var(--text)", fontFamily: "inherit"
-                                    }}
-                                  >
-                                    {VIDEO_STYLES.map(s => <option key={s} value={s}>{s}</option>)}
-                                  </select>
+                                    onChange={(v) => updateCreateTabItemField(idx, "videoStyle", v)}
+                                    options={VIDEO_STYLES.map(s => ({ value: s, label: s }))}
+                                  />
                                 </div>
                                 <div>
                                   <div style={{ fontSize: 10, fontWeight: 800, color: "#64748b", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Language</div>
-                                  <select
+                                  <CustomSelect
                                     value={item.language || "English"}
-                                    onChange={(e) => updateCreateTabItemField(idx, "language", e.target.value)}
-                                    style={{
-                                      width: "100%", padding: "10px", borderRadius: "var(--radius-md)",
-                                      border: "1px solid var(--border)", background: "var(--card-bg)",
-                                      fontSize: 12, outline: "none", color: "var(--text)", fontFamily: "inherit"
-                                    }}
-                                  >
-                                    {LANGUAGES.map(l => <option key={l} value={l}>{l}</option>)}
-                                  </select>
+                                    onChange={(v) => updateCreateTabItemField(idx, "language", v)}
+                                    options={LANGUAGES.map(l => ({ value: l, label: l }))}
+                                  />
                                 </div>
                               </div>
                               <div>
@@ -3511,17 +3488,11 @@ export default function Dashboard() {
                             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                               <div>
                                 <div style={{ fontSize: 10, fontWeight: 800, color: "#64748b", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Visual Style</div>
-                                <select
+                                <CustomSelect
                                   value={item.imageStyle || "Bold & Colorful"}
-                                  onChange={(e) => updateCreateTabItemField(idx, "imageStyle", e.target.value)}
-                                  style={{
-                                    width: "100%", padding: "10px", borderRadius: "var(--radius-md)",
-                                    border: "1px solid var(--border)", background: "var(--card-bg)",
-                                    fontSize: 12, outline: "none", color: "var(--text)", fontFamily: "inherit"
-                                  }}
-                                >
-                                  {VIDEO_STYLES.map(s => <option key={s} value={s}>{s}</option>)}
-                                </select>
+                                  onChange={(v) => updateCreateTabItemField(idx, "imageStyle", v)}
+                                  options={VIDEO_STYLES.map(s => ({ value: s, label: s }))}
+                                />
                               </div>
                               <div>
                                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
@@ -4258,7 +4229,7 @@ export default function Dashboard() {
                           onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface-hover)"}
                           onMouseLeave={(e) => e.currentTarget.style.background = "var(--surface)"}
                         >
-                          ↗ Full View & Details
+                          ↗ {typeof window !== "undefined" && window.innerWidth <= 768 ? "Details" : "Full View & Details"}
                         </button>
                         <button
                           onClick={() => {
@@ -4270,12 +4241,12 @@ export default function Dashboard() {
                             background: "linear-gradient(135deg, var(--primary), #6366f1)",
                             color: "#fff", fontSize: 12, fontWeight: 700,
                             cursor: "pointer", boxShadow: "0 4px 12px rgba(99, 102, 241, 0.2)",
-                            transition: "transform 0.1s"
+                            transition: "transform 0.1s", textAlign: "center"
                           }}
                           onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.02)"}
                           onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
                         >
-                          Launch to Facebook Ads Manager →
+                          {typeof window !== "undefined" && window.innerWidth <= 768 ? "Launch →" : "Launch to Facebook Ads Manager →"}
                         </button>
                       </div>
                     </Card>
@@ -4285,37 +4256,62 @@ export default function Dashboard() {
                 const sorted = [...allApprovedAds].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
                 const videos = sorted.filter(ad => (ad.format || "").toLowerCase() === "video");
                 const images = sorted.filter(ad => (ad.format || "").toLowerCase() !== "video");
+                const isMobile = typeof window !== "undefined" && window.innerWidth <= 768;
+
+                // Mobile: 2 cols; Desktop: 4 cols
+                const gridCols = isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)";
+                const gridGap = isMobile ? 10 : 16;
 
                 if (approvalFilter === "video") {
                   return (
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: gridCols, gap: gridGap }}>
                       {videos.map(renderApprovalCard)}
                     </div>
                   );
                 }
                 if (approvalFilter === "image") {
                   return (
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: gridCols, gap: gridGap }}>
                       {images.map(renderApprovalCard)}
                     </div>
                   );
                 }
 
-                // "All" — left 2 cols: videos, separator, right 2 cols: images
+                // "All" view
+                if (isMobile) {
+                  // Mobile: stack videos then images in single column
+                  return (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                      {videos.length > 0 && (
+                        <div>
+                          <div style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>🎬 Videos ({videos.length})</div>
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
+                            {videos.map(renderApprovalCard)}
+                          </div>
+                        </div>
+                      )}
+                      {images.length > 0 && (
+                        <div>
+                          <div style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>🖼️ Images ({images.length})</div>
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
+                            {images.map(renderApprovalCard)}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
+                // Desktop: left 2 cols videos | separator | right 2 cols images
                 return (
                   <div style={{ display: "flex", gap: 0 }}>
-                    {/* Videos — 2 columns */}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <SectionTitle style={{ marginBottom: 12, fontSize: 14 }}>Approved Videos</SectionTitle>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16 }}>
                         {videos.map(renderApprovalCard)}
                       </div>
                     </div>
-
-                    {/* Separator */}
                     <div style={{ width: 2, background: "#0f172a", margin: "0 24px", borderRadius: 2, flexShrink: 0 }} />
-
-                    {/* Images — 2 columns */}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <SectionTitle style={{ marginBottom: 12, fontSize: 14 }}>Approved Images</SectionTitle>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16 }}>
@@ -4346,20 +4342,20 @@ export default function Dashboard() {
           RUNNING CAMPAIGNS (LIVE META)
       ═══════════════════════════════════════════════════════ */}
       {tab === "live_campaigns" && (
-        <div className="animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <div className="animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: 16, paddingTop: 8 }}>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 4 }}>
             <div>
               <SectionTitle style={{ marginBottom: 4 }}>Running Campaigns</SectionTitle>
-              <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
-                Monitor and control your live Meta Ads. Run, pause, or delete individual ads.
+              <div style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>
+                Monitor and control your live Meta Ads.
               </div>
             </div>
             <button
               onClick={fetchLiveCampaigns}
               disabled={liveLoading}
-              style={{ padding: "8px 16px", borderRadius: "10px", border: "1px solid var(--border)", background: "#fff", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}
+              style={{ padding: "8px 14px", borderRadius: 10, border: "1px solid var(--border)", background: "#fff", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}
             >
-              {liveLoading ? <Spinner size={12} /> : "↻"} Refresh Data
+              {liveLoading ? <Spinner size={12} /> : "↻"} Refresh
             </button>
           </div>
 
@@ -4385,42 +4381,36 @@ export default function Dashboard() {
                   else next.add(campaign.id);
                   return next;
                 })}
-                style={{ padding: "16px 20px", background: "var(--surface)", borderBottom: expandedCampaigns.has(campaign.id) ? "1px solid var(--border-light)" : "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}
+                style={{ padding: "14px 16px", background: "var(--surface)", borderBottom: expandedCampaigns.has(campaign.id) ? "1px solid var(--border-light)" : "none", cursor: "pointer", display: "flex", flexDirection: "column", gap: 10 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <span style={{ fontSize: 18, color: "var(--primary)", transition: "transform 0.2s", transform: expandedCampaigns.has(campaign.id) ? "rotate(90deg)" : "rotate(0deg)" }}>▶</span>
-                  <div>
-                    <div style={{ fontSize: 15, fontWeight: 700 }}>{campaign.name}</div>
-                    <div style={{ fontSize: 12, color: "var(--text-muted)" }}>ID: {campaign.id} • {campaign.objective}</div>
+                {/* Top row: arrow + name + status */}
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                  <span style={{ fontSize: 16, color: "var(--primary)", transition: "transform 0.2s", transform: expandedCampaigns.has(campaign.id) ? "rotate(90deg)" : "rotate(0deg)", marginTop: 2, flexShrink: 0 }}>▶</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{campaign.name}</div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>ID: {campaign.id}</div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{campaign.objective}</div>
                   </div>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   <Badge
                     text={campaign.effective_status}
                     color={campaign.effective_status === "ACTIVE" ? "var(--green)" : "var(--amber)"}
                     bg={campaign.effective_status === "ACTIVE" ? "var(--green-light)" : "var(--amber-light)"}
                   />
-                  <div style={{ display: "flex", gap: 8 }} onClick={(e) => e.stopPropagation()}>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleEditCampaign(campaign.id); }}
-                      style={{ padding: "4px 12px", borderRadius: "var(--radius-pill)", border: "1px solid var(--primary)", background: "transparent", color: "var(--primary)", fontSize: 10, fontWeight: 800, cursor: "pointer", transition: "all 0.2s" }}
-                    >Edit</button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleUpdateStatus(campaign.id, "Campaign", "ACTIVE", "run"); }}
-                      disabled={campaign.effective_status === "ACTIVE" || updatingStatusId === campaign.id}
-                      style={{ padding: "4px 12px", borderRadius: "var(--radius-pill)", border: "1px solid var(--green)", background: campaign.effective_status === "ACTIVE" ? "var(--green-light)" : "transparent", color: "var(--green)", fontSize: 10, fontWeight: 800, cursor: campaign.effective_status === "ACTIVE" ? "default" : "pointer", opacity: updatingStatusId === campaign.id ? 0.5 : 1, transition: "all 0.2s" }}
-                    >Run</button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleUpdateStatus(campaign.id, "Campaign", "PAUSED", "pause"); }}
-                      disabled={campaign.effective_status === "PAUSED" || updatingStatusId === campaign.id}
-                      style={{ padding: "4px 12px", borderRadius: "var(--radius-pill)", border: "1px solid var(--amber)", background: campaign.effective_status === "PAUSED" ? "var(--amber-light)" : "transparent", color: "var(--amber)", fontSize: 10, fontWeight: 800, cursor: campaign.effective_status === "PAUSED" ? "default" : "pointer", opacity: updatingStatusId === campaign.id ? 0.5 : 1, transition: "all 0.2s" }}
-                    >Pause</button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleUpdateStatus(campaign.id, "Campaign", null, "delete"); }}
-                      disabled={updatingStatusId === campaign.id}
-                      style={{ padding: "4px 12px", borderRadius: "var(--radius-pill)", border: "1px solid var(--red-strong)", background: "transparent", color: "var(--red-strong)", fontSize: 10, fontWeight: 800, cursor: "pointer", opacity: updatingStatusId === campaign.id ? 0.5 : 1, transition: "all 0.2s" }}
-                    >Delete</button>
-                  </div>
+                </div>
+                {/* Bottom row: action buttons */}
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", paddingLeft: 26 }} onClick={(e) => e.stopPropagation()}>
+                  {[
+                    { label: "Edit", color: "var(--primary)", border: "var(--primary)", fn: () => handleEditCampaign(campaign.id), disabled: false },
+                    { label: "Run", color: "var(--green)", border: "var(--green)", fn: () => handleUpdateStatus(campaign.id, "Campaign", "ACTIVE", "run"), disabled: campaign.effective_status === "ACTIVE" || updatingStatusId === campaign.id },
+                    { label: "Pause", color: "var(--amber)", border: "var(--amber)", fn: () => handleUpdateStatus(campaign.id, "Campaign", "PAUSED", "pause"), disabled: campaign.effective_status === "PAUSED" || updatingStatusId === campaign.id },
+                    { label: "Delete", color: "var(--red-strong)", border: "var(--red-strong)", fn: () => handleUpdateStatus(campaign.id, "Campaign", null, "delete"), disabled: updatingStatusId === campaign.id },
+                  ].map(btn => (
+                    <button key={btn.label}
+                      onClick={(e) => { e.stopPropagation(); btn.fn(); }}
+                      disabled={btn.disabled}
+                      style={{ padding: "5px 14px", borderRadius: 20, border: `1px solid ${btn.border}`, background: "transparent", color: btn.color, fontSize: 11, fontWeight: 700, cursor: btn.disabled ? "default" : "pointer", opacity: btn.disabled ? 0.45 : 1, transition: "all 0.15s" }}
+                    >{btn.label}</button>
+                  ))}
                 </div>
               </div>
 
@@ -4437,39 +4427,24 @@ export default function Dashboard() {
                           else next.add(adset.id);
                           return next;
                         })}
-                        style={{ padding: "12px 16px", background: "var(--surface)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}
+                        style={{ padding: "10px 14px", background: "var(--surface)", cursor: "pointer", display: "flex", flexDirection: "column", gap: 8 }}
                       >
-                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                          <span style={{ fontSize: 13, color: "var(--primary)", transition: "transform 0.2s", transform: expandedAdSets.has(adset.id) ? "rotate(90deg)" : "rotate(0deg)" }}>▶</span>
-                          <span style={{ fontSize: 14, fontWeight: 600 }}>Set: {adset.name}</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 12, color: "var(--primary)", transition: "transform 0.2s", transform: expandedAdSets.has(adset.id) ? "rotate(90deg)" : "rotate(0deg)", flexShrink: 0 }}>▶</span>
+                          <span style={{ fontSize: 13, fontWeight: 600, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{adset.name}</span>
+                          <Badge text={adset.effective_status} color={adset.effective_status === "ACTIVE" ? "var(--green)" : "var(--amber)"} bg={adset.effective_status === "ACTIVE" ? "var(--green-light)" : "var(--amber-light)"} />
                         </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                          <Badge
-                            text={adset.effective_status}
-                            color={adset.effective_status === "ACTIVE" ? "var(--green)" : "var(--amber)"}
-                            bg={adset.effective_status === "ACTIVE" ? "var(--green-light)" : "var(--amber-light)"}
-                          />
-                          <div style={{ display: "flex", gap: 8 }} onClick={(e) => e.stopPropagation()}>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleEditAdSet(campaign.id, adset.id); }}
-                              style={{ padding: "4px 12px", borderRadius: "var(--radius-pill)", border: "1px solid var(--primary)", background: "transparent", color: "var(--primary)", fontSize: 10, fontWeight: 800, cursor: "pointer", transition: "all 0.2s" }}
-                            >Edit</button>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleUpdateStatus(adset.id, "AdSet", "ACTIVE", "run"); }}
-                              disabled={adset.effective_status === "ACTIVE" || updatingStatusId === adset.id}
-                              style={{ padding: "4px 12px", borderRadius: "var(--radius-pill)", border: "1px solid var(--green)", background: adset.effective_status === "ACTIVE" ? "var(--green-light)" : "transparent", color: "var(--green)", fontSize: 10, fontWeight: 800, cursor: adset.effective_status === "ACTIVE" ? "default" : "pointer", opacity: updatingStatusId === adset.id ? 0.5 : 1, transition: "all 0.2s" }}
-                            >Run</button>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleUpdateStatus(adset.id, "AdSet", "PAUSED", "pause"); }}
-                              disabled={adset.effective_status === "PAUSED" || updatingStatusId === adset.id}
-                              style={{ padding: "4px 12px", borderRadius: "var(--radius-pill)", border: "1px solid var(--amber)", background: adset.effective_status === "PAUSED" ? "var(--amber-light)" : "transparent", color: "var(--amber)", fontSize: 10, fontWeight: 800, cursor: adset.effective_status === "PAUSED" ? "default" : "pointer", opacity: updatingStatusId === adset.id ? 0.5 : 1, transition: "all 0.2s" }}
-                            >Pause</button>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleUpdateStatus(adset.id, "AdSet", null, "delete"); }}
-                              disabled={updatingStatusId === adset.id}
-                              style={{ padding: "4px 12px", borderRadius: "var(--radius-pill)", border: "1px solid var(--red-strong)", background: "transparent", color: "var(--red-strong)", fontSize: 10, fontWeight: 800, cursor: "pointer", opacity: updatingStatusId === adset.id ? 0.5 : 1, transition: "all 0.2s" }}
-                            >Delete</button>
-                          </div>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", paddingLeft: 20 }} onClick={(e) => e.stopPropagation()}>
+                          {[
+                            { label: "Edit", color: "var(--primary)", fn: () => handleEditAdSet(campaign.id, adset.id), disabled: false },
+                            { label: "Run", color: "var(--green)", fn: () => handleUpdateStatus(adset.id, "AdSet", "ACTIVE", "run"), disabled: adset.effective_status === "ACTIVE" || updatingStatusId === adset.id },
+                            { label: "Pause", color: "var(--amber)", fn: () => handleUpdateStatus(adset.id, "AdSet", "PAUSED", "pause"), disabled: adset.effective_status === "PAUSED" || updatingStatusId === adset.id },
+                            { label: "Delete", color: "var(--red-strong)", fn: () => handleUpdateStatus(adset.id, "AdSet", null, "delete"), disabled: updatingStatusId === adset.id },
+                          ].map(btn => (
+                            <button key={btn.label} onClick={(e) => { e.stopPropagation(); btn.fn(); }} disabled={btn.disabled}
+                              style={{ padding: "3px 10px", borderRadius: 20, border: `1px solid ${btn.color}`, background: "transparent", color: btn.color, fontSize: 10, fontWeight: 700, cursor: btn.disabled ? "default" : "pointer", opacity: btn.disabled ? 0.45 : 1 }}
+                            >{btn.label}</button>
+                          ))}
                         </div>
                       </div>
 
@@ -4479,70 +4454,49 @@ export default function Dashboard() {
                           {adset.ads?.data?.length > 0 ? adset.ads.data.map(ad => {
                             const insights = ad.insights?.data?.[0] || {};
                             return (
-                              <div key={ad.id} style={{ display: "flex", gap: 16, padding: 12, borderRadius: "var(--radius-sm)", background: "var(--surface)", border: "1px solid var(--border-light)", boxShadow: "var(--shadow-sm)" }}>
-                                {/* Ad Image/Thumbnail */}
-                                <div style={{ width: 80, height: 80, borderRadius: "8px", background: "#000", overflow: "hidden", flexShrink: 0, border: "1px solid var(--border-light)" }}>
-                                  {ad.creative?.thumbnail_url ? (
-                                    <img src={ad.creative.thumbnail_url} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                                  ) : (
-                                    <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#666", fontSize: 20 }}>🎬</div>
-                                  )}
+                              <div key={ad.id} style={{ padding: 12, borderRadius: 10, background: "var(--surface)", border: "1px solid var(--border-light)" }}>
+                                {/* Ad header: thumbnail + name + status */}
+                                <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
+                                  <div style={{ width: 56, height: 56, borderRadius: 8, background: "#000", overflow: "hidden", flexShrink: 0, border: "1px solid var(--border-light)" }}>
+                                    {ad.creative?.thumbnail_url
+                                      ? <img src={ad.creative.thumbnail_url} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                      : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#666", fontSize: 18 }}>🎬</div>
+                                    }
+                                  </div>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 6 }}>
+                                      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{ad.name}</div>
+                                      <Badge text={ad.effective_status} color={ad.effective_status === "ACTIVE" ? "var(--green)" : "var(--amber)"} bg={ad.effective_status === "ACTIVE" ? "var(--green-light)" : "var(--amber-light)"} />
+                                    </div>
+                                    <div style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: "monospace", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>ID: {ad.id}</div>
+                                  </div>
                                 </div>
 
-                                {/* Ad Info */}
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 8 }}>
-                                    <div>
-                                      <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 2, color: "var(--text)" }}>{ad.name}</div>
-                                      <div style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "monospace" }}>ID: {ad.id}</div>
+                                {/* Metrics */}
+                                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, padding: "8px 10px", background: "var(--card-bg)", borderRadius: 8, border: "1px solid var(--border-light)", marginBottom: 10 }}>
+                                  {[
+                                    { label: "Spend", value: `$${insights.spend || "0.00"}`, color: "var(--text)" },
+                                    { label: "CTR", value: `${parseFloat(insights.inline_link_click_ctr || 0).toFixed(2)}%`, color: "var(--primary)" },
+                                    { label: "Clicks", value: insights.clicks || "0", color: "var(--text)" },
+                                  ].map(m => (
+                                    <div key={m.label}>
+                                      <div style={{ fontSize: 9, color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 700 }}>{m.label}</div>
+                                      <div style={{ fontSize: 13, fontWeight: 700, color: m.color }}>{m.value}</div>
                                     </div>
-                                    <Badge
-                                      text={ad.effective_status}
-                                      color={ad.effective_status === "ACTIVE" ? "var(--green)" : "var(--amber)"}
-                                      bg={ad.effective_status === "ACTIVE" ? "var(--green-light)" : "var(--amber-light)"}
-                                    />
-                                  </div>
+                                  ))}
+                                </div>
 
-                                  {/* Metrics Row */}
-                                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 md:gap-3 mb-3 bg-[var(--card-bg)] p-2 md:p-3 rounded-lg border border-[var(--border-light)]">
-                                    <div style={{ display: "flex", flexDirection: "column" }}>
-                                      <span style={{ fontSize: 9, color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 700 }}>Spend</span>
-                                      <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text)" }}>${insights.spend || "0.00"}</span>
-                                    </div>
-                                    <div style={{ display: "flex", flexDirection: "column" }}>
-                                      <span style={{ fontSize: 9, color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 700 }}>CTR</span>
-                                      <span style={{ fontSize: 12, fontWeight: 700, color: "var(--primary)" }}>{parseFloat(insights.inline_link_click_ctr || 0).toFixed(2)}%</span>
-                                    </div>
-                                    <div style={{ display: "flex", flexDirection: "column" }}>
-                                      <span style={{ fontSize: 9, color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 700 }}>Clicks</span>
-                                      <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text)" }}>{insights.clicks || "0"}</span>
-                                    </div>
-                                  </div>
-
-                                  {/* Controls */}
-                                  <div style={{ display: "flex", gap: 8 }}>
-                                    <button
-                                      onClick={() => handleUpdateStatus(ad.id, "Ad", "ACTIVE", "run")}
-                                      disabled={ad.effective_status === "ACTIVE" || updatingStatusId === ad.id}
-                                      style={{ padding: "6px 16px", borderRadius: "var(--radius- pill)", border: "1.5px solid var(--green)", background: ad.effective_status === "ACTIVE" ? "var(--green-light)" : "transparent", color: "var(--green)", fontSize: 11, fontWeight: 800, cursor: ad.effective_status === "ACTIVE" ? "default" : "pointer", opacity: updatingStatusId === ad.id ? 0.5 : 1, transition: "all 0.2s" }}
-                                    >
-                                      Run
-                                    </button>
-                                    <button
-                                      onClick={() => handleUpdateStatus(ad.id, "Ad", "PAUSED", "pause")}
-                                      disabled={ad.effective_status === "PAUSED" || updatingStatusId === ad.id}
-                                      style={{ padding: "6px 16px", borderRadius: "var(--radius-pill)", border: "1.5px solid var(--amber)", background: ad.effective_status === "PAUSED" ? "var(--amber-light)" : "transparent", color: "var(--amber)", fontSize: 11, fontWeight: 800, cursor: ad.effective_status === "PAUSED" ? "default" : "pointer", opacity: updatingStatusId === ad.id ? 0.5 : 1, transition: "all 0.2s" }}
-                                    >
-                                      Pause
-                                    </button>
-                                    <button
-                                      onClick={() => handleUpdateStatus(ad.id, "Ad", null, "delete")}
-                                      disabled={updatingStatusId === ad.id}
-                                      style={{ padding: "6px 16px", borderRadius: "var(--radius-pill)", border: "1.5px solid var(--red-strong)", background: "transparent", color: "var(--red-strong)", fontSize: 11, fontWeight: 800, cursor: "pointer", opacity: updatingStatusId === ad.id ? 0.5 : 1, transition: "all 0.2s" }}
-                                    >
-                                      Delete
-                                    </button>
-                                  </div>
+                                {/* Controls */}
+                                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                                  {[
+                                    { label: "Run", color: "var(--green)", disabled: ad.effective_status === "ACTIVE" || updatingStatusId === ad.id, fn: () => handleUpdateStatus(ad.id, "Ad", "ACTIVE", "run") },
+                                    { label: "Pause", color: "var(--amber)", disabled: ad.effective_status === "PAUSED" || updatingStatusId === ad.id, fn: () => handleUpdateStatus(ad.id, "Ad", "PAUSED", "pause") },
+                                    { label: "Delete", color: "var(--red-strong)", disabled: updatingStatusId === ad.id, fn: () => handleUpdateStatus(ad.id, "Ad", null, "delete") },
+                                  ].map(btn => (
+                                    <button key={btn.label} onClick={btn.fn} disabled={btn.disabled}
+                                      style={{ padding: "5px 14px", borderRadius: 20, border: `1.5px solid ${btn.color}`, background: "transparent", color: btn.color, fontSize: 11, fontWeight: 700, cursor: btn.disabled ? "default" : "pointer", opacity: btn.disabled ? 0.45 : 1 }}
+                                    >{btn.label}</button>
+                                  ))}
                                 </div>
                               </div>
                             );
@@ -4690,7 +4644,7 @@ export default function Dashboard() {
           REPORTS — Meta Ads Performance Dashboard
       ═══════════════════════════════════════════════════════ */}
       {tab === "reports" && (
-        <div className="animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: 20, paddingBottom: 40 }}>
+        <div className="animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: 16, paddingBottom: 40, paddingTop: 8 }}>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3" style={{ marginBottom: 10 }}>
             <div>
               <SectionTitle style={{ marginBottom: 4 }}>Meta Ads Performance</SectionTitle>
@@ -4787,6 +4741,41 @@ export default function Dashboard() {
                   <div style={{ padding: 40, textAlign: "center", color: "var(--text-muted)", fontSize: 14 }}>
                     No campaigns found
                   </div>
+                ) : typeof window !== "undefined" && window.innerWidth <= 768 ? (
+                  /* ── MOBILE: card list ── */
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "12px" }}>
+                    {metaCampaignInsights.map((c: any) => {
+                      const ins = c.insights || {};
+                      const isActive = c.effective_status === "ACTIVE";
+                      return (
+                        <div key={c.id} style={{ background: "#fff", borderRadius: 14, border: "1.5px solid #e2e8f0", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                          {/* Card header */}
+                          <div style={{ padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, background: "#f8fafc", borderBottom: "1px solid #f1f5f9" }}>
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              <div style={{ fontWeight: 700, fontSize: 13, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</div>
+                            </div>
+                            <div style={{ flexShrink: 0, padding: "3px 10px", borderRadius: 20, fontSize: 10, fontWeight: 800, background: isActive ? "#f0fdf4" : "#fffbeb", color: isActive ? "#16a34a" : "#d97706", border: `1px solid ${isActive ? "#86efac" : "#fde68a"}` }}>
+                              {c.effective_status}
+                            </div>
+                          </div>
+                          {/* Metrics */}
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", padding: "12px 14px", gap: 6 }}>
+                            {[
+                              { label: "Spend", value: `$${parseFloat(ins.spend || 0).toFixed(2)}`, color: "#0f172a" },
+                              { label: "Reach", value: parseFloat(ins.impressions || "0").toLocaleString(), color: "#0f172a" },
+                              { label: "CTR", value: `${parseFloat(ins.inline_link_click_ctr || 0).toFixed(2)}%`, color: "#2563eb" },
+                              { label: "Leads", value: parseFloat(ins.leads || "0").toLocaleString(), color: "#16a34a" },
+                            ].map(m => (
+                              <div key={m.label} style={{ textAlign: "center" }}>
+                                <div style={{ fontSize: 9, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 3 }}>{m.label}</div>
+                                <div style={{ fontSize: 14, fontWeight: 800, color: m.color }}>{m.value}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 ) : (
                   <div style={{ overflowX: "auto" }}>
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 900 }}>
@@ -4849,7 +4838,7 @@ export default function Dashboard() {
                       </tbody>
                     </table>
                   </div>
-                )}
+                )}  {/* end desktop table / mobile cards */}
               </Card>
             </>
           )}
@@ -4977,12 +4966,7 @@ export default function Dashboard() {
           SOCIAL-DASH — Creator Studio Section
       ═══════════════════════════════════════════════════════ */}
       {tab === "social-dash" && (
-        <div className="animate-fade-in" style={{
-          margin: "-40px",
-          padding: "40px",
-          minHeight: "calc(100vh - 100px)",
-          borderRadius: "var(--radius-lg)"
-        }}>
+        <div className="animate-fade-in sd-tab-wrapper">
           <SocialDash />
         </div>
       )}
@@ -4991,7 +4975,7 @@ export default function Dashboard() {
           PROFILE SECTION
       ═══════════════════════════════════════════════════════ */}
       {tab === "profile" && (
-        <div className="animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: 24, maxWidth: 1200, margin: "0 auto", padding: "16px 0", width: "100%" }}>
+        <div className="animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 1200, margin: "0 auto", padding: "8px 0", width: "100%", boxSizing: "border-box" }}>
 
           {/* Page Header */}
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
@@ -5047,23 +5031,21 @@ export default function Dashboard() {
               { key: "competitors", label: "Competitors", placeholder: "Competing clinics/brands to benchmark against", iconEl: <Users size={16} color="#DB2777" />, iconBg: "#FDF2F8" },
               { key: "painPoints", label: "Pain Points", placeholder: 'Core customer problems your service solves (e.g., "High costs at home", "Hair loss confidence")', iconEl: <AlertTriangle size={16} color="#D97706" />, iconBg: "#FFFBEB" },
             ].map((f, i, arr) => (
-              <div key={f.key} style={{ display: "flex", alignItems: "flex-start", gap: 16, padding: "16px 24px", borderBottom: i < arr.length - 1 ? "1px solid #F1F5F9" : "none" }}>
-                <div style={{ width: 40, height: 40, borderRadius: 12, background: f.iconBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }}>
-                  {f.iconEl}
-                </div>
-                <div style={{ width: 160, flexShrink: 0, paddingTop: 8 }}>
+              <div key={f.key} className="profile-field-row" style={{ padding: "14px 20px", borderBottom: i < arr.length - 1 ? "1px solid #F1F5F9" : "none" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                  <div style={{ width: 34, height: 34, borderRadius: 10, background: f.iconBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    {f.iconEl}
+                  </div>
                   <label style={{ fontSize: 13, fontWeight: 600, color: "#1E293B" }}>{f.label}</label>
                 </div>
-                <div style={{ flex: 1 }}>
-                  <textarea
-                    value={profileData[f.key]}
-                    onChange={(e) => setProfileData({...profileData, [f.key]: e.target.value})}
-                    placeholder={f.placeholder}
-                    rows={2}
-                    disabled={!isEditingProfile}
-                    style={{ width: "100%", padding: "10px 14px", fontSize: 13, border: `1.5px solid ${isEditingProfile ? "#93C5FD" : "#E2E8F0"}`, borderRadius: 12, background: isEditingProfile ? "#fff" : "#F8FAFC", color: "#334155", outline: "none", resize: "none", lineHeight: 1.6, fontFamily: "inherit", boxSizing: "border-box", cursor: isEditingProfile ? "text" : "default" }}
-                  />
-                </div>
+                <textarea
+                  value={profileData[f.key]}
+                  onChange={(e) => setProfileData({...profileData, [f.key]: e.target.value})}
+                  placeholder={f.placeholder}
+                  rows={2}
+                  disabled={!isEditingProfile}
+                  style={{ width: "100%", padding: "10px 14px", fontSize: 13, border: `1.5px solid ${isEditingProfile ? "#93C5FD" : "#E2E8F0"}`, borderRadius: 12, background: isEditingProfile ? "#fff" : "#F8FAFC", color: "#334155", outline: "none", resize: "none", lineHeight: 1.6, fontFamily: "inherit", boxSizing: "border-box", cursor: isEditingProfile ? "text" : "default" }}
+                />
               </div>
             ))}
           </div>
@@ -5084,23 +5066,21 @@ export default function Dashboard() {
               { key: "icpNewsletter", label: "ICP - Newsletter", placeholder: "Subscriber profile — who reads your emails, what stage of journey they're in (e.g., \"Already aware of medical tourism, comparing options, needs trust-building\")", iconEl: <Mail size={16} color="#7C3AED" />, iconBg: "#F5F3FF" },
               { key: "icpOutreach", label: "ICP - Outreach", placeholder: 'Cold lead profile — job title, business type, location for scraping (e.g., "Clinic owners in UAE, Real Estate agents in Dubai")', iconEl: <Send size={16} color="#2563EB" />, iconBg: "#EFF6FF" },
             ].map((f, i, arr) => (
-              <div key={f.key} style={{ display: "flex", alignItems: "flex-start", gap: 16, padding: "16px 24px", borderBottom: i < arr.length - 1 ? "1px solid #F1F5F9" : "none" }}>
-                <div style={{ width: 40, height: 40, borderRadius: 12, background: f.iconBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }}>
-                  {f.iconEl}
-                </div>
-                <div style={{ width: 160, flexShrink: 0, paddingTop: 8 }}>
+              <div key={f.key} className="profile-field-row" style={{ padding: "14px 20px", borderBottom: i < arr.length - 1 ? "1px solid #F1F5F9" : "none" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                  <div style={{ width: 34, height: 34, borderRadius: 10, background: f.iconBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    {f.iconEl}
+                  </div>
                   <label style={{ fontSize: 13, fontWeight: 600, color: "#1E293B" }}>{f.label}</label>
                 </div>
-                <div style={{ flex: 1 }}>
-                  <textarea
-                    value={profileData[f.key]}
-                    onChange={(e) => setProfileData({...profileData, [f.key]: e.target.value})}
-                    placeholder={f.placeholder}
-                    rows={3}
-                    disabled={!isEditingProfile}
-                    style={{ width: "100%", padding: "10px 14px", fontSize: 13, border: `1.5px solid ${isEditingProfile ? "#93C5FD" : "#E2E8F0"}`, borderRadius: 12, background: isEditingProfile ? "#fff" : "#F8FAFC", color: "#334155", outline: "none", resize: "none", lineHeight: 1.6, fontFamily: "inherit", boxSizing: "border-box", cursor: isEditingProfile ? "text" : "default" }}
-                  />
-                </div>
+                <textarea
+                  value={profileData[f.key]}
+                  onChange={(e) => setProfileData({...profileData, [f.key]: e.target.value})}
+                  placeholder={f.placeholder}
+                  rows={2}
+                  disabled={!isEditingProfile}
+                  style={{ width: "100%", padding: "10px 14px", fontSize: 13, border: `1.5px solid ${isEditingProfile ? "#93C5FD" : "#E2E8F0"}`, borderRadius: 12, background: isEditingProfile ? "#fff" : "#F8FAFC", color: "#334155", outline: "none", resize: "none", lineHeight: 1.6, fontFamily: "inherit", boxSizing: "border-box", cursor: isEditingProfile ? "text" : "default" }}
+                />
               </div>
             ))}
           </div>
@@ -5137,6 +5117,7 @@ export default function Dashboard() {
         } catch (e) { console.error("JSON parse error:", e); }
 
         const isVid = (ad.format || "").toLowerCase() === "video";
+        const isMobileModal = typeof window !== "undefined" && window.innerWidth <= 768;
 
         return (
           <div
@@ -5152,21 +5133,21 @@ export default function Dashboard() {
             <div
               onClick={(e) => e.stopPropagation()}
               style={{
-                background: "#fff", width: "100%", maxWidth: 860,
-                borderRadius: 20, overflow: "hidden", display: "flex",
-                flexDirection: "column", maxHeight: "92vh",
+                background: "#fff", width: "100%", maxWidth: isMobileModal ? "100%" : 860,
+                borderRadius: isMobileModal ? 16 : 20, overflow: "hidden", display: "flex",
+                flexDirection: "column", maxHeight: "94vh",
                 boxShadow: "0 24px 64px rgba(0,0,0,0.4)",
                 border: "1px solid #e2e8f0",
               }}
             >
               {/* ── Modal Header ── */}
-              <div style={{ padding: "16px 24px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#f8fafc" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ padding: "4px 12px", borderRadius: 20, fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", background: isVid ? "#eff6ff" : "#fffbeb", color: isVid ? "#1d4ed8" : "#b45309", border: `1px solid ${isVid ? "#bfdbfe" : "#fde68a"}` }}>
+              <div style={{ padding: isMobileModal ? "12px 16px" : "16px 24px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#f8fafc", flexWrap: "wrap", gap: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <div style={{ padding: "4px 10px", borderRadius: 20, fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", background: isVid ? "#eff6ff" : "#fffbeb", color: isVid ? "#1d4ed8" : "#b45309", border: `1px solid ${isVid ? "#bfdbfe" : "#fde68a"}` }}>
                     {isVid ? "🎬 Video" : "🖼️ Image"}
                   </div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "#0f172a" }}>Ad ID: <span style={{ fontFamily: "monospace", color: "#475569" }}>{ad.id}</span></div>
-                  <div style={{ fontSize: 11, color: "#94a3b8" }}>· {new Date(ad.time).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "#0f172a" }}>Ad ID: <span style={{ fontFamily: "monospace", color: "#475569" }}>{ad.id}</span></div>
+                  {!isMobileModal && <div style={{ fontSize: 11, color: "#94a3b8" }}>· {new Date(ad.time).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</div>}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   {!isEditingAd && !isRetryingAd && (
@@ -5198,21 +5179,28 @@ export default function Dashboard() {
               </div>
 
               {/* ── Modal Body ── */}
-              <div style={{ display: "flex", flex: 1, overflow: "hidden", minHeight: 0 }}>
+              <div style={{ display: "flex", flex: 1, overflow: "hidden", minHeight: 0, flexDirection: isMobileModal ? "column" : "row" }}>
                 {/* Media Panel */}
-                <div style={{ width: "42%", flexShrink: 0, background: "#0f172a", display: "flex", alignItems: "center", justifyContent: "center", borderRight: "1px solid #1e293b" }}>
+                <div style={{
+                  width: isMobileModal ? "100%" : "42%",
+                  height: isMobileModal ? 240 : "auto",
+                  flexShrink: 0, background: "#0f172a",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  borderRight: isMobileModal ? "none" : "1px solid #1e293b",
+                  borderBottom: isMobileModal ? "1px solid #1e293b" : "none",
+                }}>
                   {isVid ? (
-                    <video src={ad.text} controls style={{ width: "100%", height: "100%", objectFit: "contain", maxHeight: "80vh" }} />
+                    <video src={ad.text} controls style={{ width: "100%", height: "100%", objectFit: "contain", maxHeight: isMobileModal ? 240 : "80vh" }} />
                   ) : (
-                    <img src={ad.text} alt="Ad" style={{ width: "100%", height: "100%", objectFit: "contain", maxHeight: "80vh" }} />
+                    <img src={ad.text} alt="Ad" style={{ width: "100%", height: "100%", objectFit: "contain", maxHeight: isMobileModal ? 240 : "80vh" }} />
                   )}
                 </div>
 
                 {/* Info Panel */}
-                <div style={{ flex: 1, padding: "24px", overflowY: "auto", display: "flex", flexDirection: "column", gap: 20 }}>
+                <div style={{ flex: 1, padding: isMobileModal ? "16px" : "24px", overflowY: "auto", display: "flex", flexDirection: "column", gap: isMobileModal ? 14 : 20 }}>
 
                   {/* Campaign & Ad Name */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: isMobileModal ? "1fr" : "1fr 1fr", gap: isMobileModal ? 10 : 16 }}>
                     <div>
                       <div style={{ fontSize: 10, fontWeight: 800, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>Campaign Name</div>
                       {isEditingAd ? (
@@ -5266,7 +5254,7 @@ export default function Dashboard() {
                   )}
 
                   {/* CTA + Link */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: isMobileModal ? "1fr" : "1fr 1fr", gap: isMobileModal ? 10 : 16 }}>
                     <div>
                       <div style={{ fontSize: 10, fontWeight: 800, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>Call to Action</div>
                       {isEditingAd ? (

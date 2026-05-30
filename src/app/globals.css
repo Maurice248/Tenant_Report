@@ -208,6 +208,14 @@ html {
   text-rendering: optimizeLegibility;
 }
 
+/* Only restrict overflow on mobile to avoid breaking desktop modals */
+@media (max-width: 768px) {
+  html, body {
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+}
+
 body {
   background: var(--bg);
   color: var(--text);
@@ -889,9 +897,10 @@ pre {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 90%;
+  width: 92%;
   max-width: 540px;
   max-height: 90vh;
+  height: auto; /* fit content — no empty space */
   background: #ffffff;
   border-radius: 20px;
   box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.2);
@@ -899,6 +908,8 @@ pre {
   overflow-y: auto;
   padding: 0;
   animation: sdModalScale 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
 }
 
 @keyframes sdModalScale {
@@ -1024,7 +1035,7 @@ pre {
 }
 
 .sd-modal-footer {
-  margin-top: 32px;
+  margin-top: 20px;
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -1326,6 +1337,335 @@ pre {
     display: flex !important;
   }
   .main-layout-content {
-    padding-top: 60px !important;
+    padding-top: 72px !important;
+  }
+}
+
+/* ── Overview mobile tweaks ── */
+@media (max-width: 768px) {
+  /* Show Quick Actions first on mobile */
+  .overview-right-col { order: -1; }
+  .overview-left-col  { order: 0; }
+
+  /* Compact metric ribbon on mobile */
+  .overview-metric-grid > div {
+    padding: 12px 10px !important;
+  }
+  .overview-metric-grid .metric-value {
+    font-size: 22px !important;
+  }
+
+  /* Compact Account Health card */
+  .account-health-card {
+    padding: 14px 14px !important;
+  }
+
+  /* Quick Actions: compact items */
+  .quick-action-item {
+    padding: 10px 12px !important;
+  }
+}
+
+/* Previous Runs: always visible on desktop, toggle-controlled on mobile */
+@media (min-width: 769px) {
+  .prev-runs-list {
+    display: flex !important;
+  }
+  /* Hide the mobile chevron on desktop */
+  .prev-runs-chevron {
+    display: none !important;
+  }
+}
+
+/* ── Create Ads mobile layout ── */
+@media (max-width: 768px) {
+  /* Config cards: single column on mobile */
+  .create-ads-config-grid {
+    grid-template-columns: 1fr !important;
+    padding: 12px 14px !important;
+    gap: 12px !important;
+  }
+
+  /* Allocate Types: 2 per row with wrap */
+  .create-ads-allocate-row {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)) !important;
+    gap: 8px !important;
+  }
+}
+
+/* ── Create Ads: 2-col input grids → single col on mobile ── */
+@media (max-width: 768px) {
+  /* Stack Duration/AudioStyle, Character/Voice, VisualStyle/Language */
+  .create-ads-config-grid > div > div > div[style*="gridTemplateColumns: \"1fr 1fr\""],
+  .create-ads-config-grid > div > div > div[style*='gridTemplateColumns: "1fr 1fr"'] {
+    grid-template-columns: 1fr !important;
+  }
+  /* Voice Explorer modal: full screen height on mobile */
+  .sd-modal-content {
+    width: 95vw !important;
+    min-width: 0 !important;
+    height: 92vh !important;
+    padding: 16px !important;
+    border-radius: 16px !important;
+  }
+  /* Fix filter row overflow */
+  .sd-modal-content > div > div[style*="gap: '12px'"] {
+    flex-wrap: wrap !important;
+  }
+  /* Voice modal padding */
+  .sd-modal-content > div:nth-child(2) {
+    padding: 12px !important;
+  }
+}
+
+/* ══════════════════════════════════════════════
+   PREMIUM INPUT / SELECT STYLING (global)
+   ══════════════════════════════════════════════ */
+
+/* Soft custom select */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: #f8fafc;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 34px !important;
+  border: 1.5px solid #e2e8f0 !important;
+  border-radius: 10px !important;
+  color: #0f172a !important;
+  font-size: 13px !important;
+  font-weight: 500;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  cursor: pointer;
+  max-width: 100%;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+
+select:focus {
+  outline: none !important;
+  border-color: #93c5fd !important;
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.08) !important;
+  background-color: #fff !important;
+}
+
+select:hover {
+  border-color: #cbd5e1 !important;
+  background-color: #fff !important;
+}
+
+/* Soft text inputs and textareas */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="datetime-local"],
+textarea {
+  border-radius: 10px !important;
+  border: 1.5px solid #e2e8f0 !important;
+  background: #f8fafc !important;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
+input[type="number"]:focus,
+input[type="datetime-local"]:focus,
+textarea:focus {
+  outline: none !important;
+  border-color: #93c5fd !important;
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.08) !important;
+  background: #fff !important;
+}
+
+/* ── Config input grids: single column on mobile ── */
+@media (max-width: 768px) {
+  .config-input-grid {
+    grid-template-columns: 1fr !important;
+  }
+  select, input, textarea {
+    max-width: 100%;
+    width: 100% !important;
+    font-size: 14px !important;
+  }
+  /* Contain cards within viewport */
+  .create-ads-config-grid > div {
+    min-width: 0;
+    max-width: 100%;
+    overflow: visible;
+  }
+  /* Prevent any child from overflowing */
+  .main-layout-content * {
+    max-width: 100%;
+  }
+}
+
+/* ── SocialDash mobile fixes ── */
+@media (max-width: 768px) {
+  .sd-root {
+    padding: 4px 0 32px !important;
+  }
+  .sd-action-card {
+    padding: 16px 14px !important;
+    border-radius: 12px !important;
+  }
+  .sd-action-card input,
+  .sd-action-card textarea,
+  .sd-action-card select {
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  .sd-header {
+    padding: 0 0 8px !important;
+  }
+  .sd-card-title {
+    font-size: 14px !important;
+  }
+}
+
+/* ── SocialDash RIGHT PANEL mobile fixes ── */
+@media (max-width: 768px) {
+  /* Constrain entire right panel */
+  .sd-right,
+  .sd-preview-panel,
+  .sd-image-workspace-panel {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    overflow-x: hidden !important;
+  }
+
+  /* Phone mockup: fill available width */
+  .sd-phone-frame {
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  /* All textareas, inputs, buttons inside sd-right */
+  .sd-right textarea,
+  .sd-right input,
+  .sd-right button:not(.sd-btn-refresh-small) {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Image workspace padding */
+  .sd-image-workspace-panel {
+    padding: 14px !important;
+  }
+
+  /* Preview header */
+  .sd-preview-header {
+    padding: 12px 14px !important;
+  }
+
+  /* Platform button tabs — allow scroll */
+  .sd-right [style*="display: 'flex'"][style*="gap: '4px'"],
+  .sd-right [style*="justifyContent: 'space-between'"] {
+    flex-wrap: wrap !important;
+  }
+
+  /* Edit post section */
+  .sd-right [style*="borderRadius: '12px'"] {
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Constrain any fixed-width children */
+  .sd-right > * {
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+}
+
+/* ── SocialDash: constrain ALL content to viewport on mobile ── */
+@media (max-width: 768px) {
+  /* Root container */
+  .sd-root {
+    overflow-x: hidden !important;
+    width: 100% !important;
+  }
+
+  /* Grid: single column */
+  .sd-grid {
+    width: 100% !important;
+    overflow-x: hidden !important;
+  }
+
+  /* Preview panel min-height reduced */
+  .sd-preview-panel {
+    min-height: 0 !important;
+  }
+
+  /* Approval bar: full width button */
+  .sd-approval-bar {
+    padding: 14px !important;
+  }
+  .sd-btn-post {
+    width: 100% !important;
+  }
+
+  /* Post copy edit section textarea */
+  .sd-right textarea {
+    min-height: 100px !important;
+    max-height: 180px !important;
+  }
+
+  /* Platform selector tabs: scroll horizontally */
+  .sd-right [style*="gap: '4px'"] {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Image workspace: tighter padding */
+  .sd-image-workspace-panel {
+    padding: 14px !important;
+    border-radius: 12px !important;
+  }
+}
+
+/* SocialDash tab wrapper */
+.sd-tab-wrapper {
+  margin: -24px -32px;
+  padding: 24px 32px;
+  min-height: calc(100vh - 100px);
+  width: calc(100% + 64px);
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  .sd-tab-wrapper {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    min-height: unset !important;
+  }
+}
+
+/* ── Retry Modal: compact on mobile ── */
+@media (max-width: 768px) {
+  .sd-modal-content[style*="maxWidth: 440"],
+  .sd-modal-content[style*="max-width: 440"] {
+    width: 88% !important;
+  }
+  .sd-modal-form {
+    padding: 20px !important;
+  }
+  .sd-modal-header {
+    padding: 16px 20px !important;
+  }
+  .sd-form-textarea {
+    min-height: 80px !important;
+  }
+  .sd-modal-footer {
+    margin-top: 16px !important;
+    flex-direction: row !important;
+  }
+  .sd-modal-footer button {
+    flex: 1 !important;
   }
 }

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { Spinner, Badge } from "./components";
+import CustomSelect from "./CustomSelect";
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 const normalizeSupabaseUrl = (url: string | null | undefined) => {
@@ -208,7 +209,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
     <div style={{ fontFamily: "'Inter', -apple-system, sans-serif", maxWidth: 900, margin: "0 auto" }}>
 
       {/* ── Page Header ── */}
-      <div style={{ marginBottom: 28 }}>
+      <div style={{ marginBottom: 28, paddingTop: 12 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: "#2563eb", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>
           Meta Ads Manager
         </div>
@@ -348,15 +349,18 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
                 </Label>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                   <Label label="Campaign Objective">
-                    <select value={config.campaign?.objective || ""} onChange={e => setField("campaign", "objective", e.target.value)} style={inputSt}>
-                      {CAMPAIGN_OBJECTIVES.map(o => <option key={o.value} value={o.value}>{o.icon} {o.label}</option>)}
-                    </select>
+                    <CustomSelect
+                      value={config.campaign?.objective || ""}
+                      onChange={v => setField("campaign", "objective", v)}
+                      options={CAMPAIGN_OBJECTIVES.map(o => ({ value: o.value, label: `${o.icon} ${o.label}` }))}
+                    />
                   </Label>
                   <Label label="Buying Type">
-                    <select value={config.campaign?.buying_type || "AUCTION"} onChange={e => setField("campaign", "buying_type", e.target.value)} style={inputSt}>
-                      <option value="AUCTION">Auction</option>
-                      <option value="REACH">Reach</option>
-                    </select>
+                    <CustomSelect
+                      value={config.campaign?.buying_type || "AUCTION"}
+                      onChange={v => setField("campaign", "buying_type", v)}
+                      options={[{ value: "AUCTION", label: "Auction" }, { value: "REACH", label: "Reach" }]}
+                    />
                   </Label>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "#f8fafc", borderRadius: 10, border: "1px solid #e2e8f0" }}>
@@ -401,9 +405,11 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
                 <LocationSearch geoLocations={config.ad_set?.geo_locations} onChange={v => setField("ad_set", "geo_locations", v)} />
               </Label>
               <Label label="Optimisation Goal">
-                <select value={config.ad_set?.optimization_goal || ""} onChange={e => setField("ad_set", "optimization_goal", e.target.value)} style={inputSt}>
-                  {OPTIMIZATION_GOALS.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}
-                </select>
+                <CustomSelect
+                  value={config.ad_set?.optimization_goal || ""}
+                  onChange={v => setField("ad_set", "optimization_goal", v)}
+                  options={OPTIMIZATION_GOALS.map(g => ({ value: g.value, label: g.label }))}
+                />
               </Label>
             </div>
           </div>
@@ -411,11 +417,13 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
           <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
             <SectionHeader title="Budget & Schedule" sub="Set your spending limits and campaign dates." />
             <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16 }}>
                 <Label label="Budget Type">
-                  <select value={config.ad_set?.budget_type || "DAILY"} onChange={e => setField("ad_set", "budget_type", e.target.value)} style={inputSt}>
-                    {BUDGET_TYPES.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
-                  </select>
+                  <CustomSelect
+                    value={config.ad_set?.budget_type || "DAILY"}
+                    onChange={v => setField("ad_set", "budget_type", v)}
+                    options={BUDGET_TYPES.map(b => ({ value: b.value, label: b.label }))}
+                  />
                 </Label>
                 <Label label={`Amount (${config.ad_set?.budget_type === "DAILY" ? "Daily" : "Lifetime"}) USD`}>
                   <div style={{ position: "relative" }}>
@@ -432,18 +440,34 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
                   </div>
                 </Label>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 <Label label="Start Date">
-                  <input type="datetime-local" value={config.ad_set?.start_time || ""} onChange={e => setField("ad_set", "start_time", e.target.value)} style={inputSt} />
+                  <input type="datetime-local" value={config.ad_set?.start_time || ""} onChange={e => setField("ad_set", "start_time", e.target.value)} style={{ ...inputSt, width: "100%", boxSizing: "border-box" }} />
                 </Label>
                 <Label label="End Date">
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "#475569", fontWeight: 500 }}>
-                      <input type="checkbox" checked={config.ad_set?.has_end_date || false} onChange={e => setField("ad_set", "has_end_date", e.target.checked)} style={{ accentColor: "#2563eb", width: 14, height: 14 }} />
-                      Set end date
-                    </label>
+                  <div style={{ position: "relative" }}>
+                    {config.ad_set?.has_end_date ? (
+                      <input
+                        type="datetime-local"
+                        value={config.ad_set?.stop_time || ""}
+                        onChange={e => setField("ad_set", "stop_time", e.target.value)}
+                        style={{ ...inputSt, width: "100%", boxSizing: "border-box" }}
+                      />
+                    ) : (
+                      <div
+                        onClick={() => setField("ad_set", "has_end_date", true)}
+                        style={{ ...inputSt, cursor: "pointer", color: "#94a3b8", display: "flex", alignItems: "center", gap: 8, boxSizing: "border-box" }}
+                      >
+                        <span style={{ fontSize: 16, lineHeight: 1 }}>+</span>
+                        <span>Add end date</span>
+                      </div>
+                    )}
                     {config.ad_set?.has_end_date && (
-                      <input type="datetime-local" value={config.ad_set?.stop_time || ""} onChange={e => setField("ad_set", "stop_time", e.target.value)} style={inputSt} />
+                      <button
+                        type="button"
+                        onClick={() => setField("ad_set", "has_end_date", false)}
+                        style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: "2px 4px" }}
+                      >×</button>
                     )}
                   </div>
                 </Label>
@@ -454,19 +478,37 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
           <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
             <SectionHeader title="Demographics" sub="Define age range and gender targeting." />
             <div style={{ padding: "20px 24px" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: 16 }}>
                 <Label label="Gender">
-                  <select value={config.ad_set?.gender ?? 0} onChange={e => setField("ad_set", "gender", Number(e.target.value))} style={inputSt}>
-                    <option value={0}>All</option>
-                    <option value={1}>Male</option>
-                    <option value={2}>Female</option>
-                  </select>
+                  <CustomSelect
+                    value={String(config.ad_set?.gender ?? 0)}
+                    onChange={v => setField("ad_set", "gender", Number(v))}
+                    options={[{ value: "0", label: "All" }, { value: "1", label: "Male" }, { value: "2", label: "Female" }]}
+                  />
                 </Label>
-                <Label label="Min Age">
-                  <input type="number" min={18} max={65} value={config.ad_set?.age_min ?? ""} onChange={e => setField("ad_set", "age_min", Number(e.target.value))} style={inputSt} />
+                <Label label="Min Age (18–100)">
+                  <input
+                    type="number" min={18} max={100}
+                    value={config.ad_set?.age_min ?? ""}
+                    onChange={e => setField("ad_set", "age_min", e.target.value === "" ? "" : Number(e.target.value))}
+                    onBlur={e => {
+                      const v = Number(e.target.value);
+                      if (!isNaN(v) && e.target.value !== "") setField("ad_set", "age_min", Math.min(100, Math.max(18, v)));
+                    }}
+                    style={inputSt}
+                  />
                 </Label>
-                <Label label="Max Age">
-                  <input type="number" min={18} max={65} value={config.ad_set?.age_max ?? ""} onChange={e => setField("ad_set", "age_max", Number(e.target.value))} style={inputSt} />
+                <Label label="Max Age (18–100)">
+                  <input
+                    type="number" min={18} max={100}
+                    value={config.ad_set?.age_max ?? ""}
+                    onChange={e => setField("ad_set", "age_max", e.target.value === "" ? "" : Number(e.target.value))}
+                    onBlur={e => {
+                      const v = Number(e.target.value);
+                      if (!isNaN(v) && e.target.value !== "") setField("ad_set", "age_max", Math.min(100, Math.max(18, v)));
+                    }}
+                    style={inputSt}
+                  />
                 </Label>
               </div>
             </div>
@@ -543,42 +585,59 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
           {/* Ad Copy */}
           <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
             <SectionHeader title="Ad Copy & Identity" sub="Customize the text and CTA for your ad." />
-            <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div style={{ padding: "20px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
+
+              {/* Ad Name + Facebook Page */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14 }}>
                 <Label label="Ad Name">
-                  <input value={config.ad?.name || ""} onChange={e => setField("ad", "name", e.target.value)} style={inputSt} />
+                  <input value={config.ad?.name || ""} onChange={e => setField("ad", "name", e.target.value)} style={{ ...inputSt, width: "100%", boxSizing: "border-box" }} />
                 </Label>
                 <Label label="Facebook Page">
-                  <input value={config.ad?.facebook_page || ""} onChange={e => setField("ad", "facebook_page", e.target.value)} style={inputSt} />
+                  <input value={config.ad?.facebook_page || ""} onChange={e => setField("ad", "facebook_page", e.target.value)} style={{ ...inputSt, width: "100%", boxSizing: "border-box" }} />
                 </Label>
               </div>
+
+              {/* Primary Text */}
               <Label label="Primary Text">
-                <textarea value={config.ad?.primary_text || ""} onChange={e => setField("ad", "primary_text", e.target.value)} style={{ ...inputSt, minHeight: 80, resize: "vertical" }} />
+                <textarea value={config.ad?.primary_text || ""} onChange={e => setField("ad", "primary_text", e.target.value)}
+                  style={{ ...inputSt, minHeight: 88, resize: "vertical", lineHeight: 1.6, width: "100%", boxSizing: "border-box" }} />
               </Label>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                <Label label="Headline">
-                  <input value={config.ad?.headline || ""} onChange={e => setField("ad", "headline", e.target.value)} style={inputSt} />
-                </Label>
-                <Label label="CTA Button">
-                  <select value={config.ad?.call_to_action_type || "LEARN_MORE"} onChange={e => {
+
+              {/* Headline */}
+              <Label label="Headline">
+                <input value={config.ad?.headline || ""} onChange={e => setField("ad", "headline", e.target.value)} style={{ ...inputSt, width: "100%", boxSizing: "border-box" }} />
+              </Label>
+
+              {/* CTA */}
+              <Label label="Call to Action">
+                <CustomSelect
+                  value={config.ad?.call_to_action_type || "LEARN_MORE"}
+                  onChange={v => {
                     const suggestions: Record<string, string> = { WHATSAPP_MESSAGE: "+10000000000", CONTACT_US: "https://togahh.com/contact", MESSAGE_PAGE: "https://m.me/togahh" };
-                    setConfig((prev: any) => ({ ...prev, ad: { ...prev.ad, call_to_action_type: e.target.value, website_url: suggestions[e.target.value] || prev.ad.website_url } }));
-                  }} style={inputSt}>
-                    <option value="LEARN_MORE">Learn More</option>
-                    <option value="BOOK_NOW">Book Now</option>
-                    <option value="CONTACT_US">Contact Us</option>
-                    <option value="GET_QUOTE">Get Estimate</option>
-                    <option value="WHATSAPP_MESSAGE">WhatsApp</option>
-                    <option value="MESSAGE_PAGE">Message Page</option>
-                  </select>
-                </Label>
-              </div>
-              <Label label="Ad Description">
-                <input value={config.ad?.description || ""} onChange={e => setField("ad", "description", e.target.value)} style={inputSt} />
+                    setConfig((prev: any) => ({ ...prev, ad: { ...prev.ad, call_to_action_type: v, website_url: suggestions[v] || prev.ad.website_url } }));
+                  }}
+                  options={[
+                    { value: "LEARN_MORE", label: "Learn More" },
+                    { value: "BOOK_NOW", label: "Book Now" },
+                    { value: "CONTACT_US", label: "Contact Us" },
+                    { value: "GET_QUOTE", label: "Get Estimate" },
+                    { value: "WHATSAPP_MESSAGE", label: "WhatsApp" },
+                    { value: "MESSAGE_PAGE", label: "Message Page" },
+                  ]}
+                />
               </Label>
-              <div style={{ padding: "14px 16px", background: "#eff6ff", borderRadius: 10, border: "1px solid #bfdbfe" }}>
-                <Label label="Destination URL">
-                  <input value={config.ad?.website_url || ""} onChange={e => setField("ad", "website_url", e.target.value)} placeholder="https://togahh.com" style={{ ...inputSt, background: "#fff", borderColor: "#93c5fd" }} />
+
+              {/* Ad Description */}
+              <Label label="Ad Description">
+                <input value={config.ad?.description || ""} onChange={e => setField("ad", "description", e.target.value)} style={{ ...inputSt, width: "100%", boxSizing: "border-box" }} />
+              </Label>
+
+              {/* Destination URL */}
+              <div style={{ padding: "14px 16px", background: "#eff6ff", borderRadius: 12, border: "1px solid #bfdbfe" }}>
+                <Label label="🔗 Destination URL">
+                  <input value={config.ad?.website_url || ""} onChange={e => setField("ad", "website_url", e.target.value)}
+                    placeholder="https://togahh.com"
+                    style={{ ...inputSt, background: "#fff", borderColor: "#93c5fd", width: "100%", boxSizing: "border-box" }} />
                 </Label>
               </div>
             </div>

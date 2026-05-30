@@ -219,14 +219,14 @@ export default function VoiceExplorerModal({
         <Dialog.Content
           className="sd-modal-content"
           style={{
-            width: '70vw',
+            width: '95vw',
             maxWidth: '960px',
-            minWidth: '680px',
-            height: '88vh',
+            minWidth: 0,
+            height: '90vh',
             maxHeight: '820px',
             display: 'flex',
             flexDirection: 'column',
-            padding: '24px',
+            padding: 'clamp(12px, 3vw, 24px)',
             background: '#ffffff',
             borderRadius: '24px',
             boxShadow: '0 25px 50px -12px rgba(2, 132, 199, 0.25)',
@@ -365,7 +365,7 @@ export default function VoiceExplorerModal({
                 </button>
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(250px, 100%), 1fr))', gap: '12px' }}>
                 {pageVoices.map(voice => {
                   const isSelected = selectedVoiceId === voice.voice_id;
                   const isPlaying = playingVoiceId === voice.voice_id;

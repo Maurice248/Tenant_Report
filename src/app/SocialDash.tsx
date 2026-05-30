@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
+import CustomSelect from './CustomSelect';
 import { createPortal } from 'react-dom';
 import {
   Clapperboard,
@@ -1708,19 +1709,19 @@ export default function SocialDash() {
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1 }}>
               {/* Form Grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 
                 {/* Category */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}>
                   <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
                     <Tag size={12} color="#d97706" /> Category
                   </label>
-                  <input 
+                  <input
                     type="text"
                     name="category"
                     value={videoFormData.category}
                     onChange={(e) => setVideoFormData(prev => ({ ...prev, category: e.target.value }))}
-                    style={{ padding: '11px 14px', fontSize: '13px', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#f8fafc', color: '#0f172a', outline: 'none' }}
+                    style={{ padding: '11px 14px', fontSize: '13px', border: '1.5px solid #e2e8f0', borderRadius: '10px', background: '#f8fafc', color: '#0f172a', outline: 'none', width: '100%', boxSizing: 'border-box' }}
                     placeholder="e.g. Hair Transplant"
                   />
                 </div>
@@ -1730,16 +1731,15 @@ export default function SocialDash() {
                   <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
                     <Monitor size={12} color="#d97706" /> Video Style
                   </label>
-                  <select 
-                    name="videoStyle"
+                  <CustomSelect
                     value={videoFormData.videoStyle}
-                    onChange={(e) => setVideoFormData(prev => ({ ...prev, videoStyle: e.target.value }))}
-                    style={{ padding: '11px 14px', fontSize: '13px', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#f8fafc', color: '#0f172a', outline: 'none' }}
-                  >
-                    <option value="Highly Realistic 4k, real life">Realistic 4k</option>
-                    <option value="Cinematic Drone - Smooth">Cinematic Drone</option>
-                    <option value="Studio Professional - Clean">Studio Clean</option>
-                  </select>
+                    onChange={v => setVideoFormData(prev => ({ ...prev, videoStyle: v }))}
+                    options={[
+                      { value: "Highly Realistic 4k, real life", label: "Realistic 4k" },
+                      { value: "Cinematic Drone - Smooth", label: "Cinematic Drone" },
+                      { value: "Studio Professional - Clean", label: "Studio Clean" },
+                    ]}
+                  />
                 </div>
 
                 {/* Character */}
@@ -1747,23 +1747,15 @@ export default function SocialDash() {
                   <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
                     <User size={12} color="#d97706" /> Character
                   </label>
-                  <select 
-                    name="character"
+                  <CustomSelect
                     value={videoFormData.character}
-                    onChange={(e) => {
-                      const newChar = e.target.value as 'male' | 'female';
+                    onChange={v => {
+                      const newChar = v as 'male' | 'female';
                       const firstVoice = VOICE_OPTIONS[newChar][0].id;
-                      setVideoFormData(prev => ({ 
-                        ...prev, 
-                        character: newChar, 
-                        voice: firstVoice 
-                      }));
+                      setVideoFormData(prev => ({ ...prev, character: newChar, voice: firstVoice }));
                     }}
-                    style={{ padding: '11px 14px', fontSize: '13px', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#f8fafc', color: '#0f172a', outline: 'none' }}
-                  >
-                    <option value="male">👨 Male</option>
-                    <option value="female">👩 Female</option>
-                  </select>
+                    options={[{ value: "male", label: "👨 Male" }, { value: "female", label: "👩 Female" }]}
+                  />
                 </div>
 
                 {/* Voice */}
@@ -1823,18 +1815,11 @@ export default function SocialDash() {
                   <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
                     Language
                   </label>
-                  <select 
-                    name="language"
+                  <CustomSelect
                     value={videoFormData.language}
-                    onChange={(e) => setVideoFormData(prev => ({ ...prev, language: e.target.value }))}
-                    style={{ padding: '11px 14px', fontSize: '13px', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#f8fafc', color: '#0f172a', outline: 'none' }}
-                  >
-                    <option value="English">English</option>
-                    <option value="Spanish">Spanish</option>
-                    <option value="French">French</option>
-                    <option value="Hebrew">Hebrew</option>
-                    <option value="Turkish">Turkish</option>
-                  </select>
+                    onChange={v => setVideoFormData(prev => ({ ...prev, language: v }))}
+                    options={["English","Spanish","French","Hebrew","Turkish"].map(l => ({ value: l, label: l }))}
+                  />
                 </div>
 
                 {/* Background Song */}
@@ -1842,18 +1827,17 @@ export default function SocialDash() {
                   <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
                     <Music size={12} color="#d97706" /> Background
                   </label>
-                  <select 
-                    name="backgroundSong"
+                  <CustomSelect
                     value={videoFormData.backgroundSong}
-                    onChange={(e) => setVideoFormData(prev => ({ ...prev, backgroundSong: e.target.value }))}
-                    style={{ padding: '11px 14px', fontSize: '13px', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#f8fafc', color: '#0f172a', outline: 'none' }}
-                  >
-                    <option value="Inspirational - Sunrise Bloom">Sunrise Bloom</option>
-                    <option value="Upbeat - Corporate Drive">Upbeat Drive</option>
-                    <option value="Lo-fi - Midnight Study">Lo-fi Midnight</option>
-                    <option value="Cinematic - Epic Journey">Epic Journey</option>
-                    <option value="Ambient - Calm Waters">Calm Waters</option>
-                  </select>
+                    onChange={v => setVideoFormData(prev => ({ ...prev, backgroundSong: v }))}
+                    options={[
+                      { value: "Inspirational - Sunrise Bloom", label: "Sunrise Bloom" },
+                      { value: "Upbeat - Corporate Drive", label: "Upbeat Drive" },
+                      { value: "Lo-fi - Midnight Study", label: "Lo-fi Midnight" },
+                      { value: "Cinematic - Epic Journey", label: "Epic Journey" },
+                      { value: "Ambient - Calm Waters", label: "Calm Waters" },
+                    ]}
+                  />
                 </div>
 
                 {/* Duration */}
@@ -1897,7 +1881,7 @@ export default function SocialDash() {
                     }}
                     min={30}
                     max={90}
-                    style={{ padding: '11px 14px', fontSize: '13px', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#f8fafc', color: '#0f172a', outline: 'none' }}
+                    style={{ padding: '11px 14px', fontSize: '13px', border: '1.5px solid #e2e8f0', borderRadius: '10px', background: '#f8fafc', color: '#0f172a', outline: 'none', width: '100%', boxSizing: 'border-box' }}
                     placeholder="30 – 90"
                   />
                   <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 500 }}>Min 30s · Max 90s</span>
@@ -1915,18 +1899,20 @@ export default function SocialDash() {
                   value={videoFormData.description}
                   onChange={(e) => setVideoFormData(prev => ({ ...prev, description: e.target.value }))}
                   placeholder="Tell your patient story or describe the blog post content..."
-                  style={{ 
-                    height: '75px', 
-                    minHeight: '65px',
-                    padding: '10px 12px', 
-                    fontSize: '12px', 
-                    border: '1px solid #cbd5e1', 
-                    borderRadius: '8px', 
+                  style={{
+                    height: '80px',
+                    minHeight: '70px',
+                    padding: '10px 12px',
+                    fontSize: '13px',
+                    border: '1.5px solid #e2e8f0',
+                    borderRadius: '10px',
                     background: '#f8fafc',
                     color: '#0f172a',
-                    resize: 'none',
+                    resize: 'vertical',
                     fontFamily: 'inherit',
-                    outline: 'none'
+                    outline: 'none',
+                    width: '100%',
+                    boxSizing: 'border-box'
                   }}
                   required
                 />
@@ -2381,7 +2367,11 @@ export default function SocialDash() {
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '12px',
-                      marginTop: '8px'
+                      marginTop: '8px',
+                      width: '100%',
+                      maxWidth: '100%',
+                      boxSizing: 'border-box',
+                      overflowX: 'hidden'
                     }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <span style={{ fontSize: '14px' }}>✍️</span>
@@ -2626,7 +2616,7 @@ export default function SocialDash() {
                 </div>
               </div>
             ) : (
-            <div className="sd-preview-panel sd-image-workspace-panel animate-fade-in" style={{ padding: '20px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '16px', color: '#0f172a', position: 'relative' }}>
+            <div className="sd-preview-panel sd-image-workspace-panel animate-fade-in" style={{ padding: '20px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '16px', color: '#0f172a', position: 'relative', width: '100%', maxWidth: '100%', boxSizing: 'border-box', overflowX: 'hidden' }}>
               {/* Workspace Header */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #e2e8f0', paddingBottom: '14px' }}>
                 <div style={{ textAlign: 'left' }}>
