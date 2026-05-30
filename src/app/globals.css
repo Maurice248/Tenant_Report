@@ -1675,3 +1675,12 @@ textarea:focus {
   .scenes-modal-headers { display: none !important; }
   .scene-row { border-bottom: 1px solid #e2e8f0 !important; }
 }
+
+/* ── Collapsible Sidebar ── */
+.sidebar-nav-item:hover .sidebar-tooltip {
+  opacity: 1 !important;
+}
+/* Hide toggle button on mobile (sidebar uses slide-in instead) */
+@media (max-width: 768px) {
+  .sidebar-toggle-btn { display: none !important; }
+}

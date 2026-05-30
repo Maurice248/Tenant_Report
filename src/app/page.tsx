@@ -158,6 +158,7 @@ export default function Dashboard() {
   const router = useRouter();
   const [tab, setTab] = useLocalStorage("toga_active_tab", "overview");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useLocalStorage("toga_sidebar_collapsed", false);
   const [selectedTopic, setSelectedTopic] = useState(TOPICS[1]);
   const [user, setUser] = useState(null);
   const [isAuthenticating, setIsAuthenticating] = useState(true);
@@ -1842,112 +1843,142 @@ export default function Dashboard() {
         className="main-layout-sidebar"
         data-open={mobileMenuOpen ? "true" : "false"}
         style={{
-          width: 260,
+          width: sidebarCollapsed ? 68 : 260,
           background: "var(--card-bg)",
           borderRight: "1px solid var(--border)",
-          padding: "24px 16px",
+          padding: sidebarCollapsed ? "20px 10px" : "20px 14px",
           display: "flex",
           flexDirection: "column",
-          gap: 24,
+          gap: 20,
           flexShrink: 0,
           position: "sticky",
           top: 0,
           height: "100vh",
           overflowY: "auto",
+          overflowX: "hidden",
           boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
           zIndex: 100,
+          transition: "width 0.25s ease, padding 0.25s ease",
         }}
       >
-        {/* Brand */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12, paddingBottom: 16, borderBottom: "1px solid var(--border-light)" }}>
-          <img
-            src="/toga-health-logo.png"
-            alt="Toga Health AI"
-            style={{
-              width: 38, height: 38,
-              borderRadius: "var(--radius-md)",
-              objectFit: "contain",
-              background: "#fff",
-              flexShrink: 0,
-              boxShadow: "0 2px 8px rgba(0,0,0,0.10)",
-            }}
-          />
-          <div style={{
-            fontSize: 18, fontWeight: 800, letterSpacing: "-0.03em",
-            color: "var(--text)", lineHeight: 1.1,
-          }}>
-            Toga Health AI
+        {/* Brand + Toggle */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: sidebarCollapsed ? "center" : "space-between", gap: 8, paddingBottom: 14, borderBottom: "1px solid var(--border-light)", flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, overflow: "hidden" }}>
+            <img
+              src="/toga-health-logo.png"
+              alt="Toga Health AI"
+              style={{ width: 36, height: 36, borderRadius: "var(--radius-md)", objectFit: "contain", background: "#fff", flexShrink: 0, boxShadow: "0 2px 8px rgba(0,0,0,0.10)", cursor: "pointer" }}
+              onClick={() => setSidebarCollapsed((v: boolean) => !v)}
+            />
+            {!sidebarCollapsed && (
+              <div style={{ fontSize: 16, fontWeight: 800, letterSpacing: "-0.03em", color: "var(--text)", lineHeight: 1.1, whiteSpace: "nowrap", overflow: "hidden" }}>
+                Toga Health AI
+              </div>
+            )}
           </div>
+          {/* Toggle button — only on desktop */}
+          <button
+            className="sidebar-toggle-btn"
+            onClick={() => setSidebarCollapsed((v: boolean) => !v)}
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            style={{
+              width: 24, height: 24, borderRadius: 6, border: "1px solid var(--border)",
+              background: "var(--surface)", cursor: "pointer", display: "flex",
+              alignItems: "center", justifyContent: "center", flexShrink: 0,
+              color: "var(--text-muted)", fontSize: 11, transition: "all 0.15s",
+              padding: 0,
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = "var(--primary-light)"; e.currentTarget.style.color = "var(--primary)"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "var(--surface)"; e.currentTarget.style.color = "var(--text-muted)"; }}
+          >
+            {sidebarCollapsed ? "›" : "‹"}
+          </button>
         </div>
 
         {/* Navigation Tabs */}
-        <nav
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 6,
-            flex: 1,
-          }}
-        >
+        <nav style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
           {TABS.map((t) => (
-            <button
-              key={t.id}
-              style={{
-                ...tabStyle(t.id),
-                width: "100%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "flex-start",
-                gap: 10,
-                padding: "10px 14px",
-                borderRadius: "var(--radius-md)",
-                border: "none",
-                fontSize: 13,
-                fontWeight: tab === t.id ? 700 : 500,
-                textAlign: "left",
-                cursor: "pointer",
-                background: tab === t.id ? "var(--primary-light)" : "transparent",
-                color: tab === t.id ? "var(--primary-dark)" : "var(--text-muted)",
-                transition: "all 0.18s ease",
-                boxShadow: tab === t.id ? "0 1px 3px rgba(37,99,235,0.12)" : "none",
-              }}
-              onClick={() => {
-                if (t.externalLink) {
-                  window.open(t.externalLink, "_blank", "noopener,noreferrer");
-                } else {
-                  setTab(t.id);
-                  setMobileMenuOpen(false); // close sidebar on mobile after nav
-                }
-              }}
-            >
-              <span style={{ fontSize: 14, opacity: 0.85 }}>{t.icon}</span>
-              <span style={{ whiteSpace: "nowrap" }}>{t.label}</span>
-            </button>
+            <div key={t.id} style={{ position: "relative" }} className="sidebar-nav-item">
+              <button
+                title={sidebarCollapsed ? t.label : ""}
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: sidebarCollapsed ? "center" : "flex-start",
+                  gap: sidebarCollapsed ? 0 : 10,
+                  padding: sidebarCollapsed ? "10px 0" : "9px 12px",
+                  borderRadius: "var(--radius-md)",
+                  border: "none",
+                  fontSize: 13,
+                  fontWeight: tab === t.id ? 700 : 500,
+                  textAlign: "left",
+                  cursor: "pointer",
+                  background: tab === t.id ? "var(--primary-light)" : "transparent",
+                  color: tab === t.id ? "var(--primary-dark)" : "var(--text-muted)",
+                  transition: "all 0.18s ease",
+                  boxShadow: tab === t.id ? "0 1px 3px rgba(37,99,235,0.12)" : "none",
+                  position: "relative",
+                  overflow: "hidden",
+                  fontFamily: "inherit",
+                }}
+                onClick={() => {
+                  if (t.externalLink) {
+                    window.open(t.externalLink, "_blank", "noopener,noreferrer");
+                  } else {
+                    setTab(t.id);
+                    setMobileMenuOpen(false);
+                  }
+                }}
+                onMouseEnter={e => { if (tab !== t.id) e.currentTarget.style.background = "var(--surface-hover)"; }}
+                onMouseLeave={e => { if (tab !== t.id) e.currentTarget.style.background = "transparent"; }}
+              >
+                <span style={{ fontSize: 16, flexShrink: 0, lineHeight: 1 }}>{t.icon}</span>
+                {!sidebarCollapsed && (
+                  <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", transition: "opacity 0.2s", opacity: sidebarCollapsed ? 0 : 1 }}>{t.label}</span>
+                )}
+                {/* Active indicator bar */}
+                {tab === t.id && (
+                  <span style={{ position: "absolute", left: 0, top: "20%", width: 3, height: "60%", borderRadius: "0 3px 3px 0", background: "var(--primary)" }} />
+                )}
+              </button>
+              {/* Tooltip in collapsed mode */}
+              {sidebarCollapsed && (
+                <span className="sidebar-tooltip" style={{
+                  position: "absolute", left: "calc(100% + 8px)", top: "50%", transform: "translateY(-50%)",
+                  background: "#1e293b", color: "#fff", fontSize: 11, fontWeight: 600,
+                  padding: "4px 10px", borderRadius: 6, whiteSpace: "nowrap",
+                  pointerEvents: "none", zIndex: 9999,
+                  opacity: 0, transition: "opacity 0.15s",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+                }}>
+                  {t.label}
+                </span>
+              )}
+            </div>
           ))}
         </nav>
 
         {/* Sidebar Footer (User Profile & Sign Out) */}
         <div style={{ borderTop: "1px solid var(--border-light)", paddingTop: 16 }}>
           {user ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div style={{
-                  width: 32, height: 32, borderRadius: "50%",
-                  background: "var(--primary-light)", border: "2px solid var(--primary-mid)",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  color: "var(--primary)", flexShrink: 0
-                }}>
-                  <User size={14} />
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {!sidebarCollapsed && (
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ width: 30, height: 30, borderRadius: "50%", background: "var(--primary-light)", border: "2px solid var(--primary-mid)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--primary)", flexShrink: 0 }}>
+                    <User size={13} />
+                  </div>
+                  <div style={{ lineHeight: 1.2, minWidth: 0 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Admin</div>
+                    <div style={{ fontSize: 10, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{user.email}</div>
+                  </div>
                 </div>
-                <div style={{ lineHeight: 1.2, minWidth: 0 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Admin</div>
-                  <div style={{ fontSize: 10, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{user.email}</div>
-                </div>
-              </div>
+              )}
               <button
                 onClick={handleSignOut}
+                title={sidebarCollapsed ? "Sign Out" : ""}
                 style={{
-                  padding: "9px 12px", borderRadius: "var(--radius-md)",
+                  padding: "8px", borderRadius: "var(--radius-md)",
                   border: "1px solid var(--border)", background: "var(--card-bg)",
                   color: "var(--red)", fontSize: 12, fontWeight: 600,
                   cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
@@ -1956,7 +1987,7 @@ export default function Dashboard() {
                 onMouseEnter={(e) => { e.currentTarget.style.background = "var(--red-light)"; e.currentTarget.style.borderColor = "var(--red)"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = "var(--card-bg)"; e.currentTarget.style.borderColor = "var(--border)"; }}
               >
-                <LogOut size={13} /> Sign Out
+                <LogOut size={13} /> {!sidebarCollapsed && "Sign Out"}
               </button>
             </div>
           ) : (
@@ -2241,7 +2272,7 @@ export default function Dashboard() {
 
             {/* Run Cards — toggled on mobile, always shown on desktop via CSS */}
             <div className="prev-runs-list" style={{ display: showPreviousRuns ? "flex" : "none", flexDirection: "column", gap: 0, maxHeight: "70vh", overflowY: "auto" }}>
-              {[...sbRows].reverse().map((row: any, idx: number) => {
+              {[...sbRows].map((row: any, idx: number) => {
                 const report = parseSbReport(row);
                 const inputsObj = typeof row.inputs === 'string' ? JSON.parse(row.inputs || "{}") : (row.inputs || {});
                 const keyword = inputsObj.topic || (inputsObj.keywords && inputsObj.keywords[0]) || inputsObj.action || inputsObj.query || null;
@@ -4218,22 +4249,38 @@ export default function Dashboard() {
                             setCustomUploadError("");
 
                             try {
-                              const formData = new FormData();
-                              formData.append("file", file);
+                              const ext = file.name.split('.').pop();
+                              const fileName = `${new Date().toISOString().replace(/[:.]/g, '-')}_${Math.floor(Math.random()*10000)}.${ext}`;
+                              const isVideo = file.type.startsWith("video/");
+                              const format = isVideo ? "Video" : "Image";
 
-                              const res = await fetch("/api/upload-ad", { method: "POST", body: formData });
-                              let result: any;
-                              try { result = await res.json(); } catch { throw new Error(`Upload failed (${res.status})`); }
-                              if (!res.ok || result.error) throw new Error(result.error || "Upload failed");
+                              // Step 1: Get presigned upload URL from server (bypasses 4MB Next.js body limit)
+                              const urlRes = await fetch("/api/upload-url", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ fileName, contentType: file.type }),
+                              });
+                              const urlData = await urlRes.json();
+                              if (!urlRes.ok || urlData.error) throw new Error(urlData.error || "Failed to get upload URL");
 
-                              const newAd = {
-                                id: Date.now(),
-                                time: result.time,
-                                text: result.publicUrl,
-                                format: result.format,
-                                Approved: "true"
-                              };
+                              // Step 2: Upload file DIRECTLY to Supabase (browser → Supabase, no size limit)
+                              const uploadRes = await fetch(urlData.signedUrl, {
+                                method: "PUT",
+                                headers: { "Content-Type": file.type, "x-upsert": "true" },
+                                body: file,
+                              });
+                              if (!uploadRes.ok) throw new Error(`Storage upload failed (${uploadRes.status})`);
 
+                              // Step 3: Insert DB record via lightweight endpoint
+                              const recordRes = await fetch("/api/upload-ad-record", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ publicUrl: urlData.publicUrl, format }),
+                              });
+                              const record = await recordRes.json();
+                              if (!recordRes.ok || record.error) throw new Error(record.error || "DB insert failed");
+
+                              const newAd = { id: Date.now(), time: record.time, text: urlData.publicUrl, format, Approved: "true" };
                               setAllApprovedAds(prev => [newAd, ...prev]);
                               await fetchAdTableLinks();
                               addSbToast("Media uploaded and approved!", "success");
