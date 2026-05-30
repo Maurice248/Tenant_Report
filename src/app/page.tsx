@@ -4978,38 +4978,43 @@ export default function Dashboard() {
         <div className="animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 1200, margin: "0 auto", padding: "8px 0", width: "100%", boxSizing: "border-box" }}>
 
           {/* Page Header */}
-          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <div style={{ width: 56, height: 56, borderRadius: 16, background: "#EFF6FF", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <ClipboardList size={28} color="#3B82F6" />
-            </div>
-            <div style={{ flex: 1 }}>
-              <h1 style={{ fontSize: 24, fontWeight: 700, color: "#0F172A", margin: 0 }}>Brand & ICP Configuration</h1>
-              <p style={{ fontSize: 13, color: "#64748B", margin: "4px 0 0 0" }}>Define your brand strategy and ideal customer profile</p>
-            </div>
-            {!isEditingProfile ? (
-              <button
-                onClick={() => setIsEditingProfile(true)}
-                style={{ display: "flex", alignItems: "center", gap: 8, background: "#fff", color: "#2563EB", border: "1.5px solid #2563EB", borderRadius: 12, padding: "9px 20px", fontWeight: 600, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" }}
-              >
-                ✏️ Edit
-              </button>
-            ) : (
-              <div style={{ display: "flex", gap: 10 }}>
-                <button
-                  onClick={() => setIsEditingProfile(false)}
-                  style={{ display: "flex", alignItems: "center", gap: 8, background: "#fff", color: "#64748B", border: "1.5px solid #E2E8F0", borderRadius: 12, padding: "9px 20px", fontWeight: 600, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" }}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSaveProfile}
-                  disabled={isSavingProfile}
-                  style={{ display: "flex", alignItems: "center", gap: 8, background: "#2563EB", color: "#fff", border: "none", borderRadius: 12, padding: "10px 20px", fontWeight: 600, fontSize: 13, cursor: isSavingProfile ? "not-allowed" : "pointer", opacity: isSavingProfile ? 0.7 : 1, whiteSpace: "nowrap", boxShadow: "0 1px 3px rgba(0,0,0,0.15)" }}
-                >
-                  {isSavingProfile ? <Spinner size={16} color="#fff" /> : <span>💾 Save</span>}
-                </button>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+              <div style={{ width: 48, height: 48, borderRadius: 14, background: "#EFF6FF", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <ClipboardList size={24} color="#3B82F6" />
               </div>
-            )}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <h1 style={{ fontSize: 20, fontWeight: 700, color: "#0F172A", margin: 0, lineHeight: 1.3 }}>Brand & ICP Configuration</h1>
+                <p style={{ fontSize: 12, color: "#64748B", margin: "3px 0 0 0" }}>Define your brand strategy and ideal customer profile</p>
+              </div>
+            </div>
+            {/* Action buttons on their own row — always fully visible */}
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              {!isEditingProfile ? (
+                <button
+                  onClick={() => setIsEditingProfile(true)}
+                  style={{ display: "flex", alignItems: "center", gap: 7, background: "#fff", color: "#2563EB", border: "1.5px solid #2563EB", borderRadius: 10, padding: "8px 18px", fontWeight: 600, fontSize: 13, cursor: "pointer" }}
+                >
+                  ✏️ Edit
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setIsEditingProfile(false)}
+                    style={{ background: "#fff", color: "#64748B", border: "1.5px solid #E2E8F0", borderRadius: 10, padding: "8px 18px", fontWeight: 600, fontSize: 13, cursor: "pointer" }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveProfile}
+                    disabled={isSavingProfile}
+                    style={{ display: "flex", alignItems: "center", gap: 7, background: "#2563EB", color: "#fff", border: "none", borderRadius: 10, padding: "9px 20px", fontWeight: 600, fontSize: 13, cursor: isSavingProfile ? "not-allowed" : "pointer", opacity: isSavingProfile ? 0.7 : 1, boxShadow: "0 2px 8px rgba(37,99,235,0.25)" }}
+                  >
+                    {isSavingProfile ? <Spinner size={14} color="#fff" /> : "💾 Save"}
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
           {/* Brand Strategy Section */}
