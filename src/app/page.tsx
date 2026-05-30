@@ -175,6 +175,8 @@ export default function Dashboard() {
 
   const [analysisError, setAnalysisError] = useState("");
   const [pendingAnalysisTopic, setPendingAnalysisTopic] = useLocalStorage("toga_pending_analysis_topic", null);
+  const pendingTopicRef = useRef<string | null>(null); // ref so realtime callback always sees latest value
+  useEffect(() => { pendingTopicRef.current = pendingAnalysisTopic; }, [pendingAnalysisTopic]);
 
   // Custom keywords research form states
   const [researchKeywords, setResearchKeywords] = useLocalStorage("toga_research_keywords", [
@@ -841,17 +843,18 @@ export default function Dashboard() {
             setSbRows((prev) => [payload.new, ...prev]);
             addSbToast("New report received!");
 
-            // Link to active analysis if topic matches
+            // Link to active analysis if topic matches — use ref to avoid stale closure bug
             const newReport = parseSbReport(payload.new);
-            setPendingAnalysisTopic(currentTopic => {
-              if (currentTopic && newReport.topic === currentTopic) {
-                setAnalysisData({ ...newReport, id: payload.new.id });
-                setAnalysisStatus("done");
-                addSbToast("Analysis completed and loaded!");
-                return null; // Reset pending topic
-              }
-              return currentTopic;
-            });
+            const currentTopic = pendingTopicRef.current;
+            if (currentTopic && newReport.topic === currentTopic) {
+              setAnalysisData({ ...newReport, id: payload.new.id });
+              setAnalysisStatus("done");
+              setAnalysisProgress(100);
+              window.localStorage.removeItem("toga_analysis_start");
+              sessionStorage.removeItem("toga_analysis_active");
+              setPendingAnalysisTopic(null);
+              addSbToast("Analysis completed and loaded!", "success");
+            }
           } else if (payload.eventType === "UPDATE") {
             setSbRows((prev) =>
               prev.map((r) => (r.id === payload.new.id ? payload.new : r))
@@ -1488,7 +1491,35 @@ export default function Dashboard() {
         setAnalysisError(result.error);
         addSbToast(`Analysis failed: ${result.error}`, "error");
       }
-      // null or isTimeout → keep progress bar, n8n still processing
+      // null or isTimeout → n8n still running; start Supabase polling as mobile fallback
+      if (!result || result?.isTimeout) {
+        const topic = kwSnapshot[0] || selectedTopic || "";
+        const pollInterval = setInterval(async () => {
+          try {
+            const { data } = await supabase
+              .from("reports_json")
+              .select("*")
+              .order("created_at", { ascending: false })
+              .limit(5);
+            const match = data?.find((row: any) => {
+              const r = parseSbReport(row);
+              return r.topic === topic;
+            });
+            if (match) {
+              clearInterval(pollInterval);
+              const parsed = parseSbReport(match);
+              setAnalysisData({ ...parsed, id: match.id });
+              setAnalysisStatus("done");
+              setAnalysisProgress(100);
+              window.localStorage.removeItem("toga_analysis_start");
+              sessionStorage.removeItem("toga_analysis_active");
+              setPendingAnalysisTopic(null);
+              addSbToast("Analysis complete!", "success");
+            }
+          } catch {}
+        }, 5000);
+        setTimeout(() => clearInterval(pollInterval), 600_000); // stop after 10 min
+      }
     } catch (err: any) {
       console.error("[Analysis] Unexpected error:", err);
       setAnalysisStatus("error");
