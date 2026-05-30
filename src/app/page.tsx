@@ -4005,6 +4005,32 @@ export default function Dashboard() {
             </div>
           )}
 
+          {/* ── Video Generation Progress Bar (tab-level, always visible) ── */}
+          {videoGenerating && (
+            <div style={{ marginBottom: 16, padding: "16px 18px", borderRadius: 14, background: "linear-gradient(135deg, #f0fdf4, #dcfce7)", border: "1.5px solid #86efac", boxSizing: "border-box" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, gap: 8, flexWrap: "wrap" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <Spinner size={14} color="#16a34a" />
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "#15803d" }}>
+                    {videoGenProgress >= 100 ? "🎬 Videos ready!" : "Generating your videos…"}
+                  </span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: "#16a34a" }}>{videoGenProgress}%</span>
+                  {videoGenProgress < 100 && (
+                    <button onClick={() => stopVideoGenProgress(false)} style={{ background: "none", border: "none", fontSize: 12, color: "#94a3b8", cursor: "pointer", padding: "2px 6px" }}>Dismiss</button>
+                  )}
+                </div>
+              </div>
+              <div style={{ height: 8, background: "#bbf7d0", borderRadius: 8, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${videoGenProgress}%`, background: videoGenProgress >= 100 ? "#16a34a" : "linear-gradient(90deg, #22c55e, #16a34a)", borderRadius: 8, transition: "width 1.8s ease-out", boxShadow: "0 0 8px rgba(22,163,74,0.4)" }} />
+              </div>
+              <div style={{ fontSize: 11, color: "#16a34a", marginTop: 6 }}>
+                {videoGenProgress >= 100 ? "Check the Ad Previews section below ↓" : "You can freely navigate — we'll notify you when done."}
+              </div>
+            </div>
+          )}
+
           {/* ── AD PREVIEWS ── */}
           {(() => {
             const adIds = [1, 2, 3, 4, 5]; // Mapping to Ad 1-3, Image 1-2
@@ -5544,35 +5570,31 @@ export default function Dashboard() {
             onClick={e => e.stopPropagation()}
             style={{
               background: "#fff", borderRadius: 18, width: "100%", maxWidth: 980,
-              maxHeight: "88vh", overflow: "hidden", display: "flex", flexDirection: "column",
+              maxHeight: "92vh", overflow: "hidden", display: "flex", flexDirection: "column",
               boxShadow: hasFailuresInModal ? "0 32px 80px rgba(220,38,38,0.35)" : "0 32px 80px rgba(0,0,0,0.35)",
               border: hasFailuresInModal ? "2px solid #ef4444" : "none",
             }}
           >
             {/* Modal Header */}
-            <div style={{
-              padding: "18px 24px", display: "flex", alignItems: "center", justifyContent: "space-between",
-              background: headerBg,
-            }}>
-              <div style={{ fontSize: 15, fontWeight: 800, color: "#fff", display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 20 }}>{hasFailuresInModal ? "⚠️" : "🎬"}</span>
-                {scenesModal.adLabel} — Image &amp; Video Prompts
-                <span style={{ fontSize: 11, background: "rgba(255,255,255,0.2)", padding: "3px 10px", borderRadius: 20, fontWeight: 600 }}>
+            <div style={{ padding: "14px 16px", background: headerBg, display: "flex", flexDirection: "column", gap: 10 }}>
+              {/* Row 1: title + scene count */}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 18 }}>{hasFailuresInModal ? "⚠️" : "🎬"}</span>
+                <span style={{ fontSize: 14, fontWeight: 800, color: "#fff", flex: 1, minWidth: 0 }}>
+                  {scenesModal.adLabel} — Prompts
+                </span>
+                <span style={{ fontSize: 11, background: "rgba(255,255,255,0.2)", padding: "3px 10px", borderRadius: 20, color: "#fff", fontWeight: 600, whiteSpace: "nowrap" }}>
                   {editedScenes.length} scenes
                 </span>
-                {hasFailuresInModal && (
-                  <span style={{ fontSize: 10, background: "rgba(255,255,255,0.25)", padding: "2px 8px", borderRadius: 20, color: "#fff", fontWeight: 700 }}>
-                    {modalFailures.length} FAILED
-                  </span>
-                )}
                 {!hasFailuresInModal && (
-                  <span style={{ fontSize: 10, background: "rgba(255,255,255,0.15)", padding: "2px 8px", borderRadius: 20, color: "#e0f2fe" }}>
-                    ✏️ Editable
-                  </span>
+                  <span style={{ fontSize: 10, background: "rgba(255,255,255,0.15)", padding: "2px 8px", borderRadius: 20, color: "#e0f2fe", whiteSpace: "nowrap" }}>✏️ Editable</span>
+                )}
+                {hasFailuresInModal && (
+                  <span style={{ fontSize: 10, background: "rgba(255,255,255,0.25)", padding: "2px 8px", borderRadius: 20, color: "#fff", fontWeight: 700, whiteSpace: "nowrap" }}>{modalFailures.length} FAILED</span>
                 )}
               </div>
+              {/* Row 2: action buttons */}
               <div style={{ display: "flex", gap: 8 }}>
-                {/* Save button */}
                 <button
                   onClick={() => {
                     if (scenesModal.itemId) {
@@ -5589,23 +5611,15 @@ export default function Dashboard() {
                     setHasUnsavedChanges(false);
                     setScenesModal({ open: false, scenes: [], adLabel: "", itemId: null });
                   }}
-                  style={{
-                    background: "#fff", border: "none",
-                    color: hasFailuresInModal ? "#dc2626" : "#0284c7",
-                    borderRadius: 8, padding: "7px 16px", cursor: "pointer", fontSize: 13, fontWeight: 800,
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
-                  }}
-                >{hasUnsavedChanges ? "💾 Save Changes *" : "✓ Save Changes"}</button>
+                  style={{ flex: 1, background: "#fff", border: "none", color: hasFailuresInModal ? "#dc2626" : "#0284c7", borderRadius: 8, padding: "8px 12px", cursor: "pointer", fontSize: 12, fontWeight: 800, boxShadow: "0 2px 8px rgba(0,0,0,0.15)" }}
+                >{hasUnsavedChanges ? "💾 Save *" : "✓ Save Changes"}</button>
                 <button
                   onClick={() => {
-                    if (hasUnsavedChanges) {
-                      addSbToast("You have unsaved changes. Click \"Save Changes\" before closing.", "error");
-                      return;
-                    }
+                    if (hasUnsavedChanges) { addSbToast("You have unsaved changes. Click \"Save Changes\" before closing.", "error"); return; }
                     setHasUnsavedChanges(false);
                     setScenesModal({ open: false, scenes: [], adLabel: "", itemId: null });
                   }}
-                  style={{ background: "rgba(255,255,255,0.2)", border: "none", color: "#fff", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontSize: 13, fontWeight: 700 }}
+                  style={{ background: "rgba(255,255,255,0.2)", border: "none", color: "#fff", borderRadius: 8, padding: "8px 14px", cursor: "pointer", fontSize: 12, fontWeight: 700 }}
                 >✕ Close</button>
               </div>
             </div>
@@ -5631,8 +5645,8 @@ export default function Dashboard() {
               </div>
             )}
 
-            {/* Column headers */}
-            <div style={{ display: "grid", gridTemplateColumns: "44px 1fr 1fr", padding: "10px 20px", background: "#f8fafc", borderBottom: "1.5px solid #e2e8f0" }}>
+            {/* Column headers — hidden on mobile (cards show their own labels) */}
+            <div className="scenes-modal-headers" style={{ display: "grid", gridTemplateColumns: "44px 1fr 1fr", padding: "10px 20px", background: "#f8fafc", borderBottom: "1.5px solid #e2e8f0" }}>
               <div style={{ fontSize: 10, fontWeight: 800, color: "#94a3b8", textTransform: "uppercase" }}>#</div>
               <div style={{ fontSize: 10, fontWeight: 800, color: "#0284c7", textTransform: "uppercase", letterSpacing: "0.05em", paddingRight: 16 }}>🖼️ Image Prompt</div>
               <div style={{ fontSize: 10, fontWeight: 800, color: "#7c3aed", textTransform: "uppercase", letterSpacing: "0.05em", paddingLeft: 16 }}>🎬 Video Scenario</div>
@@ -5671,28 +5685,21 @@ export default function Dashboard() {
                         <span style={{ fontWeight: 500 }}>{sceneFailMsg}</span>
                       </div>
                     )}
-                    <div style={{
-                      display: "grid", gridTemplateColumns: "44px 1fr 1fr",
-                      background: sceneIsFailed ? "#fff5f5" : i % 2 === 0 ? "#fff" : "#f8fafc"
+                    <div className="scene-row" style={{
+                      padding: "14px 16px",
+                      background: sceneIsFailed ? "#fff5f5" : i % 2 === 0 ? "#fff" : "#f8fafc",
+                      display: "flex", flexDirection: "column", gap: 10
                     }}>
-                      {/* Scene number */}
-                      <div style={{ padding: "16px 8px", display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 18 }}>
-                        <span style={{
-                          display: "inline-flex", alignItems: "center", justifyContent: "center",
-                          width: 24, height: 24, borderRadius: "50%",
-                          background: sceneIsFailed ? "#ef4444" : "#0284c7",
-                          color: "#fff", fontSize: 11, fontWeight: 800
-                        }}>{scene.scene}</span>
+                      {/* Scene number badge */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 26, height: 26, borderRadius: "50%", background: sceneIsFailed ? "#ef4444" : "#0284c7", color: "#fff", fontSize: 11, fontWeight: 800, flexShrink: 0 }}>{scene.scene}</span>
+                        {scene.script_line && <div style={{ fontSize: 11, fontWeight: 700, color: sceneIsFailed ? "#dc2626" : "#0284c7", textTransform: "uppercase", letterSpacing: "0.04em" }}>{scene.script_line}</div>}
                       </div>
 
                       {/* Image Prompt — editable */}
-                      <div style={{ padding: "12px 12px 12px 0", borderRight: "1px solid #e2e8f0" }}>
-                        {scene.script_line && (
-                          <div style={{
-                            fontSize: 10, fontWeight: 700, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.04em",
-                            color: sceneIsFailed ? "#dc2626" : "#0284c7"
-                          }}>{scene.script_line}</div>
-                        )}
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        <div style={{ fontSize: 10, fontWeight: 800, color: "#0284c7", textTransform: "uppercase", letterSpacing: "0.05em" }}>🖼️ Image Prompt</div>
+                      <div style={{ padding: "0" }}>
                         <textarea
                           value={scene.prompt_clean || scene.prompt || ""}
                           onChange={e => {
@@ -5703,21 +5710,25 @@ export default function Dashboard() {
                             });
                             setHasUnsavedChanges(true);
                           }}
-                          rows={5}
+                          rows={4}
                           style={{
-                            width: "100%", fontSize: 11, color: "#334155", lineHeight: 1.75,
-                            border: sceneIsFailed ? "1.5px solid #f87171" : "1.5px solid #e2e8f0",
+                            width: "100%", fontSize: 12, color: "#334155", lineHeight: 1.6,
+                            border: sceneIsFailed ? "1.5px solid #f87171" : "1.5px solid #bfdbfe",
                             borderRadius: 8, padding: "10px 12px",
                             resize: "vertical", fontFamily: "inherit", outline: "none",
-                            background: sceneIsFailed ? "#fff1f2" : "#f8fafc", transition: "border 0.15s",
+                            background: sceneIsFailed ? "#fff1f2" : "#eff6ff", transition: "border 0.15s",
+                            boxSizing: "border-box",
                           }}
                           onFocus={e => e.target.style.borderColor = sceneIsFailed ? "#ef4444" : "#0284c7"}
-                          onBlur={e => e.target.style.borderColor = sceneIsFailed ? "#f87171" : "#e2e8f0"}
+                          onBlur={e => e.target.style.borderColor = sceneIsFailed ? "#f87171" : "#bfdbfe"}
                         />
+                      </div>
                       </div>
 
                       {/* Video Scenario — editable */}
-                      <div style={{ padding: "12px 12px" }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        <div style={{ fontSize: 10, fontWeight: 800, color: "#7c3aed", textTransform: "uppercase", letterSpacing: "0.05em" }}>🎬 Video Scenario</div>
+                      <div style={{ padding: "0" }}>
                         <textarea
                           value={scene.video_scenario || ""}
                           onChange={e => {
@@ -5728,26 +5739,23 @@ export default function Dashboard() {
                             });
                             setHasUnsavedChanges(true);
                           }}
-                          rows={5}
+                          rows={4}
                           style={{
-                            width: "100%", fontSize: 11, lineHeight: 1.75,
+                            width: "100%", fontSize: 12, lineHeight: 1.6,
                             color: sceneIsFailed ? "#991b1b" : "#6d28d9",
-                            border: sceneIsFailed ? "1.5px solid #f87171" : "1.5px solid #e2e8f0",
+                            border: sceneIsFailed ? "1.5px solid #f87171" : "1.5px solid #ddd6fe",
                             borderRadius: 8, padding: "10px 12px",
                             resize: "vertical", fontFamily: "inherit", outline: "none",
                             background: sceneIsFailed ? "#fff1f2" : "#f5f3ff", transition: "border 0.15s",
+                            boxSizing: "border-box",
                           }}
                           onFocus={e => e.target.style.borderColor = sceneIsFailed ? "#ef4444" : "#7c3aed"}
-                          onBlur={e => e.target.style.borderColor = sceneIsFailed ? "#f87171" : "#e2e8f0"}
+                          onBlur={e => e.target.style.borderColor = sceneIsFailed ? "#f87171" : "#ddd6fe"}
                         />
                         {scene.emotion_type && (
-                          <span style={{
-                            marginTop: 6, display: "inline-block", fontSize: 10, padding: "2px 8px", borderRadius: 20, fontWeight: 700, border: "1px solid",
-                            background: scene.emotion_type === "happy" ? "#f0fdf4" : scene.emotion_type === "sad" ? "#eff6ff" : "#fafafa",
-                            color: scene.emotion_type === "happy" ? "#15803d" : scene.emotion_type === "sad" ? "#1d4ed8" : "#64748b",
-                            borderColor: scene.emotion_type === "happy" ? "#bbf7d0" : scene.emotion_type === "sad" ? "#bfdbfe" : "#e2e8f0",
-                          }}>{scene.emotion_type}</span>
+                          <span style={{ marginTop: 6, display: "inline-block", fontSize: 10, padding: "2px 8px", borderRadius: 20, fontWeight: 700, border: "1px solid", background: scene.emotion_type === "happy" ? "#f0fdf4" : scene.emotion_type === "sad" ? "#eff6ff" : "#fafafa", color: scene.emotion_type === "happy" ? "#15803d" : scene.emotion_type === "sad" ? "#1d4ed8" : "#64748b", borderColor: scene.emotion_type === "happy" ? "#bbf7d0" : scene.emotion_type === "sad" ? "#bfdbfe" : "#e2e8f0" }}>{scene.emotion_type}</span>
                         )}
+                      </div>
                       </div>
                     </div>
                   </div>

@@ -1669,3 +1669,9 @@ textarea:focus {
     flex: 1 !important;
   }
 }
+
+/* Scenes modal on mobile */
+@media (max-width: 768px) {
+  .scenes-modal-headers { display: none !important; }
+  .scene-row { border-bottom: 1px solid #e2e8f0 !important; }
+}
