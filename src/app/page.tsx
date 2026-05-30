@@ -453,6 +453,10 @@ export default function Dashboard() {
   const [retryPrompt, setRetryPrompt] = useState("");
   const [isRetryingSubmit, setIsRetryingSubmit] = useState(false);
   const [acceptingPrompts, setAcceptingPrompts] = useState(false);
+  const [videoGenerating, setVideoGenerating] = useState(false);
+  const [videoGenProgress, setVideoGenProgress] = useState(0);
+  const videoGenTimerRef = useRef<any>(null);
+  const videoGenPollRef = useRef<any>(null);
   const [promptsAccepted, setPromptsAccepted] = useState<boolean>(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("toga_prompts_accepted") === "true";
@@ -871,6 +875,46 @@ export default function Dashboard() {
     };
   }, [addSbToast]);
 
+  // ── Resume progress bar if page was refreshed mid-generation ──
+  useEffect(() => {
+    const stored = window.localStorage.getItem("toga_video_gen_start");
+    if (!stored) return;
+    const start = Number(stored);
+    const elapsed = Date.now() - start;
+    if (elapsed < VIDEO_GEN_DURATION) {
+      setVideoGenerating(true);
+      setVideoGenProgress(Math.min(99, Math.round((elapsed / VIDEO_GEN_DURATION) * 100)));
+      clearInterval(videoGenTimerRef.current);
+      videoGenTimerRef.current = setInterval(() => {
+        const e2 = Date.now() - start;
+        setVideoGenProgress(Math.min(99, Math.round((e2 / VIDEO_GEN_DURATION) * 100)));
+        if (e2 >= VIDEO_GEN_DURATION) clearInterval(videoGenTimerRef.current);
+      }, 2000);
+    } else {
+      window.localStorage.removeItem("toga_video_gen_start");
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Supabase realtime: detect new videos from n8n ──
+  useEffect(() => {
+    const adsChannel = supabase
+      .channel("your_name_table_realtime")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "your_name_table" }, async (payload) => {
+        if (!videoGenerating) return;
+        const newAd = payload.new as any;
+        stopVideoGenProgress(true);
+        await fetchAdTableLinks();
+        setAllApprovedAds(prev => {
+          const exists = prev.some((a: any) => `${a.id}_${a.time}` === `${newAd.id}_${newAd.time}`);
+          return exists ? prev : [newAd, ...prev];
+        });
+        addSbToast("🎬 Videos are ready! Check Ad Previews.", "success");
+        setIsStatusPolling(true);
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(adsChannel); };
+  }, [videoGenerating]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     // Check local session (Bypassing Supabase Auth)
     const checkLocalSession = () => {
@@ -1281,6 +1325,40 @@ export default function Dashboard() {
     }
   }
 
+  const VIDEO_GEN_DURATION = 360_000; // 6 minutes
+
+  function startVideoGenProgress() {
+    const start = Date.now();
+    window.localStorage.setItem("toga_video_gen_start", String(start));
+    setVideoGenerating(true);
+    setVideoGenProgress(0);
+    clearInterval(videoGenTimerRef.current);
+    videoGenTimerRef.current = setInterval(() => {
+      const elapsed = Date.now() - start;
+      const pct = Math.min(99, (elapsed / VIDEO_GEN_DURATION) * 100);
+      setVideoGenProgress(Math.round(pct));
+      if (elapsed >= VIDEO_GEN_DURATION) {
+        clearInterval(videoGenTimerRef.current);
+        clearInterval(videoGenPollRef.current);
+        // Timed out — stop bar, prompt manual refresh
+        addSbToast("Video generation may still be running. Check Ad Previews to see results.", "info");
+      }
+    }, 2000);
+  }
+
+  function stopVideoGenProgress(success = true) {
+    clearInterval(videoGenTimerRef.current);
+    clearInterval(videoGenPollRef.current);
+    window.localStorage.removeItem("toga_video_gen_start");
+    if (success) {
+      setVideoGenProgress(100);
+      setTimeout(() => { setVideoGenerating(false); setVideoGenProgress(0); }, 1500);
+    } else {
+      setVideoGenerating(false);
+      setVideoGenProgress(0);
+    }
+  }
+
   async function handleAcceptPrompts() {
     // Validate: all video items must have a voice selected
     const videosMissingVoice = (createTabAdsConfig.items || []).filter(
@@ -1292,10 +1370,10 @@ export default function Dashboard() {
     }
 
     setAcceptingPrompts(true);
-    setFailedPrompts([]); // Clear any previous errors
-    addSbToast("Sending accepted prompts to webhook...");
+    setFailedPrompts([]);
+    setFailedImagePrompts([]);
+
     try {
-      // Enrich createTabAdsConfig.items with their corresponding audioKey
       const enrichedConfig = {
         ...createTabAdsConfig,
         items: (createTabAdsConfig.items || []).map((item: any) => ({
@@ -1303,74 +1381,71 @@ export default function Dashboard() {
           audioKey: adAudioKeysMap[item.id] || ""
         }))
       };
-
+      const payload = {
+        report_id: analysisData?.id || crypto.randomUUID(),
+        report_data: analysisData,
+        ads_config: enrichedConfig,
+        generated_prompts: adScenesMap,
+        audioKeys: adAudioKeysMap,
+        audio_keys: adAudioKeysMap
+      };
       const webhookUrl = process.env.NEXT_PUBLIC_N8N_ACCEPT_PROMPTS_URL || "https://n8n.srv881198.hstgr.cloud/webhook/3be958fe-3d6e-4ccf-8d72-5a9a0bb2d932";
-      const res = await fetch(webhookUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          report_id: analysisData?.id || crypto.randomUUID(),
-          report_data: analysisData,
-          ads_config: enrichedConfig,
-          generated_prompts: adScenesMap,
-          audioKeys: adAudioKeysMap,
-          audio_keys: adAudioKeysMap
-        }),
-      });
-      if (res.ok) {
-        try {
-          const resData = await res.json();
-          console.log("Accept prompts webhook response:", resData);
-          const responseObj = Array.isArray(resData) ? resData[0] : resData;
-          // Video failure format: responseObj.data array with state === "fail"
-          const hasVideoFailures = responseObj && responseObj.failCount > 0 && Array.isArray(responseObj.data);
-          // Image failure format: responseObj.failedPrompts array OR responseObj.results with success === false
-          const rawImageFailures: any[] = responseObj?.failedPrompts || responseObj?.results?.filter((r: any) => r.success === false || r.state === "fail") || [];
-          const hasImageFailures = rawImageFailures.length > 0;
 
-          if (hasVideoFailures) {
-            const failures = responseObj.data.filter((task: any) => task.state === "fail");
-            setFailedPrompts(failures.map((f: any) => ({
-              taskId: f.taskId || "",
-              prompt: f.prompt || "",
-              failMsg: f.failMsg || "Generation failed — content may have been flagged as sensitive."
-            })));
-            addSbToast(`${responseObj.failCount} video generation task(s) failed. Open the affected ad card to fix the prompt.`, "error");
-          } else if (hasImageFailures) {
-            setFailedImagePrompts(rawImageFailures.map((f: any, i: number) => ({
-              prompt: f.prompt || "",
-              reason: f.reason || f.failMsg || "Generation failed — content may have violated policy.",
-              index: f.index ?? i
-            })));
-            const failCount = rawImageFailures.length;
-            addSbToast(`${failCount} image generation task(s) failed due to policy violation. Review and fix the prompts below.`, "error");
-          } else {
-            setFailedPrompts([]);
-            setFailedImagePrompts([]);
-            addSbToast("All prompts successfully accepted!", "success");
-            addSbToast("Refreshing Supabase Ads previews...", "info");
+      // ── Fire-and-forget: send with 15s timeout just to confirm delivery ──
+      const controller = new AbortController();
+      const deliveryTimeout = setTimeout(() => controller.abort(), 15_000);
+
+      try {
+        await fetch(webhookUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        });
+      } catch {
+        // Timeout or network error is fine — n8n received it and is running
+      } finally {
+        clearTimeout(deliveryTimeout);
+      }
+
+      // ── Unblock UI immediately, start progress bar ──
+      setAcceptingPrompts(false);
+      resetCreateTabWorkspace();
+      startVideoGenProgress();
+      addSbToast("✅ Prompts sent! Video generation started — up to 6 min.", "success");
+
+      // ── Supabase polling: check every 30s for new videos ──
+      const genStart = Date.now();
+      clearInterval(videoGenPollRef.current);
+      videoGenPollRef.current = setInterval(async () => {
+        if (Date.now() - genStart > VIDEO_GEN_DURATION) {
+          clearInterval(videoGenPollRef.current);
+          return;
+        }
+        try {
+          const { data } = await supabase
+            .from("your_name_table")
+            .select("id, time, text, format, Approved")
+            .gte("time", new Date(genStart - 5000).toISOString())
+            .order("time", { ascending: false })
+            .limit(10);
+          if (data && data.length > 0) {
+            clearInterval(videoGenPollRef.current);
+            stopVideoGenProgress(true);
             await fetchAdTableLinks();
-            addSbToast("Ads previews updated!", "success");
-            resetCreateTabWorkspace();
+            setAllApprovedAds(prev => {
+              const newIds = new Set(data.map((d: any) => `${d.id}_${d.time}`));
+              const filtered = prev.filter((a: any) => !newIds.has(`${a.id}_${a.time}`));
+              return [...data, ...filtered];
+            });
+            addSbToast("🎬 Videos are ready! Check Ad Previews.", "success");
             setIsStatusPolling(true);
           }
-        } catch {
-          // If JSON parse fails, treat as success
-          setFailedPrompts([]);
-          setFailedImagePrompts([]);
-          addSbToast("Prompts successfully accepted!", "success");
-          addSbToast("Refreshing Supabase Ads previews...", "info");
-          await fetchAdTableLinks();
-          addSbToast("Ads previews updated!", "success");
-          resetCreateTabWorkspace();
-          setIsStatusPolling(true);
-        }
-      } else {
-        addSbToast("Failed to accept prompts. Please try again.", "error");
-      }
+        } catch {}
+      }, 30_000);
+
     } catch (e) {
       addSbToast("Error sending accepted prompts.", "error");
-    } finally {
       setAcceptingPrompts(false);
     }
   }
@@ -1737,46 +1812,7 @@ export default function Dashboard() {
         background: "var(--background)",
       }}
     >
-      {acceptingPrompts && (
-        <div style={{
-          position: "fixed", inset: 0, zIndex: 9999,
-          background: "rgba(15, 23, 42, 0.85)", backdropFilter: "blur(12px)",
-          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-          color: "#fff", padding: 20
-        }} className="animate-in fade-in duration-300">
-          <div style={{
-            background: "var(--card-bg, #1e293b)", border: "1px solid var(--border, #334155)",
-            padding: "40px 30px", borderRadius: "var(--radius-lg, 16px)", maxWidth: 500, width: "100%",
-            textAlign: "center", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
-            display: "flex", flexDirection: "column", alignItems: "center", gap: 20
-          }} className="animate-in zoom-in-95 duration-300">
-            <div style={{
-              width: 80, height: 80, borderRadius: "50%", background: "rgba(34, 197, 94, 0.1)",
-              display: "flex", alignItems: "center", justifyContent: "center", border: "2px dashed #22c55e",
-              animation: "spin 8s linear infinite"
-            }}>
-              <span style={{ fontSize: 36 }}>🎬</span>
-            </div>
-            <div>
-              <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8, color: "var(--text, #fff)" }}>
-                Generating Final Ad Creatives
-              </h3>
-              <p style={{ fontSize: 13, color: "var(--text-muted, #94a3b8)", lineHeight: "1.6" }}>
-                AI is now rendering your high-definition video files, generating authentic voiceovers, and uploading final assets to Supabase storage.
-              </p>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, background: "rgba(34, 197, 94, 0.05)", padding: "10px 20px", borderRadius: "var(--radius-md, 8px)", border: "1.5px solid rgba(34, 197, 94, 0.15)", width: "100%", justifyContent: "center" }}>
-              <Spinner size={16} color="#22c55e" />
-              <span style={{ fontSize: 12, fontWeight: 600, color: "#22c55e", letterSpacing: "0.04em", textTransform: "uppercase" }}>
-                Running n8n Workflow...
-              </span>
-            </div>
-            <p style={{ fontSize: 11, color: "var(--text-dim, #64748b)" }}>
-              Please do not close this window. Your dashboard will refresh automatically upon completion.
-            </p>
-          </div>
-        </div>
-      )}
+      {/* Full-screen overlay removed — replaced by non-blocking progress bar in Create Ad tab */}
 
       {/* ── MOBILE TOP BAR ── */}
       {/* ── MOBILE TOP BAR ── */}
@@ -3854,6 +3890,32 @@ export default function Dashboard() {
                             Confirm &amp; Generate Ads →
                           </button>
                         )}
+                      </div>
+                    )}
+
+                    {/* ── Video Generation Progress Bar ── */}
+                    {videoGenerating && (
+                      <div style={{ marginTop: 14, padding: "16px 18px", borderRadius: 14, background: "linear-gradient(135deg, #f0fdf4, #dcfce7)", border: "1.5px solid #86efac", boxSizing: "border-box" }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <Spinner size={14} color="#16a34a" />
+                            <span style={{ fontSize: 13, fontWeight: 700, color: "#15803d" }}>
+                              {videoGenProgress >= 100 ? "Videos ready! 🎬" : "Generating your videos…"}
+                            </span>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <span style={{ fontSize: 12, fontWeight: 800, color: "#16a34a" }}>{videoGenProgress}%</span>
+                            {videoGenProgress < 100 && (
+                              <button onClick={() => stopVideoGenProgress(false)} style={{ background: "none", border: "none", fontSize: 12, color: "#94a3b8", cursor: "pointer", padding: "2px 6px" }}>Dismiss</button>
+                            )}
+                          </div>
+                        </div>
+                        <div style={{ height: 8, background: "#bbf7d0", borderRadius: 8, overflow: "hidden" }}>
+                          <div style={{ height: "100%", width: `${videoGenProgress}%`, background: videoGenProgress >= 100 ? "#16a34a" : "linear-gradient(90deg, #22c55e, #16a34a)", borderRadius: 8, transition: "width 1.8s ease-out", boxShadow: "0 0 8px rgba(22,163,74,0.4)" }} />
+                        </div>
+                        <div style={{ fontSize: 11, color: "#16a34a", marginTop: 6 }}>
+                          {videoGenProgress >= 100 ? "Check the Ad Previews section below ↓" : "You can freely navigate — we'll notify you when done."}
+                        </div>
                       </div>
                     )}
 
