@@ -1282,6 +1282,15 @@ export default function Dashboard() {
   }
 
   async function handleAcceptPrompts() {
+    // Validate: all video items must have a voice selected
+    const videosMissingVoice = (createTabAdsConfig.items || []).filter(
+      (item: any) => item.type === "video" && !voiceLabels[item.id]
+    );
+    if (videosMissingVoice.length > 0) {
+      addSbToast(`Please select a voice for all video ads before accepting. ${videosMissingVoice.length} video(s) missing a voice.`, "error");
+      return;
+    }
+
     setAcceptingPrompts(true);
     setFailedPrompts([]); // Clear any previous errors
     addSbToast("Sending accepted prompts to webhook...");
@@ -3367,15 +3376,16 @@ export default function Dashboard() {
                                     onClick={() => setVoiceModalOpenForId(item.id)}
                                     style={{
                                       width: "100%", padding: "10px", borderRadius: "var(--radius-md)",
-                                      border: "none", background: "#0284c7", color: "#fff",
+                                      border: voiceLabels[item.id] ? "none" : "2px dashed #93c5fd",
+                                      background: voiceLabels[item.id] ? "#0284c7" : "#eff6ff", color: voiceLabels[item.id] ? "#fff" : "#0284c7",
                                       fontSize: 12, fontWeight: 700, cursor: "pointer",
                                       display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                                      fontFamily: "inherit", transition: "background 0.15s",
+                                      fontFamily: "inherit", transition: "all 0.15s",
                                     }}
-                                    onMouseEnter={e => { e.currentTarget.style.background = "#0369a1"; }}
-                                    onMouseLeave={e => { e.currentTarget.style.background = "#0284c7"; }}
+                                    onMouseEnter={e => { e.currentTarget.style.background = voiceLabels[item.id] ? "#0369a1" : "#dbeafe"; }}
+                                    onMouseLeave={e => { e.currentTarget.style.background = voiceLabels[item.id] ? "#0284c7" : "#eff6ff"; }}
                                   >
-                                    🎙️ Voices
+                                    🎙️ {voiceLabels[item.id] ? "Voice Selected" : "Select Voice *"}
                                   </button>
                                   {voiceLabels[item.id] && (
                                     <div style={{
@@ -3419,6 +3429,11 @@ export default function Dashboard() {
                                     disabled={sentIdeaIds[item.id]}
                                     onClick={async () => {
                                       if (sentIdeaIds[item.id]) return;
+                                      // Require voice selection for video items
+                                      if (isVideo && !voiceLabels[item.id]) {
+                                        addSbToast("Please select a voice first — click the 🎙️ Voices button.", "error");
+                                        return;
+                                      }
                                       setSentIdeaIds(prev => ({ ...prev, [item.id]: true }));
                                       addSbToast(`Generating Video ${idx + 1} ideas via webhook...`);
                                       console.log("Sending to Webhook:", item);
