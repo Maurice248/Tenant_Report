@@ -120,7 +120,7 @@ const normalizeSupabaseUrl = (url) => {
  * Works like useState but automatically persists to/from localStorage.
  * Highly robust and SSR/Hydration safe for Next.js.
  */
-function useLocalStorage(key, defaultValue) {
+function useLocalStorage(key, defaultValue, onRestore = null) {
   const [value, setValue] = useState(defaultValue);
   const [isMounted, setIsMounted] = useState(false);
 
@@ -131,7 +131,8 @@ function useLocalStorage(key, defaultValue) {
       try {
         const stored = window.localStorage.getItem(key);
         if (stored !== null) {
-          setValue(JSON.parse(stored));
+          const parsed = JSON.parse(stored);
+          setValue(onRestore ? onRestore(parsed) : parsed);
         }
       } catch (e) {
         console.warn(`LocalStorage read error for key "${key}":`, e);
@@ -207,7 +208,9 @@ export default function Dashboard() {
   }, [researchKeywords, selectedTopic]);
 
   // Ad creation
-  const [adStatus, setAdStatus] = useLocalStorage("toga_ad_status", "idle");
+  // "generating" = in-flight browser fetch; a refresh kills that request so always restore as "idle"
+  const [adStatus, setAdStatus] = useLocalStorage("toga_ad_status", "idle",
+    (v) => (v === "generating" ? "idle" : v));
   // idle | generating | waiting | done | error
   const [adData, setAdData] = useLocalStorage("toga_ad_data", null);
 
