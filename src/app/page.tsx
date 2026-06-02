@@ -439,7 +439,9 @@ export default function Dashboard() {
   const [approvingId, setApprovingId] = useState(null);
   const [selectedAdForDetails, setSelectedAdForDetails] = useState(null);
   const [workflowStatus, setWorkflowStatus] = useLocalStorage("toga_workflow_status", "");
-  const [isStatusPolling, setIsStatusPolling] = useLocalStorage("toga_is_status_polling", false);
+  // If no active video generation (no start timestamp), stale isStatusPolling=true should reset
+  const [isStatusPolling, setIsStatusPolling] = useLocalStorage("toga_is_status_polling", false,
+    (v) => (v === true && typeof window !== "undefined" && !localStorage.getItem("toga_video_gen_start") ? false : v));
   const [isEditingAd, setIsEditingAd] = useState(false);
   const [editingAdData, setEditingAdData] = useState<any>({});
   const [isSavingAd, setIsSavingAd] = useState(false);
@@ -2730,9 +2732,13 @@ export default function Dashboard() {
                     <input
                       type="number"
                       value={researchMaxAds}
-                      onChange={(e) => setResearchMaxAds(e.target.value)}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        if (e.target.value === "") { setResearchMaxAds(""); return; }
+                        setResearchMaxAds(Math.min(100, Math.max(1, val)));
+                      }}
                       min={1}
-                      max={1000}
+                      max={100}
                       style={{
                         width: "100%",
                         padding: "8px 12px",
@@ -3484,11 +3490,18 @@ export default function Dashboard() {
                               </div>
                               <div>
                                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                                  <div style={{ fontSize: 10, fontWeight: 800, color: "#0284c7", textTransform: "uppercase", letterSpacing: "0.06em" }}>Script / Storyboard Idea</div>
+                                  <div style={{ fontSize: 10, fontWeight: 800, color: "#0284c7", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                                    Script / Storyboard Idea <span style={{ color: "#ef4444" }}>*</span>
+                                  </div>
                                   <button
-                                    disabled={sentIdeaIds[item.id]}
+                                    disabled={sentIdeaIds[item.id] || !item.idea?.trim()}
                                     onClick={async () => {
                                       if (sentIdeaIds[item.id]) return;
+                                      // Require idea/storyboard text
+                                      if (!item.idea?.trim()) {
+                                        addSbToast("Please enter a Script / Storyboard Idea first.", "error");
+                                        return;
+                                      }
                                       // Require voice selection for video items
                                       if (isVideo && !voiceLabels[item.id]) {
                                         addSbToast("Please select a voice first — click the 🎙️ Voices button.", "error");
@@ -3533,24 +3546,25 @@ export default function Dashboard() {
                                     }}
                                     style={{
                                       padding: "5px 12px", borderRadius: "var(--radius-sm)", border: "none",
-                                      background: sentIdeaIds[item.id] ? "#38bdf8" : "linear-gradient(135deg, #0284c7, #38bdf8)",
+                                      background: (sentIdeaIds[item.id] || !item.idea?.trim()) ? "#94a3b8" : "linear-gradient(135deg, #0284c7, #38bdf8)",
                                       color: "#fff", fontSize: 10, fontWeight: 700,
-                                      cursor: sentIdeaIds[item.id] ? "not-allowed" : "pointer",
+                                      cursor: (sentIdeaIds[item.id] || !item.idea?.trim()) ? "not-allowed" : "pointer",
                                       transition: "all 0.2s", textTransform: "uppercase",
-                                      opacity: sentIdeaIds[item.id] ? 0.7 : 1,
-                                      boxShadow: sentIdeaIds[item.id] ? "none" : "0 3px 10px rgba(2,132,199,0.4)"
+                                      opacity: (sentIdeaIds[item.id] || !item.idea?.trim()) ? 0.6 : 1,
+                                      boxShadow: (sentIdeaIds[item.id] || !item.idea?.trim()) ? "none" : "0 3px 10px rgba(2,132,199,0.4)"
                                     }}
                                   >
                                     {sentIdeaIds[item.id] ? "✨ Generating..." : "✨ Generate an idea"}
                                   </button>
                                 </div>
                                 <textarea
-                                  placeholder="e.g. generate a video with offer and sales ads..."
+                                  placeholder="Required — describe your video concept, offer, or story angle..."
                                   value={item.idea}
                                   onChange={(e) => updateCreateTabItemField(idx, "idea", e.target.value)}
                                   style={{
                                     width: "100%", minHeight: 80, padding: "12px", borderRadius: "var(--radius-md)",
-                                    border: "1.5px solid #bae6fd", background: "#fff",
+                                    border: `1.5px solid ${item.idea?.trim() ? "#bae6fd" : "#fca5a5"}`,
+                                    background: item.idea?.trim() ? "#fff" : "#fff7f7",
                                     fontSize: 12, outline: "none", color: "#0369a1", resize: "vertical", fontFamily: "inherit"
                                   }}
                                 />
@@ -3767,7 +3781,19 @@ export default function Dashboard() {
                             <SectionTitle style={{ marginBottom: 0 }}>{workflowStatus?.toLowerCase().includes("completed") ? "Workflow Completed" : "Workflow in Progress"}</SectionTitle>
                           </div>
                           {workflowStatus?.toLowerCase().includes("completed") ? (
-                            <Badge text="COMPLETED" color="var(--green)" bg="var(--green-light)" />
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <Badge text="COMPLETED" color="var(--green)" bg="var(--green-light)" />
+                              <button
+                                type="button"
+                                onClick={() => { setIsStatusPolling(false); resetCreateTabWorkspace(); setCreateTabConfigOpen(true); }}
+                                style={{
+                                  padding: "6px 14px", borderRadius: 8, border: "none",
+                                  background: "linear-gradient(135deg, #0284c7, #0ea5e9)", color: "#fff",
+                                  fontSize: 11, fontWeight: 700, cursor: "pointer",
+                                  boxShadow: "0 2px 8px rgba(2,132,199,0.3)"
+                                }}
+                              >+ Create New Ad</button>
+                            </div>
                           ) : (
                             <Badge text="RUNNING" color="var(--primary)" bg="var(--primary-light)" />
                           )}
@@ -3860,7 +3886,14 @@ export default function Dashboard() {
                           })()}
                         </div>
                       </div>
-                    ) : (
+                    ) : (() => {
+                      const allIdeasFilled = (createTabAdsConfig.items || []).every((item: any) => item.idea?.trim());
+                      return !allIdeasFilled ? (
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#92400e", fontSize: 13 }}>
+                          <span style={{ fontSize: 16 }}>✏️</span>
+                          <span>Fill in the <b>Script / Storyboard Idea</b> for each ad to unlock generation.</span>
+                        </div>
+                      ) : (
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5">
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                           <span style={{ fontSize: 18 }}>🚀</span>
@@ -3915,7 +3948,8 @@ export default function Dashboard() {
                           </button>
                         )}
                       </div>
-                    )}
+                      );
+                    })()}
 
 
                     {adStatus === "error" && (
