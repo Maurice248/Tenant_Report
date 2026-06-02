@@ -3290,12 +3290,20 @@ export default function Dashboard() {
                         <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Choose between 1 and 5 creatives.</div>
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        {adStatus === "generating" && (
-                          <div style={{ fontSize: 11, color: "var(--text-muted)", fontStyle: "italic", display: "flex", alignItems: "center", gap: 6 }}>
-                            <Spinner size={11} color="var(--primary)" /> Locked during generation
-                          </div>
-                        )}
-                        {adStatus !== "generating" && [1, 2, 3, 4, 5].map((n) => (
+                        {(() => {
+                          const hasScenes = Object.values(adScenesMap).some((s: any) => Array.isArray(s) && s.length > 0);
+                          const isGenerating = adStatus === "generating";
+                          if (isGenerating) return (
+                            <div style={{ fontSize: 11, color: "var(--text-muted)", fontStyle: "italic", display: "flex", alignItems: "center", gap: 6 }}>
+                              <Spinner size={11} color="var(--primary)" /> Locked during generation
+                            </div>
+                          );
+                          if (hasScenes) return (
+                            <div style={{ fontSize: 11, color: "#92400e", fontStyle: "italic", display: "flex", alignItems: "center", gap: 6, background: "#fffbeb", padding: "5px 10px", borderRadius: 8, border: "1px solid #fde68a" }}>
+                              🔒 Prompts generated — reset to change ad count
+                            </div>
+                          );
+                          return [1, 2, 3, 4, 5].map((n) => (
                           <button
                             key={n}
                             onClick={() => updateCreateTabTotalAds(n)}
@@ -3309,7 +3317,8 @@ export default function Dashboard() {
                               boxShadow: createTabAdsConfig.totalAds === n ? "0 4px 10px rgba(2,132,199,0.3)" : "none",
                             }}
                           >{n}</button>
-                        ))}
+                          ));
+                        })()}
                       </div>
                     </div>
                   </div>
