@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Spinner, Badge } from "./components";
 import CustomSelect from "./CustomSelect";
 
@@ -58,6 +58,12 @@ const DEFAULT_CONFIG: any = {
   link_data: normalizeSupabaseUrl("https://nidoqmcxmlyiovdktzxg.supabase.co/storage/v1/object/AD1/08-04-2026_11-55AM.mp4"),
 };
 
+// ─── PERSISTENCE KEYS ────────────────────────────────────────────────────────
+const STORE_CONFIG   = "toga_campaign_config";
+const STORE_STEP     = "toga_campaign_step";
+const STORE_SEL_AD   = "toga_campaign_sel_ad";
+const STORE_LAST_AD  = "toga_campaign_last_ad_text";
+
 const CAMPAIGN_OBJECTIVES = [
   { value: "OUTCOME_AWARENESS", label: "Awareness", icon: "📢" },
   { value: "OUTCOME_TRAFFIC", label: "Traffic", icon: "🌐" },
@@ -101,6 +107,8 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
   const [launchSuccess, setLaunchSuccess] = useState(false);
   const [hasLaunchedThisSegment, setHasLaunchedThisSegment] = useState(false);
   const [selectedApprovedAd, setSelectedApprovedAd] = useState<any>(null);
+  const [hydrated, setHydrated] = useState(false);
+  const lastAppliedAdRef = useRef<string | null>(null);
 
   const setField = (section: string, key: string, value: any) => {
     setConfig((prev: any) => ({ ...prev, [section]: { ...prev[section], [key]: value } }));
@@ -120,10 +128,47 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
 
   useEffect(() => { fetchCampaigns(); }, [fetchCampaigns]);
 
+  // ── Restore persisted state on mount ──
+  useEffect(() => {
+    try {
+      const c = localStorage.getItem(STORE_CONFIG);
+      const s = localStorage.getItem(STORE_STEP);
+      const a = localStorage.getItem(STORE_SEL_AD);
+      const t = localStorage.getItem(STORE_LAST_AD);
+      if (c) setConfig(JSON.parse(c));
+      if (s) setStep(JSON.parse(s));
+      if (a) setSelectedApprovedAd(JSON.parse(a));
+      if (t) lastAppliedAdRef.current = t;
+    } catch {}
+    setHydrated(true);
+  }, []);
+
+  // ── Persist config, step, selectedApprovedAd ──
+  useEffect(() => {
+    if (!hydrated) return;
+    try { localStorage.setItem(STORE_CONFIG, JSON.stringify(config)); } catch {}
+  }, [config, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    try { localStorage.setItem(STORE_STEP, JSON.stringify(step)); } catch {}
+  }, [step, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated || !selectedApprovedAd) return;
+    try { localStorage.setItem(STORE_SEL_AD, JSON.stringify(selectedApprovedAd)); } catch {}
+  }, [selectedApprovedAd, hydrated]);
 
   // Apply selectedAd from Approval tab
+  // Only rebuilds config when a NEW ad is selected (not on page refresh with same ad)
   useEffect(() => {
     if (!selectedAd) return;
+    if (!hydrated) return;
+    // Same ad already applied — preserve any user edits made since then
+    if (lastAppliedAdRef.current === (selectedAd.text || "")) return;
+    // New ad — record it and rebuild config
+    lastAppliedAdRef.current = selectedAd.text || "";
+    try { localStorage.setItem(STORE_LAST_AD, selectedAd.text || ""); } catch {}
     try {
       let parsed: any = {};
       if (typeof selectedAd["json data"] === "string") parsed = JSON.parse(selectedAd["json data"]);
@@ -144,13 +189,13 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
       next.ad.id = selectedAd.id || Date.now();
       if (selectedAd.text) {
         next.link_data = selectedAd.text;
-        setSelectedApprovedAd(selectedAd); // auto-select the ad passed from Approval
+        setSelectedApprovedAd(selectedAd);
       }
       next.ad.media_type = isVideo ? "video" : "image";
       next.ad.type = isVideo ? "video" : "image";
       setConfig(next);
     } catch (e) { console.error("Failed to parse selectedAd", e); }
-  }, [selectedAd]);
+  }, [selectedAd, hydrated]);
 
   useEffect(() => { setHasLaunchedThisSegment(false); }, [selectedId, selectedAd]);
 
@@ -445,31 +490,30 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
                   <input type="datetime-local" value={config.ad_set?.start_time || ""} onChange={e => setField("ad_set", "start_time", e.target.value)} style={{ ...inputSt, width: "100%", boxSizing: "border-box" }} />
                 </Label>
                 <Label label="End Date">
-                  <div style={{ position: "relative" }}>
-                    {config.ad_set?.has_end_date ? (
+                  {config.ad_set?.has_end_date ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <input
                         type="datetime-local"
                         value={config.ad_set?.stop_time || ""}
                         onChange={e => setField("ad_set", "stop_time", e.target.value)}
-                        style={{ ...inputSt, width: "100%", boxSizing: "border-box" }}
+                        style={{ ...inputSt, flex: 1, boxSizing: "border-box" }}
                       />
-                    ) : (
-                      <div
-                        onClick={() => setField("ad_set", "has_end_date", true)}
-                        style={{ ...inputSt, cursor: "pointer", color: "#94a3b8", display: "flex", alignItems: "center", gap: 8, boxSizing: "border-box" }}
-                      >
-                        <span style={{ fontSize: 16, lineHeight: 1 }}>+</span>
-                        <span>Add end date</span>
-                      </div>
-                    )}
-                    {config.ad_set?.has_end_date && (
                       <button
                         type="button"
-                        onClick={() => setField("ad_set", "has_end_date", false)}
-                        style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: "2px 4px" }}
+                        onClick={() => { setField("ad_set", "has_end_date", false); setField("ad_set", "stop_time", ""); }}
+                        style={{ flexShrink: 0, width: 32, height: 32, borderRadius: 8, background: "#f1f5f9", border: "1.5px solid #e2e8f0", color: "#94a3b8", cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}
+                        title="Remove end date"
                       >×</button>
-                    )}
-                  </div>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => setField("ad_set", "has_end_date", true)}
+                      style={{ ...inputSt, cursor: "pointer", color: "#94a3b8", display: "flex", alignItems: "center", gap: 8, boxSizing: "border-box" }}
+                    >
+                      <span style={{ fontSize: 16, lineHeight: 1 }}>+</span>
+                      <span>Add end date</span>
+                    </div>
+                  )}
                 </Label>
               </div>
             </div>

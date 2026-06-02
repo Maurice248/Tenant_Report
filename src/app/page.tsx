@@ -168,10 +168,10 @@ export default function Dashboard() {
     console.log("[Diagnostics] Supabase URL:", process.env.NEXT_PUBLIC_SUPABASE_URL);
   }, []);
 
-  // Analysis state — status persists across refresh so progress bar survives reload
+  // Analysis state — status and data persist across refresh
   const [analysisStatus, setAnalysisStatus] = useLocalStorage("toga_analysis_status", "idle");
   // idle | generating | done | error
-  const [analysisData, setAnalysisData] = useState(null);
+  const [analysisData, setAnalysisData] = useLocalStorage("toga_analysis_data", null);
   const [analysisProgress, setAnalysisProgress] = useState(0);
 
   const [analysisError, setAnalysisError] = useState("");
@@ -456,8 +456,8 @@ export default function Dashboard() {
     }
     return false;
   });
-  const [selectedMetaCampaign, setSelectedMetaCampaign] = useState(null);
-  const [launchAdCandidate, setLaunchAdCandidate] = useState(null);
+  const [selectedMetaCampaign, setSelectedMetaCampaign] = useLocalStorage("toga_selected_meta_campaign", null);
+  const [launchAdCandidate, setLaunchAdCandidate] = useLocalStorage("toga_launch_ad_candidate", null);
 
   // Custom Media Upload
   const [customUploadLoading, setCustomUploadLoading] = useState(false);
