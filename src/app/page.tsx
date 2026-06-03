@@ -1395,51 +1395,88 @@ export default function Dashboard() {
   }
 
   /** Parse failures from n8n response — handles arrays of multiple response objects (one per ad item/type) */
+  /**
+   * Parse generation failures from n8n response.
+   *
+   * Key design: each n8n flow runs ONE ad at a time, so the response is for a single ad.
+   * results[i].index is LOCAL to that ad (0 = scene 0 of that ad, not global scene 0).
+   * Primary match strategy: prompt text comparison (most reliable).
+   * Fallback: once we identify which itemId owns this response via a successful result's
+   * prompt, use local index within that item's scenes.
+   */
   function parseGenerationFailures(responseData: any, indexMap: Array<{ itemId: any; sceneIndex: number; scene: any }>) {
-    // Normalize: always work with an array of response objects
     const responses: any[] = Array.isArray(responseData) ? responseData.flat() : [responseData];
-    const seen = new Set<string>(); // dedupe by taskId or prompt
+    const seen = new Set<string>();
     const failures: any[] = [];
+
+    /** Match a prompt string to the indexMap by text similarity */
+    const matchByPrompt = (prompt: string) => {
+      if (!prompt || prompt.length < 20) return null;
+      const needle = prompt.slice(0, 80).toLowerCase();
+      return indexMap.find(m => {
+        const hay = (m.scene?.prompt || m.scene?.prompt_clean || "").slice(0, 80).toLowerCase();
+        return hay && (hay === needle || hay.includes(needle.slice(0, 50)) || needle.includes(hay.slice(0, 50)));
+      }) ?? null;
+    };
 
     responses.forEach((raw) => {
       if (!raw || typeof raw !== "object") return;
 
-      // Path 1 — results[] array (most complete, has index for mapping)
+      // ── Step 1: identify which itemId this entire response belongs to ──
+      // Use the first SUCCESS result's prompt to detect the owning item
+      let ownerItemId: any = null;
+      if (Array.isArray(raw.results)) {
+        for (const r of raw.results) {
+          const m = matchByPrompt(r.prompt || "");
+          if (m) { ownerItemId = m.itemId; break; }
+        }
+      }
+
+      // ── Step 2: get the scenes for this item (for local-index fallback) ──
+      const ownerScenes = ownerItemId !== null
+        ? indexMap.filter(m => m.itemId === ownerItemId)
+        : [];
+
+      // ── Step 3: extract failures from results[] ──
       if (Array.isArray(raw.results)) {
         raw.results
           .filter((r: any) => r.success === false || r.state === "fail" || r.state === "error")
           .forEach((r: any) => {
-            const key = r.taskId || r.prompt?.slice(0, 80) || String(r.index);
+            const key = r.taskId || (r.prompt || "").slice(0, 80) || String(r.index);
             if (seen.has(key)) return;
             seen.add(key);
-            const mapped = indexMap[r.index] ?? null;
+
+            // Primary: match by prompt text
+            let mapped = matchByPrompt(r.prompt || "");
+            // Fallback: local index within the detected item
+            if (!mapped && ownerScenes.length > 0) mapped = ownerScenes[r.index] ?? null;
+            // Last resort: global index
+            if (!mapped) mapped = indexMap[r.index] ?? null;
+
             failures.push({
               taskId: r.taskId || "",
               prompt: r.prompt || "",
               failMsg: r.failMsg || r.reason || "Generation failed.",
-              itemId: mapped?.itemId ?? null,
+              itemId: mapped?.itemId ?? ownerItemId ?? null,
               sceneIndex: mapped?.sceneIndex ?? r.index,
               scene: mapped?.scene ?? null,
             });
           });
       }
 
-      // Path 2 — failedPrompts[] (fallback: no index, match by prompt text)
+      // ── Step 4: failedPrompts[] as additional fallback ──
       if (Array.isArray(raw.failedPrompts)) {
         raw.failedPrompts.forEach((fp: any) => {
           const prompt = fp.prompt || "";
           const key = prompt.slice(0, 80);
-          if (seen.has(key)) return;
+          if (seen.has(key)) return; // already captured via results[]
           seen.add(key);
-          // Try to match back to indexMap by prompt text
-          const mapped = indexMap.find(m =>
-            prompt.length > 20 && (m.scene?.prompt || m.scene?.prompt_clean || "").includes(prompt.slice(0, 60))
-          ) ?? null;
+          const mapped = matchByPrompt(prompt);
           failures.push({
             taskId: "",
             prompt,
             failMsg: fp.reason || "Generation failed.",
-            itemId: mapped?.itemId ?? null,
+            itemId: mapped?.itemId ?? ownerItemId ?? null,
             sceneIndex: mapped?.sceneIndex ?? null,
             scene: mapped?.scene ?? null,
           });
