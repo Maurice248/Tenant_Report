@@ -15,47 +15,47 @@ const normalizeSupabaseUrl = (url: string | null | undefined) => {
   return `${base}/storage/v1/object/public/${path[0]}/${path.slice(1).join("/")}`;
 };
 
-// ─── DEFAULT CONFIG ───────────────────────────────────────────────────────────
+// ─── EMPTY CONFIG — all user-input fields are blank; only UI defaults kept ────
 const DEFAULT_CONFIG: any = {
   campaign: {
-    name: "treatment_pathway_q2_2026",
+    name: "",
     objective: "OUTCOME_TRAFFIC",
     buying_type: "AUCTION",
     special_ad_categories: ["NONE"],
     is_adset_budget_sharing_enabled: false,
   },
   ad_set: {
-    name: "Regional_Health_30-65_All",
-    daily_budget: 5000,
-    lifetime_budget: 50000,
+    name: "",
+    daily_budget: 0,
+    lifetime_budget: 0,
     budget_type: "DAILY",
-    start_time: new Date().toISOString().slice(0, 16),
+    start_time: "",
     stop_time: "",
     has_end_date: false,
-    age_min: 30,
+    age_min: 18,
     age_max: 65,
     gender: 0,
-    geo_locations: { countries: ["CA", "GB"], location_types: ["home", "recent"] },
-    optimization_goal: "OFFSITE_CONVERSIONS",
+    geo_locations: { location_types: ["home", "recent"] },
+    optimization_goal: "LINK_CLICKS",
     publisher_platforms: ["facebook", "instagram"],
     facebook_positions: ["feed", "story", "reels"],
     instagram_positions: ["stream", "story", "reels"],
   },
   ad: {
     id: Date.now(),
-    name: "Video_PatientJourney_H1",
+    name: "",
     type: "video",
     media_type: "video",
-    headline: "World-Class Surgical Care & Safety",
-    description: "Experience our state-of-the-art medical facilities and patient-centered care.",
-    primary_text: "From referral to recovery — experience JCI‑accredited excellence, state‑of‑the‑art facilities, and compassionate patient care.",
-    website_url: "https://togahh.com/",
-    display_link: "togahh.com",
+    headline: "",
+    description: "",
+    primary_text: "",
+    website_url: "",
+    display_link: "",
     call_to_action_type: "LEARN_MORE",
-    facebook_page: "TogaHealth",
-    instagram_account: "togahealth_official",
+    facebook_page: "",
+    instagram_account: "",
   },
-  link_data: normalizeSupabaseUrl("https://nidoqmcxmlyiovdktzxg.supabase.co/storage/v1/object/AD1/08-04-2026_11-55AM.mp4"),
+  link_data: "",
 };
 
 // ─── PERSISTENCE KEYS ────────────────────────────────────────────────────────
@@ -109,6 +109,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
   const [selectedApprovedAd, setSelectedApprovedAd] = useState<any>(null);
   const [hydrated, setHydrated] = useState(false);
   const lastAppliedAdRef = useRef<string | null>(null);
+  const [stepErrors, setStepErrors] = useState<string[]>([]);
 
   const setField = (section: string, key: string, value: any) => {
     setConfig((prev: any) => ({ ...prev, [section]: { ...prev[section], [key]: value } }));
@@ -159,42 +160,37 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
     try { localStorage.setItem(STORE_SEL_AD, JSON.stringify(selectedApprovedAd)); } catch {}
   }, [selectedApprovedAd, hydrated]);
 
-  // Apply selectedAd from Approval tab
-  // Only rebuilds config when a NEW ad is selected (not on page refresh with same ad)
+  // Apply selectedAd from Approval tab — only sets media URL + type, all other fields stay empty for user to fill
   useEffect(() => {
     if (!selectedAd) return;
     if (!hydrated) return;
-    // Same ad already applied — preserve any user edits made since then
+    // Same ad already applied — keep user edits
     if (lastAppliedAdRef.current === (selectedAd.text || "")) return;
-    // New ad — record it and rebuild config
+    // New ad selected — reset to empty config, set media fields only
     lastAppliedAdRef.current = selectedAd.text || "";
     try { localStorage.setItem(STORE_LAST_AD, selectedAd.text || ""); } catch {}
+    const isVideo = (selectedAd.format || "").toLowerCase() === "video";
+    const fresh: any = {
+      ...DEFAULT_CONFIG,
+      campaign: { ...DEFAULT_CONFIG.campaign },
+      ad_set: { ...DEFAULT_CONFIG.ad_set },
+      ad: {
+        ...DEFAULT_CONFIG.ad,
+        id: selectedAd.id || Date.now(),
+        media_type: isVideo ? "video" : "image",
+        type: isVideo ? "video" : "image",
+      },
+      link_data: selectedAd.text || "",
+    };
+    setConfig(fresh);
+    setStep(1);
+    setStepErrors([]);
+    setSelectedApprovedAd(selectedAd);
+    // Clear stored state so fresh config persists
     try {
-      let parsed: any = {};
-      if (typeof selectedAd["json data"] === "string") parsed = JSON.parse(selectedAd["json data"]);
-      else if (selectedAd["json data"]) parsed = selectedAd["json data"];
-      const isVideo = (selectedAd.format || "").toLowerCase() === "video";
-      const next = { ...DEFAULT_CONFIG };
-      if (parsed.campaign) next.campaign = { ...DEFAULT_CONFIG.campaign, ...parsed.campaign };
-      if (parsed.ad_set) {
-        const geoLocations = parsed.ad_set.geo_targeting
-          ? { countries: parsed.ad_set.geo_targeting, location_types: ["home", "recent"] }
-          : DEFAULT_CONFIG.ad_set.geo_locations;
-        const adSet = { ...DEFAULT_CONFIG.ad_set, ...parsed.ad_set, geo_locations: geoLocations };
-        delete adSet.geo_targeting;
-        next.ad_set = adSet;
-      }
-      if (parsed.ad) next.ad = { ...DEFAULT_CONFIG.ad, ...parsed.ad };
-      else if (parsed.ads?.[0]) next.ad = { ...DEFAULT_CONFIG.ad, ...parsed.ads[0] };
-      next.ad.id = selectedAd.id || Date.now();
-      if (selectedAd.text) {
-        next.link_data = selectedAd.text;
-        setSelectedApprovedAd(selectedAd);
-      }
-      next.ad.media_type = isVideo ? "video" : "image";
-      next.ad.type = isVideo ? "video" : "image";
-      setConfig(next);
-    } catch (e) { console.error("Failed to parse selectedAd", e); }
+      localStorage.setItem(STORE_CONFIG, JSON.stringify(fresh));
+      localStorage.setItem(STORE_STEP, JSON.stringify(1));
+    } catch {}
   }, [selectedAd, hydrated]);
 
   useEffect(() => { setHasLaunchedThisSegment(false); }, [selectedId, selectedAd]);
@@ -238,6 +234,37 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
       setLaunchError(e.message || "Launch failed");
       setLaunchStep(0);
     } finally { setLaunching(false); }
+  };
+
+  const validateStep = (s: number): string[] => {
+    const errs: string[] = [];
+    if (s === 1) {
+      if (!config.campaign?.name?.trim()) errs.push("Campaign Name is required.");
+    }
+    if (s === 2) {
+      if (!config.ad_set?.name?.trim()) errs.push("Ad Set Name is required.");
+      const geo = config.ad_set?.geo_locations;
+      const hasGeo = (geo?.countries?.length > 0) || (geo?.cities?.length > 0) || (geo?.regions?.length > 0);
+      if (!hasGeo) errs.push("At least one Target Location is required.");
+      const budget = config.ad_set?.budget_type === "DAILY" ? config.ad_set?.daily_budget : config.ad_set?.lifetime_budget;
+      if (!budget || Number(budget) <= 0) errs.push("Budget amount must be greater than 0.");
+      if (!config.ad_set?.start_time) errs.push("Start Date is required.");
+    }
+    if (s === 3) {
+      if (!config.ad?.name?.trim()) errs.push("Ad Name is required.");
+      if (!config.ad?.facebook_page?.trim()) errs.push("Facebook Page is required.");
+      if (!config.ad?.primary_text?.trim()) errs.push("Primary Text is required.");
+      if (!config.ad?.headline?.trim()) errs.push("Headline is required.");
+      if (!config.ad?.website_url?.trim()) errs.push("Destination URL is required.");
+    }
+    return errs;
+  };
+
+  const handleNext = () => {
+    const errs = validateStep(step);
+    if (errs.length > 0) { setStepErrors(errs); return; }
+    setStepErrors([]);
+    setStep(step + 1);
   };
 
   const getStatusColor = (status: string) => {
@@ -430,7 +457,12 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
             </div>
           </div>
 
-          <NavButtons step={step} setStep={setStep} isFirst isLast={false} />
+          {stepErrors.length > 0 && (
+            <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "12px 16px", display: "flex", flexDirection: "column", gap: 4 }}>
+              {stepErrors.map((e, i) => <div key={i} style={{ fontSize: 13, color: "#991b1b", display: "flex", gap: 6 }}><span>•</span>{e}</div>)}
+            </div>
+          )}
+          <NavButtons step={step} setStep={setStep} onNext={handleNext} isFirst isLast={false} />
         </div>
       )}
 
@@ -558,7 +590,12 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
             </div>
           </div>
 
-          <NavButtons step={step} setStep={setStep} isFirst={false} isLast={false} />
+          {stepErrors.length > 0 && (
+            <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "12px 16px", display: "flex", flexDirection: "column", gap: 4 }}>
+              {stepErrors.map((e, i) => <div key={i} style={{ fontSize: 13, color: "#991b1b", display: "flex", gap: 6 }}><span>•</span>{e}</div>)}
+            </div>
+          )}
+          <NavButtons step={step} setStep={setStep} onNext={handleNext} isFirst={false} isLast={false} />
         </div>
       )}
 
@@ -687,7 +724,12 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
             </div>
           </div>
 
-          <NavButtons step={step} setStep={setStep} isFirst={false} isLast />
+          {stepErrors.length > 0 && (
+            <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "12px 16px", display: "flex", flexDirection: "column", gap: 4 }}>
+              {stepErrors.map((e, i) => <div key={i} style={{ fontSize: 13, color: "#991b1b", display: "flex", gap: 6 }}><span>•</span>{e}</div>)}
+            </div>
+          )}
+          <NavButtons step={step} setStep={setStep} onNext={handleNext} isFirst={false} isLast />
 
           {/* Launch Panel */}
           {launchSuccess ? (
@@ -733,7 +775,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
                     </div>
                   </div>
                 ) : launchSuccess ? null : (
-                  <button onClick={handleFullLaunch} disabled={launching || hasLaunchedThisSegment}
+                  <button onClick={() => { const errs = validateStep(3); if (errs.length > 0) { setStepErrors(errs); return; } setStepErrors([]); handleFullLaunch(); }} disabled={launching || hasLaunchedThisSegment}
                     style={{
                       padding: "13px 32px", borderRadius: 10, border: "none", fontSize: 14, fontWeight: 800, cursor: (launching || hasLaunchedThisSegment) ? "not-allowed" : "pointer",
                       background: hasLaunchedThisSegment ? "#16a34a" : selectedId ? "#d97706" : "#2563eb",
@@ -760,7 +802,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
 }
 
 // ─── Nav Buttons ─────────────────────────────────────────────────────────────
-function NavButtons({ step, setStep, isFirst, isLast }: { step: number; setStep: (n: number) => void; isFirst: boolean; isLast: boolean }) {
+function NavButtons({ step, setStep, onNext, isFirst, isLast }: { step: number; setStep: (n: number) => void; onNext?: () => void; isFirst: boolean; isLast: boolean }) {
   return (
     <div style={{ display: "flex", justifyContent: isFirst ? "flex-end" : "space-between", paddingTop: 4 }}>
       {!isFirst && (
@@ -770,7 +812,7 @@ function NavButtons({ step, setStep, isFirst, isLast }: { step: number; setStep:
         </button>
       )}
       {!isLast && (
-        <button onClick={() => setStep(step + 1)}
+        <button onClick={onNext ?? (() => setStep(step + 1))}
           style={{ padding: "11px 28px", borderRadius: 10, border: "none", background: "#2563eb", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 12px rgba(37,99,235,0.3)" }}>
           Next →
         </button>
