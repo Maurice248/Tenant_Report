@@ -459,6 +459,8 @@ export default function Dashboard() {
   const [retryGenActive, setRetryGenActive] = useState(false);
   const [retryGenProgress, setRetryGenProgress] = useState(0);
   const retryGenTimerRef = useRef<any>(null);
+  const [retryingItemId, setRetryingItemId] = useState<string | null>(null);
+  const [retryItemProgress, setRetryItemProgress] = useState(0);
   const [promptGenProgress, setPromptGenProgress] = useState(0);
   const promptGenTimerRef = useRef<any>(null);
   const [videoGenerating, setVideoGenerating] = useState(false);
@@ -1547,7 +1549,7 @@ export default function Dashboard() {
           clearInterval(videoGenPollRef.current);
           stopVideoGenProgress(true);
           setGenerationActive(false);
-          resetCreateTabWorkspace(); // reset AFTER success, not before
+          // Keep workspace visible — user may still have errors to fix on other cards
           await fetchAdTableLinks();
           setAllApprovedAds(prev => {
             const newIds = new Set(data.map((d: any) => `${d.id}_${d.time}`));
@@ -1586,6 +1588,84 @@ export default function Dashboard() {
   /** Update a failed prompt's text (user edits it before retrying) */
   function updateFailedPromptText(index: number, newPrompt: string) {
     setFailedPrompts((prev: any[]) => prev.map((f, i) => i === index ? { ...f, prompt: newPrompt } : f));
+  }
+
+  /** Retry a single card — sends ALL scenes for that ad with edited prompts merged in */
+  function handleRetryCard(itemId: string) {
+    if (retryingItemId) return; // one retry at a time
+    setRetryingItemId(itemId);
+    setRetryItemProgress(0);
+
+    const allScenes: any[] = adScenesMap[itemId] || [];
+    // Build map of user-edited prompts by sceneIndex
+    const edits: Record<number, string> = {};
+    (failedPrompts as any[])
+      .filter(f => String(f.itemId) === itemId)
+      .forEach(f => { edits[f.sceneIndex] = f.prompt; });
+
+    // Merge edits into all scenes
+    const updatedScenes = allScenes.map((scene: any, si: number) =>
+      edits[si] !== undefined ? { ...scene, prompt: edits[si], prompt_clean: edits[si] } : scene
+    );
+
+    const indexMap = updatedScenes.map((scene: any, si: number) => ({ itemId, sceneIndex: si, scene }));
+
+    const CARD_RETRY_DURATION = 600_000;
+    const retryStart = Date.now();
+    clearInterval(retryGenTimerRef.current);
+    retryGenTimerRef.current = setInterval(() => {
+      setRetryItemProgress(Math.min(99, Math.round(((Date.now() - retryStart) / CARD_RETRY_DURATION) * 100)));
+    }, 2000);
+
+    const webhookUrl = process.env.NEXT_PUBLIC_N8N_ACCEPT_PROMPTS_URL || "https://n8n.srv881198.hstgr.cloud/webhook/3be958fe-3d6e-4ccf-8d72-5a9a0bb2d932";
+    const payload = {
+      report_id: analysisData?.id || crypto.randomUUID(),
+      report_data: analysisData,
+      generated_prompts: { [itemId]: updatedScenes },
+      audioKeys: adAudioKeysMap,
+      audio_keys: adAudioKeysMap,
+      is_retry: true,
+      scene_index_map: indexMap.map(m => ({ itemId: m.itemId, sceneIndex: m.sceneIndex })),
+    };
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 600_000);
+    fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    })
+      .then(res => { clearTimeout(timeout); return res.ok ? res.json() : null; })
+      .then(responseData => {
+        clearInterval(retryGenTimerRef.current);
+        const newFailures = responseData ? parseGenerationFailures(responseData, indexMap) : [];
+        // Replace failures for this card only
+        setFailedPrompts((prev: any[]) => {
+          const others = prev.filter(f => String(f.itemId) !== itemId);
+          const updated = [...others, ...newFailures];
+          // If all errors resolved, reset workspace
+          if (updated.length === 0) setTimeout(() => resetCreateTabWorkspace(), 1000);
+          return updated;
+        });
+        if (newFailures.length === 0) {
+          setRetryItemProgress(100);
+          setTimeout(() => { setRetryItemProgress(0); setRetryingItemId(null); }, 1500);
+          addSbToast("✅ Retry successful! Check Ad Previews.", "success");
+          fetchAdTableLinks();
+        } else {
+          setRetryItemProgress(0);
+          setRetryingItemId(null);
+          addSbToast(`⚠️ ${newFailures.length} scene(s) still failing. Edit and retry again.`, "error");
+        }
+      })
+      .catch(() => {
+        clearTimeout(timeout);
+        clearInterval(retryGenTimerRef.current);
+        setRetryingItemId(null);
+        setRetryItemProgress(0);
+        addSbToast("Retry request failed.", "error");
+      });
   }
 
   /** Retry: send ALL scenes for each errored ad (not just failed scenes) — one request, one progress bar */
@@ -3993,10 +4073,67 @@ export default function Dashboard() {
                               onMouseLeave={e => e.currentTarget.style.transform = "translateY(0)"}
                             >
                               {doesSlotHaveError(item.id)
-                                ? "⚠️ Generation failed — click to fix prompt"
+                                ? "⚠️ Error — View All Prompts"
                                 : <>🎬 View Image &amp; Video Prompts &nbsp;·&nbsp; {adScenesMap[item.id].length} scenes</>}
                             </button>
                           ) : null}
+
+                          {/* ── Inline error section — only on the specific failed card ── */}
+                          {doesSlotHaveError(item.id) && (() => {
+                            const cardFailures = (failedPrompts as any[]).filter(f => String(f.itemId) === String(item.id));
+                            const isRetrying = retryingItemId === String(item.id);
+                            return (
+                              <div style={{ marginTop: 10, border: "2px solid #ef4444", borderRadius: 12, overflow: "hidden" }}>
+                                {/* Header */}
+                                <div style={{ background: "linear-gradient(135deg, #dc2626, #ef4444)", padding: "8px 14px", display: "flex", alignItems: "center", gap: 8 }}>
+                                  <span style={{ fontSize: 14 }}>⚠️</span>
+                                  <span style={{ color: "#fff", fontSize: 11, fontWeight: 800 }}>
+                                    {cardFailures.length} Scene{cardFailures.length > 1 ? "s" : ""} Failed — Edit &amp; Retry
+                                  </span>
+                                </div>
+                                {/* Failed scenes — editable */}
+                                <div style={{ background: "#fff5f5", padding: "10px", display: "flex", flexDirection: "column", gap: 8 }}>
+                                  {cardFailures.map((fail: any) => {
+                                    const globalIdx = (failedPrompts as any[]).indexOf(fail);
+                                    return (
+                                      <div key={globalIdx} style={{ background: "#fff", border: "1.5px solid #fca5a5", borderRadius: 8, overflow: "hidden" }}>
+                                        <div style={{ padding: "5px 10px", background: "#fef2f2", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                          <span style={{ fontSize: 10, fontWeight: 800, color: "#dc2626" }}>Scene {fail.sceneIndex + 1}</span>
+                                          <span style={{ fontSize: 10, color: "#991b1b" }}>{fail.failMsg}</span>
+                                        </div>
+                                        <textarea
+                                          value={fail.prompt}
+                                          onChange={e => updateFailedPromptText(globalIdx, e.target.value)}
+                                          rows={3}
+                                          disabled={isRetrying}
+                                          style={{ width: "100%", fontSize: 10, color: "#334155", lineHeight: 1.6, border: "none", borderTop: "1px solid #fecaca", padding: "8px 10px", resize: "vertical", fontFamily: "inherit", outline: "none", background: isRetrying ? "#f8fafc" : "#fff", boxSizing: "border-box" }}
+                                        />
+                                      </div>
+                                    );
+                                  })}
+                                  {/* Retry button + progress */}
+                                  {isRetrying ? (
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, fontWeight: 700, color: "#dc2626" }}>
+                                        <span><Spinner size={10} color="#dc2626" /> Retrying…</span>
+                                        <span>{retryItemProgress}%</span>
+                                      </div>
+                                      <div style={{ height: 4, background: "#fee2e2", borderRadius: 2, overflow: "hidden" }}>
+                                        <div style={{ height: "100%", background: "#ef4444", borderRadius: 2, width: `${retryItemProgress}%`, transition: "width 1.8s ease-out" }} />
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      onClick={() => handleRetryCard(String(item.id))}
+                                      style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: "linear-gradient(135deg, #dc2626, #ef4444)", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, alignSelf: "flex-start", boxShadow: "0 3px 8px rgba(220,38,38,0.3)" }}
+                                    >
+                                      🔄 Retry {cardFailures.length} Scene{cardFailures.length > 1 ? "s" : ""} (All {adScenesMap[item.id]?.length || 0} sent) →
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })()}
                           </div>
                         </div>
                       );
@@ -4155,56 +4292,39 @@ export default function Dashboard() {
                             <div style={{ fontSize: 10, color: "#64748b" }}>Up to 9 min — you can wait here</div>
                           </div>
                         ) : Object.values(adScenesMap).some(scenes => Array.isArray(scenes) && scenes.length > 0) ? (
-                          <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%" }}>
-                            {/* Retry progress bar — shown when retry is running */}
-                            {retryGenActive && (
-                              <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 6 }}>
-                                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, fontWeight: 700, color: "#dc2626" }}>
-                                  <span>🔄 Retrying {failedPrompts.length} failed ad{failedPrompts.length > 1 ? "s" : ""}…</span>
-                                  <span>{retryGenProgress}%</span>
-                                </div>
-                                <div style={{ height: 6, background: "#fee2e2", borderRadius: 3, overflow: "hidden" }}>
-                                  <div style={{ height: "100%", background: retryGenProgress >= 100 ? "#16a34a" : "linear-gradient(90deg, #dc2626, #ef4444)", borderRadius: 3, width: `${retryGenProgress}%`, transition: "width 1.8s ease-out" }} />
-                                </div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }}>
+                            {/* When errors exist: hint pointing to the red cards above */}
+                            {(failedPrompts as any[]).length > 0 && (
+                              <div style={{ fontSize: 12, color: "#dc2626", fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
+                                <span>⚠️</span>
+                                {(failedPrompts as any[]).length} scene{(failedPrompts as any[]).length > 1 ? "s" : ""} failed — see the red card{(failedPrompts as any[]).length > 1 ? "s" : ""} above to edit and retry.
                               </div>
                             )}
-                            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                              {/* Retry button — only when there are failures */}
-                              {failedPrompts.length > 0 && !retryGenActive && (
-                                <button
-                                  onClick={handleRetryFailed}
-                                  type="button"
-                                  style={{
-                                    padding: "12px 24px", borderRadius: "var(--radius-lg)", border: "none",
-                                    background: "linear-gradient(135deg, #dc2626, #ef4444)", color: "#fff",
-                                    fontSize: 13, fontWeight: 700, cursor: "pointer",
-                                    display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
-                                    boxShadow: "0 4px 12px rgba(220,38,38,0.3)"
-                                  }}
-                                >
-                                  🔄 Retry {failedPrompts.length} Failed Ad{failedPrompts.length > 1 ? "s" : ""} →
-                                </button>
-                              )}
-                              {/* Accept Prompts — only when no failures and generation not already running */}
-                              {failedPrompts.length === 0 && !generationActive && (
-                                <button
-                                  onClick={handleAcceptPrompts}
-                                  disabled={acceptingPrompts}
-                                  type="button"
-                                  style={{
-                                    padding: "12px 30px", borderRadius: "var(--radius-lg)", border: "none",
-                                    background: acceptingPrompts ? "var(--primary-light)" : "linear-gradient(135deg, #22c55e, #16a34a)",
-                                    color: acceptingPrompts ? "var(--primary)" : "#fff",
-                                    fontSize: 13, fontWeight: 700, cursor: acceptingPrompts ? "not-allowed" : "pointer",
-                                    display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
-                                    opacity: acceptingPrompts ? 0.7 : 1,
-                                    boxShadow: acceptingPrompts ? "none" : "0 4px 12px rgba(34, 197, 94, 0.3)"
-                                  }}
-                                >
-                                  {acceptingPrompts ? <><Spinner size={14} /> Accepting...</> : "Accept Prompts ✓"}
-                                </button>
-                              )}
-                            </div>
+                            {/* Accept Prompts — only when no failures and generation not already running */}
+                            {(failedPrompts as any[]).length === 0 && !generationActive && (
+                              <button
+                                onClick={handleAcceptPrompts}
+                                disabled={acceptingPrompts}
+                                type="button"
+                                style={{
+                                  padding: "12px 30px", borderRadius: "var(--radius-lg)", border: "none",
+                                  background: acceptingPrompts ? "var(--primary-light)" : "linear-gradient(135deg, #22c55e, #16a34a)",
+                                  color: acceptingPrompts ? "var(--primary)" : "#fff",
+                                  fontSize: 13, fontWeight: 700, cursor: acceptingPrompts ? "not-allowed" : "pointer",
+                                  display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+                                  opacity: acceptingPrompts ? 0.7 : 1,
+                                  boxShadow: acceptingPrompts ? "none" : "0 4px 12px rgba(34, 197, 94, 0.3)"
+                                }}
+                              >
+                                {acceptingPrompts ? <><Spinner size={14} /> Accepting...</> : "Accept Prompts ✓"}
+                              </button>
+                            )}
+                            {/* Generating active — show status */}
+                            {generationActive && (failedPrompts as any[]).length === 0 && (
+                              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "#0284c7" }}>
+                                <Spinner size={14} color="#0284c7" /> Generation in progress — see cards above
+                              </div>
+                            )}
                           </div>
                         ) : (
                           <button
@@ -4265,67 +4385,7 @@ export default function Dashboard() {
 
 
 
-          {/* ── GENERATION FAILURES PANEL (shown after workspace reset) ── */}
-          {(failedPrompts as any[]).length > 0 && (
-            <div style={{ marginTop: 20, borderRadius: 16, overflow: "hidden", border: "2px solid #ef4444", boxShadow: "0 8px 32px rgba(220,38,38,0.18)" }}>
-              <div style={{ background: "linear-gradient(135deg, #dc2626, #ef4444)", padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ fontSize: 20 }}>⚠️</span>
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 800, color: "#fff" }}>{(failedPrompts as any[]).length} Scene{(failedPrompts as any[]).length > 1 ? "s" : ""} Failed to Generate</div>
-                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.8)", marginTop: 2 }}>Edit the prompt text below and click Retry to resubmit all failed scenes at once.</div>
-                  </div>
-                </div>
-                <button onClick={() => setFailedPrompts([])} style={{ background: "rgba(255,255,255,0.2)", border: "none", color: "#fff", borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontSize: 12, fontWeight: 700 }}>✕ Dismiss</button>
-              </div>
-
-              {/* Failed scene cards — editable */}
-              <div style={{ background: "#fff5f5", padding: "16px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
-                {(failedPrompts as any[]).map((fail, fi) => (
-                  <div key={fi} style={{ background: "#fff", border: "1.5px solid #fca5a5", borderRadius: 12, overflow: "hidden" }}>
-                    <div style={{ padding: "10px 14px", background: "#fef2f2", borderBottom: "1px solid #fecaca", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 22, height: 22, borderRadius: "50%", background: "#ef4444", color: "#fff", fontSize: 11, fontWeight: 800, flexShrink: 0 }}>{fi + 1}</span>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: "#dc2626" }}>Scene {fail.sceneIndex + 1} — Failed</span>
-                      </div>
-                      <span style={{ fontSize: 11, color: "#991b1b", background: "#fee2e2", padding: "3px 10px", borderRadius: 20, border: "1px solid #fca5a5" }}>{fail.failMsg}</span>
-                    </div>
-                    <div style={{ padding: "12px 14px" }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: "#dc2626", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>✏️ Edit Prompt — Fix and Retry</div>
-                      <textarea
-                        value={fail.prompt}
-                        onChange={e => updateFailedPromptText(fi, e.target.value)}
-                        rows={4}
-                        style={{ width: "100%", fontSize: 12, color: "#334155", lineHeight: 1.7, border: "1.5px solid #fca5a5", borderRadius: 8, padding: "10px 12px", resize: "vertical", fontFamily: "inherit", outline: "none", background: "#fff", boxSizing: "border-box" }}
-                        onFocus={e => e.target.style.borderColor = "#ef4444"}
-                        onBlur={e => e.target.style.borderColor = "#fca5a5"}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Retry button + progress bar */}
-              <div style={{ background: "#fff", padding: "14px 20px", borderTop: "1px solid #fecaca", display: "flex", flexDirection: "column", gap: 10 }}>
-                {retryGenActive ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontWeight: 700, color: "#dc2626" }}>
-                      <span>🔄 Retrying {(failedPrompts as any[]).length} failed scene{(failedPrompts as any[]).length > 1 ? "s" : ""}…</span>
-                      <span>{retryGenProgress}%</span>
-                    </div>
-                    <div style={{ height: 7, background: "#fee2e2", borderRadius: 4, overflow: "hidden" }}>
-                      <div style={{ height: "100%", background: retryGenProgress >= 100 ? "#16a34a" : "linear-gradient(90deg, #dc2626, #ef4444)", borderRadius: 4, width: `${retryGenProgress}%`, transition: "width 1.8s ease-out" }} />
-                    </div>
-                  </div>
-                ) : (
-                  <button onClick={handleRetryFailed} type="button"
-                    style={{ padding: "11px 24px", borderRadius: 10, border: "none", background: "linear-gradient(135deg, #dc2626, #ef4444)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8, boxShadow: "0 4px 12px rgba(220,38,38,0.3)", alignSelf: "flex-start" }}>
-                    🔄 Retry {(failedPrompts as any[]).length} Failed Scene{(failedPrompts as any[]).length > 1 ? "s" : ""} →
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
+          {/* Errors are now shown inline on each card — no separate bottom panel needed */}
 
           {/* ── FAILED IMAGE PROMPTS PANEL ── */}
           {failedImagePrompts.length > 0 && (
