@@ -4077,63 +4077,6 @@ export default function Dashboard() {
                                 : <>🎬 View Image &amp; Video Prompts &nbsp;·&nbsp; {adScenesMap[item.id].length} scenes</>}
                             </button>
                           ) : null}
-
-                          {/* ── Inline error section — only on the specific failed card ── */}
-                          {doesSlotHaveError(item.id) && (() => {
-                            const cardFailures = (failedPrompts as any[]).filter(f => String(f.itemId) === String(item.id));
-                            const isRetrying = retryingItemId === String(item.id);
-                            return (
-                              <div style={{ marginTop: 10, border: "2px solid #ef4444", borderRadius: 12, overflow: "hidden" }}>
-                                {/* Header */}
-                                <div style={{ background: "linear-gradient(135deg, #dc2626, #ef4444)", padding: "8px 14px", display: "flex", alignItems: "center", gap: 8 }}>
-                                  <span style={{ fontSize: 14 }}>⚠️</span>
-                                  <span style={{ color: "#fff", fontSize: 11, fontWeight: 800 }}>
-                                    {cardFailures.length} Scene{cardFailures.length > 1 ? "s" : ""} Failed — Edit &amp; Retry
-                                  </span>
-                                </div>
-                                {/* Failed scenes — editable */}
-                                <div style={{ background: "#fff5f5", padding: "10px", display: "flex", flexDirection: "column", gap: 8 }}>
-                                  {cardFailures.map((fail: any) => {
-                                    const globalIdx = (failedPrompts as any[]).indexOf(fail);
-                                    return (
-                                      <div key={globalIdx} style={{ background: "#fff", border: "1.5px solid #fca5a5", borderRadius: 8, overflow: "hidden" }}>
-                                        <div style={{ padding: "5px 10px", background: "#fef2f2", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                          <span style={{ fontSize: 10, fontWeight: 800, color: "#dc2626" }}>Scene {fail.sceneIndex + 1}</span>
-                                          <span style={{ fontSize: 10, color: "#991b1b" }}>{fail.failMsg}</span>
-                                        </div>
-                                        <textarea
-                                          value={fail.prompt}
-                                          onChange={e => updateFailedPromptText(globalIdx, e.target.value)}
-                                          rows={3}
-                                          disabled={isRetrying}
-                                          style={{ width: "100%", fontSize: 10, color: "#334155", lineHeight: 1.6, border: "none", borderTop: "1px solid #fecaca", padding: "8px 10px", resize: "vertical", fontFamily: "inherit", outline: "none", background: isRetrying ? "#f8fafc" : "#fff", boxSizing: "border-box" }}
-                                        />
-                                      </div>
-                                    );
-                                  })}
-                                  {/* Retry button + progress */}
-                                  {isRetrying ? (
-                                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, fontWeight: 700, color: "#dc2626" }}>
-                                        <span><Spinner size={10} color="#dc2626" /> Retrying…</span>
-                                        <span>{retryItemProgress}%</span>
-                                      </div>
-                                      <div style={{ height: 4, background: "#fee2e2", borderRadius: 2, overflow: "hidden" }}>
-                                        <div style={{ height: "100%", background: "#ef4444", borderRadius: 2, width: `${retryItemProgress}%`, transition: "width 1.8s ease-out" }} />
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <button
-                                      onClick={() => handleRetryCard(String(item.id))}
-                                      style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: "linear-gradient(135deg, #dc2626, #ef4444)", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, alignSelf: "flex-start", boxShadow: "0 3px 8px rgba(220,38,38,0.3)" }}
-                                    >
-                                      🔄 Retry {cardFailures.length} Scene{cardFailures.length > 1 ? "s" : ""} (All {adScenesMap[item.id]?.length || 0} sent) →
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })()}
                           </div>
                         </div>
                       );
@@ -6041,7 +5984,8 @@ export default function Dashboard() {
                 )}
               </div>
               {/* Row 2: action buttons */}
-              <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {/* Save — writes edits back to adScenesMap */}
                 <button
                   onClick={() => {
                     if (scenesModal.itemId) {
@@ -6054,15 +5998,58 @@ export default function Dashboard() {
                         });
                         return updated;
                       });
+                      // Also sync edits back into failedPrompts so retry uses new text
+                      if (hasFailuresInModal) {
+                        setFailedPrompts((prev: any[]) => prev.map(f => {
+                          if (String(f.itemId) !== String(scenesModal.itemId)) return f;
+                          const updated = editedScenes[f.sceneIndex];
+                          return updated ? { ...f, prompt: updated.prompt || updated.prompt_clean || f.prompt } : f;
+                        }));
+                      }
                     }
                     setHasUnsavedChanges(false);
-                    setScenesModal({ open: false, scenes: [], adLabel: "", itemId: null });
                   }}
-                  style={{ flex: 1, background: "#fff", border: "none", color: hasFailuresInModal ? "#dc2626" : "#0284c7", borderRadius: 8, padding: "8px 12px", cursor: "pointer", fontSize: 12, fontWeight: 800, boxShadow: "0 2px 8px rgba(0,0,0,0.15)" }}
-                >{hasUnsavedChanges ? "💾 Save *" : "✓ Save Changes"}</button>
+                  style={{ background: "#fff", border: "none", color: hasFailuresInModal ? "#dc2626" : "#0284c7", borderRadius: 8, padding: "8px 14px", cursor: "pointer", fontSize: 12, fontWeight: 800, boxShadow: "0 2px 8px rgba(0,0,0,0.15)" }}
+                >{hasUnsavedChanges ? "💾 Save Changes *" : "✓ Saved"}</button>
+
+                {/* Retry — only shown when modal has failures */}
+                {hasFailuresInModal && scenesModal.itemId && (
+                  retryingItemId === String(scenesModal.itemId) ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.15)", borderRadius: 8, padding: "8px 14px" }}>
+                      <Spinner size={12} color="#fff" />
+                      <span style={{ color: "#fff", fontSize: 12, fontWeight: 700 }}>Retrying… {retryItemProgress}%</span>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        // Save first, then retry
+                        if (scenesModal.itemId) {
+                          setAdScenesMap(prev => {
+                            const updated = { ...prev };
+                            Object.keys(updated).forEach(k => {
+                              if (k === String(scenesModal.itemId)) updated[k] = editedScenes;
+                            });
+                            return updated;
+                          });
+                          setFailedPrompts((prev: any[]) => prev.map(f => {
+                            if (String(f.itemId) !== String(scenesModal.itemId)) return f;
+                            const updated = editedScenes[f.sceneIndex];
+                            return updated ? { ...f, prompt: updated.prompt || updated.prompt_clean || f.prompt } : f;
+                          }));
+                          setHasUnsavedChanges(false);
+                          setScenesModal({ open: false, scenes: [], adLabel: "", itemId: null });
+                          handleRetryCard(String(scenesModal.itemId));
+                        }
+                      }}
+                      style={{ background: "linear-gradient(135deg, #dc2626, #ef4444)", border: "none", color: "#fff", borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontSize: 12, fontWeight: 800, boxShadow: "0 3px 10px rgba(220,38,38,0.4)", display: "flex", alignItems: "center", gap: 6 }}
+                    >
+                      🔄 Save &amp; Retry →
+                    </button>
+                  )
+                )}
+
                 <button
                   onClick={() => {
-                    if (hasUnsavedChanges) { addSbToast("You have unsaved changes. Click \"Save Changes\" before closing.", "error"); return; }
                     setHasUnsavedChanges(false);
                     setScenesModal({ open: false, scenes: [], adLabel: "", itemId: null });
                   }}
