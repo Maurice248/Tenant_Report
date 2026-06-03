@@ -458,6 +458,8 @@ export default function Dashboard() {
   const [retryGenActive, setRetryGenActive] = useState(false);
   const [retryGenProgress, setRetryGenProgress] = useState(0);
   const retryGenTimerRef = useRef<any>(null);
+  const [promptGenProgress, setPromptGenProgress] = useState(0);
+  const promptGenTimerRef = useRef<any>(null);
   const [videoGenerating, setVideoGenerating] = useState(false);
   const [videoGenProgress, setVideoGenProgress] = useState(0);
   const videoGenTimerRef = useRef<any>(null);
@@ -1299,8 +1301,18 @@ export default function Dashboard() {
     setAdStatus("generating");
     setWebhookError("");
 
+    // Start 9-minute prompt generation progress bar
+    const PROMPT_GEN_DURATION = 540_000; // 9 min
+    const promptStart = Date.now();
+    setPromptGenProgress(0);
+    clearInterval(promptGenTimerRef.current);
+    promptGenTimerRef.current = setInterval(() => {
+      const pct = Math.min(99, ((Date.now() - promptStart) / PROMPT_GEN_DURATION) * 100);
+      setPromptGenProgress(Math.round(pct));
+      if (Date.now() - promptStart >= PROMPT_GEN_DURATION) clearInterval(promptGenTimerRef.current);
+    }, 2000);
+
     try {
-      // ONE single webhook call with all ad configs bundled together
       const webhookUrl = process.env.NEXT_PUBLIC_N8N_GENERATE_AD_URL || "https://n8n.srv881198.hstgr.cloud/webhook/generate_ad";
       const res = await fetch(webhookUrl, {
         method: "POST",
@@ -1313,7 +1325,6 @@ export default function Dashboard() {
       });
       const data = await res.json();
 
-      // Store scenes under corresponding keys matching their itemIndex
       const scenesMap: any = {};
       const audioKeysMap: any = {};
       config.items.forEach((item: any, idx: number) => {
@@ -1333,6 +1344,8 @@ export default function Dashboard() {
       addSbToast("Failed to generate ad prompts. Try again.", "error");
     } finally {
       setAdScenesGenerating({});
+      clearInterval(promptGenTimerRef.current);
+      setPromptGenProgress(0);
     }
   }
 
@@ -1370,17 +1383,18 @@ export default function Dashboard() {
     }
   }
 
-  /** Build a flat index → { itemId, sceneIndex } map across all ad items */
+  /** Build flat index map: response index → { itemId, sceneIndex, scene } */
   function buildSceneIndexMap() {
     const map: Array<{ itemId: any; sceneIndex: number; scene: any }> = [];
     (createTabAdsConfig.items || []).forEach((item: any) => {
-      const scenes: any[] = adScenesMap[item.id] || [];
-      scenes.forEach((scene, si) => { map.push({ itemId: item.id, sceneIndex: si, scene }); });
+      (adScenesMap[item.id] || []).forEach((scene: any, si: number) => {
+        map.push({ itemId: item.id, sceneIndex: si, scene });
+      });
     });
     return map;
   }
 
-  /** Parse n8n image/video generation response and extract failures mapped back to item IDs */
+  /** Parse failures from n8n response; each failure includes stored scene data for self-contained retry */
   function parseGenerationFailures(responseData: any, indexMap: Array<{ itemId: any; sceneIndex: number; scene: any }>) {
     const raw = Array.isArray(responseData) ? responseData[0] : responseData;
     if (!raw || !Array.isArray(raw.results)) return [];
@@ -1390,10 +1404,11 @@ export default function Dashboard() {
         const mapped = indexMap[r.index] ?? null;
         return {
           taskId: r.taskId || "",
-          prompt: r.prompt || "",
+          prompt: r.prompt || "",        // editable — user can fix this
           failMsg: r.failMsg || r.reason || "Generation failed.",
           itemId: mapped?.itemId ?? null,
           sceneIndex: mapped?.sceneIndex ?? r.index,
+          scene: mapped?.scene ?? null,  // stored so retry doesn't need adScenesMap
         };
       });
   }
@@ -1411,114 +1426,106 @@ export default function Dashboard() {
     setFailedPrompts([]);
     setFailedImagePrompts([]);
 
+    // Capture index map and payload BEFORE resetting workspace
     const indexMap = buildSceneIndexMap();
+    const enrichedConfig = {
+      ...createTabAdsConfig,
+      items: (createTabAdsConfig.items || []).map((item: any) => ({
+        ...item, audioKey: adAudioKeysMap[item.id] || ""
+      }))
+    };
+    const payload = {
+      report_id: analysisData?.id || crypto.randomUUID(),
+      report_data: analysisData,
+      ads_config: enrichedConfig,
+      generated_prompts: adScenesMap,
+      audioKeys: adAudioKeysMap,
+      audio_keys: adAudioKeysMap,
+      scene_index_map: indexMap.map(m => ({ itemId: m.itemId, sceneIndex: m.sceneIndex })),
+    };
+    const webhookUrl = process.env.NEXT_PUBLIC_N8N_ACCEPT_PROMPTS_URL || "https://n8n.srv881198.hstgr.cloud/webhook/3be958fe-3d6e-4ccf-8d72-5a9a0bb2d932";
 
-    try {
-      const enrichedConfig = {
-        ...createTabAdsConfig,
-        items: (createTabAdsConfig.items || []).map((item: any) => ({
-          ...item,
-          audioKey: adAudioKeysMap[item.id] || ""
-        }))
-      };
-      const payload = {
-        report_id: analysisData?.id || crypto.randomUUID(),
-        report_data: analysisData,
-        ads_config: enrichedConfig,
-        generated_prompts: adScenesMap,
-        audioKeys: adAudioKeysMap,
-        audio_keys: adAudioKeysMap,
-        scene_index_map: indexMap.map(m => ({ itemId: m.itemId, sceneIndex: m.sceneIndex })),
-      };
-      const webhookUrl = process.env.NEXT_PUBLIC_N8N_ACCEPT_PROMPTS_URL || "https://n8n.srv881198.hstgr.cloud/webhook/3be958fe-3d6e-4ccf-8d72-5a9a0bb2d932";
+    // ── IMMEDIATE: unblock UI, show progress bar, reset workspace ──
+    setAcceptingPrompts(false);
+    resetCreateTabWorkspace();
+    startVideoGenProgress();
+    addSbToast("✅ Prompts accepted! Video generation started — up to 6 min.", "success");
 
-      // ── Read response (up to 120s) to capture generation failures ──
-      let responseData: any = null;
+    // Start Supabase polling for completed videos
+    const genStart = Date.now();
+    clearInterval(videoGenPollRef.current);
+    videoGenPollRef.current = setInterval(async () => {
+      if (Date.now() - genStart > VIDEO_GEN_DURATION) { clearInterval(videoGenPollRef.current); return; }
       try {
-        const res = await fetch(webhookUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-          signal: AbortSignal.timeout(120_000),
-        });
-        if (res.ok) {
-          try { responseData = await res.json(); } catch {}
+        const { data } = await supabase
+          .from("your_name_table")
+          .select("id, time, text, format, Approved")
+          .gte("time", new Date(genStart - 5000).toISOString())
+          .order("time", { ascending: false })
+          .limit(10);
+        if (data && data.length > 0) {
+          clearInterval(videoGenPollRef.current);
+          stopVideoGenProgress(true);
+          await fetchAdTableLinks();
+          setAllApprovedAds(prev => {
+            const newIds = new Set(data.map((d: any) => `${d.id}_${d.time}`));
+            return [...data, ...prev.filter((a: any) => !newIds.has(`${a.id}_${a.time}`))];
+          });
+          addSbToast("🎬 Videos are ready! Check Ad Previews.", "success");
+          setIsStatusPolling(true);
         }
-      } catch {
-        // Timeout or network — treat as delivery confirmed, proceed normally
-      }
+      } catch {}
+    }, 30_000);
 
-      // ── Unblock UI + start progress bar IMMEDIATELY (before checking failures) ──
-      setAcceptingPrompts(false);
-      resetCreateTabWorkspace();
-      startVideoGenProgress();
-      addSbToast("✅ Prompts accepted! Video generation started — up to 6 min.", "success");
-
-      // ── Check for generation failures in background response ──
-      const failures = responseData ? parseGenerationFailures(responseData, indexMap) : [];
-
-      if (failures.length > 0) {
-        // Stop the progress bar — generation has errors
-        stopVideoGenProgress(false);
-        setFailedPrompts(failures);
-        addSbToast(`⚠️ ${failures.length} ad(s) failed to generate. Fix the red prompts below and retry.`, "error");
-        return;
-      }
-
-      const genStart = Date.now();
-      clearInterval(videoGenPollRef.current);
-      videoGenPollRef.current = setInterval(async () => {
-        if (Date.now() - genStart > VIDEO_GEN_DURATION) { clearInterval(videoGenPollRef.current); return; }
-        try {
-          const { data } = await supabase
-            .from("your_name_table")
-            .select("id, time, text, format, Approved")
-            .gte("time", new Date(genStart - 5000).toISOString())
-            .order("time", { ascending: false })
-            .limit(10);
-          if (data && data.length > 0) {
-            clearInterval(videoGenPollRef.current);
-            stopVideoGenProgress(true);
-            await fetchAdTableLinks();
-            setAllApprovedAds(prev => {
-              const newIds = new Set(data.map((d: any) => `${d.id}_${d.time}`));
-              return [...data, ...prev.filter((a: any) => !newIds.has(`${a.id}_${a.time}`))];
-            });
-            addSbToast("🎬 Videos are ready! Check Ad Previews.", "success");
-            setIsStatusPolling(true);
-          }
-        } catch {}
-      }, 30_000);
-
-    } catch (e) {
-      addSbToast("Error sending accepted prompts.", "error");
-      setAcceptingPrompts(false);
-    }
+    // ── BACKGROUND: fire webhook and read response for failure detection ──
+    const bgController = new AbortController();
+    const bgTimeout = setTimeout(() => bgController.abort(), 120_000);
+    fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: bgController.signal,
+    })
+      .then(res => { clearTimeout(bgTimeout); return res.ok ? res.json() : null; })
+      .then(responseData => {
+        if (!responseData) return;
+        const failures = parseGenerationFailures(responseData, indexMap);
+        if (failures.length > 0) {
+          stopVideoGenProgress(false);
+          clearInterval(videoGenPollRef.current);
+          setFailedPrompts(failures);
+          addSbToast(`⚠️ ${failures.length} scene(s) failed. See error panel below and retry.`, "error");
+        }
+      })
+      .catch(() => { clearTimeout(bgTimeout); }); // abort/timeout = already showing progress
   }
 
-  /** Retry ALL failed scenes in one single request, one progress bar */
+  /** Update a failed prompt's text (user edits it before retrying) */
+  function updateFailedPromptText(index: number, newPrompt: string) {
+    setFailedPrompts((prev: any[]) => prev.map((f, i) => i === index ? { ...f, prompt: newPrompt } : f));
+  }
+
+  /** Retry ALL failed scenes in ONE single request, ONE progress bar */
   async function handleRetryFailed() {
     if (failedPrompts.length === 0) return;
     setRetryGenActive(true);
     setRetryGenProgress(0);
 
-    // Build failed scenes map grouped by itemId
+    // Build scenes map from stored scene data (not from adScenesMap — already reset)
     const failedScenesMap: Record<string, any[]> = {};
-    failedPrompts.forEach((fail: any) => {
-      if (!fail.itemId) return;
-      const scenes: any[] = adScenesMap[fail.itemId] || [];
-      const failedScene = scenes[fail.sceneIndex];
-      if (!failedScene) return;
-      if (!failedScenesMap[fail.itemId]) failedScenesMap[fail.itemId] = [];
-      failedScenesMap[fail.itemId].push({ ...failedScene, sceneIndex: fail.sceneIndex });
-    });
-
     const newIndexMap: Array<{ itemId: any; sceneIndex: number; scene: any }> = [];
-    Object.entries(failedScenesMap).forEach(([itemId, scenes]) => {
-      scenes.forEach(s => newIndexMap.push({ itemId, sceneIndex: s.sceneIndex, scene: s }));
+
+    (failedPrompts as any[]).forEach((fail) => {
+      if (!fail.scene) return;
+      const key = String(fail.itemId || `retry_${newIndexMap.length}`);
+      // Merge user-edited prompt back into the scene
+      const updatedScene = { ...fail.scene, prompt: fail.prompt, prompt_clean: fail.prompt };
+      if (!failedScenesMap[key]) failedScenesMap[key] = [];
+      failedScenesMap[key].push(updatedScene);
+      newIndexMap.push({ itemId: key, sceneIndex: fail.sceneIndex, scene: updatedScene });
     });
 
-    // Start fake progress bar (max 5 min)
+    // One progress bar for all — 5 min max
     const RETRY_DURATION = 300_000;
     const retryStart = Date.now();
     clearInterval(retryGenTimerRef.current);
@@ -1528,58 +1535,49 @@ export default function Dashboard() {
       if (Date.now() - retryStart >= RETRY_DURATION) clearInterval(retryGenTimerRef.current);
     }, 2000);
 
-    try {
-      const enrichedConfig = {
-        ...createTabAdsConfig,
-        items: (createTabAdsConfig.items || []).map((item: any) => ({
-          ...item, audioKey: adAudioKeysMap[item.id] || ""
-        }))
-      };
-      const payload = {
-        report_id: analysisData?.id || crypto.randomUUID(),
-        report_data: analysisData,
-        ads_config: enrichedConfig,
-        generated_prompts: failedScenesMap,
-        audioKeys: adAudioKeysMap,
-        audio_keys: adAudioKeysMap,
-        is_retry: true,
-        scene_index_map: newIndexMap.map(m => ({ itemId: m.itemId, sceneIndex: m.sceneIndex })),
-      };
-      const webhookUrl = process.env.NEXT_PUBLIC_N8N_ACCEPT_PROMPTS_URL || "https://n8n.srv881198.hstgr.cloud/webhook/3be958fe-3d6e-4ccf-8d72-5a9a0bb2d932";
+    const webhookUrl = process.env.NEXT_PUBLIC_N8N_ACCEPT_PROMPTS_URL || "https://n8n.srv881198.hstgr.cloud/webhook/3be958fe-3d6e-4ccf-8d72-5a9a0bb2d932";
+    const payload = {
+      report_id: analysisData?.id || crypto.randomUUID(),
+      report_data: analysisData,
+      generated_prompts: failedScenesMap,
+      audioKeys: adAudioKeysMap,
+      audio_keys: adAudioKeysMap,
+      is_retry: true,
+      scene_index_map: newIndexMap.map(m => ({ itemId: m.itemId, sceneIndex: m.sceneIndex })),
+    };
 
-      let responseData: any = null;
-      try {
-        const res = await fetch(webhookUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-          signal: AbortSignal.timeout(120_000),
-        });
-        if (res.ok) { try { responseData = await res.json(); } catch {} }
-      } catch {}
-
-      clearInterval(retryGenTimerRef.current);
-
-      const newFailures = responseData ? parseGenerationFailures(responseData, newIndexMap) : [];
-
-      if (newFailures.length > 0) {
-        setFailedPrompts(newFailures);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 120_000);
+    fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    })
+      .then(res => { clearTimeout(timeout); return res.ok ? res.json() : null; })
+      .then(responseData => {
+        clearInterval(retryGenTimerRef.current);
+        const newFailures = responseData ? parseGenerationFailures(responseData, newIndexMap) : [];
+        if (newFailures.length > 0) {
+          setFailedPrompts(newFailures);
+          setRetryGenProgress(0);
+          addSbToast(`⚠️ ${newFailures.length} still failing. Edit and retry again.`, "error");
+        } else {
+          setRetryGenProgress(100);
+          setFailedPrompts([]);
+          setTimeout(() => { setRetryGenActive(false); setRetryGenProgress(0); }, 1500);
+          addSbToast("✅ Retry successful! Check Ad Previews.", "success");
+          fetchAdTableLinks();
+        }
+        setRetryGenActive(false);
+      })
+      .catch(() => {
+        clearTimeout(timeout);
+        clearInterval(retryGenTimerRef.current);
+        setRetryGenActive(false);
         setRetryGenProgress(0);
-        addSbToast(`⚠️ ${newFailures.length} ad(s) still failing. Edit prompts and retry again.`, "error");
-      } else {
-        setRetryGenProgress(100);
-        setFailedPrompts([]);
-        setTimeout(() => { setRetryGenActive(false); setRetryGenProgress(0); }, 1500);
-        addSbToast("✅ Retry successful! Check Ad Previews for new results.", "success");
-        await fetchAdTableLinks();
-      }
-    } catch (e) {
-      clearInterval(retryGenTimerRef.current);
-      setRetryGenProgress(0);
-      addSbToast("Error during retry.", "error");
-    } finally {
-      setRetryGenActive(false);
-    }
+        addSbToast("Error during retry.", "error");
+      });
   }
 
   /** Returns true if this ad slot has any failed generation result */
@@ -4031,8 +4029,15 @@ export default function Dashboard() {
                         </div>
 
                         {adStatus === "generating" ? (
-                          <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#0284c7", fontSize: 13, fontWeight: 700 }}>
-                            <Spinner size={16} color="#0284c7" /> Generating prompts… please wait
+                          <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1, maxWidth: 400 }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, fontWeight: 700, color: "#0284c7" }}>
+                              <span><Spinner size={11} color="#0284c7" /> Generating prompts…</span>
+                              <span>{promptGenProgress}%</span>
+                            </div>
+                            <div style={{ height: 5, background: "#dbeafe", borderRadius: 3, overflow: "hidden" }}>
+                              <div style={{ height: "100%", background: "linear-gradient(90deg, #2563eb, #0ea5e9)", borderRadius: 3, width: `${promptGenProgress}%`, transition: "width 1.8s ease-out" }} />
+                            </div>
+                            <div style={{ fontSize: 10, color: "#64748b" }}>Up to 9 min — you can wait here</div>
                           </div>
                         ) : Object.values(adScenesMap).some(scenes => Array.isArray(scenes) && scenes.length > 0) ? (
                           <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%" }}>
@@ -4144,6 +4149,68 @@ export default function Dashboard() {
 
 
 
+
+          {/* ── GENERATION FAILURES PANEL (shown after workspace reset) ── */}
+          {(failedPrompts as any[]).length > 0 && (
+            <div style={{ marginTop: 20, borderRadius: 16, overflow: "hidden", border: "2px solid #ef4444", boxShadow: "0 8px 32px rgba(220,38,38,0.18)" }}>
+              <div style={{ background: "linear-gradient(135deg, #dc2626, #ef4444)", padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 20 }}>⚠️</span>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: "#fff" }}>{(failedPrompts as any[]).length} Scene{(failedPrompts as any[]).length > 1 ? "s" : ""} Failed to Generate</div>
+                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.8)", marginTop: 2 }}>Edit the prompt text below and click Retry to resubmit all failed scenes at once.</div>
+                  </div>
+                </div>
+                <button onClick={() => setFailedPrompts([])} style={{ background: "rgba(255,255,255,0.2)", border: "none", color: "#fff", borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontSize: 12, fontWeight: 700 }}>✕ Dismiss</button>
+              </div>
+
+              {/* Failed scene cards — editable */}
+              <div style={{ background: "#fff5f5", padding: "16px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
+                {(failedPrompts as any[]).map((fail, fi) => (
+                  <div key={fi} style={{ background: "#fff", border: "1.5px solid #fca5a5", borderRadius: 12, overflow: "hidden" }}>
+                    <div style={{ padding: "10px 14px", background: "#fef2f2", borderBottom: "1px solid #fecaca", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 22, height: 22, borderRadius: "50%", background: "#ef4444", color: "#fff", fontSize: 11, fontWeight: 800, flexShrink: 0 }}>{fi + 1}</span>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: "#dc2626" }}>Scene {fail.sceneIndex + 1} — Failed</span>
+                      </div>
+                      <span style={{ fontSize: 11, color: "#991b1b", background: "#fee2e2", padding: "3px 10px", borderRadius: 20, border: "1px solid #fca5a5" }}>{fail.failMsg}</span>
+                    </div>
+                    <div style={{ padding: "12px 14px" }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: "#dc2626", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>✏️ Edit Prompt — Fix and Retry</div>
+                      <textarea
+                        value={fail.prompt}
+                        onChange={e => updateFailedPromptText(fi, e.target.value)}
+                        rows={4}
+                        style={{ width: "100%", fontSize: 12, color: "#334155", lineHeight: 1.7, border: "1.5px solid #fca5a5", borderRadius: 8, padding: "10px 12px", resize: "vertical", fontFamily: "inherit", outline: "none", background: "#fff", boxSizing: "border-box" }}
+                        onFocus={e => e.target.style.borderColor = "#ef4444"}
+                        onBlur={e => e.target.style.borderColor = "#fca5a5"}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Retry button + progress bar */}
+              <div style={{ background: "#fff", padding: "14px 20px", borderTop: "1px solid #fecaca", display: "flex", flexDirection: "column", gap: 10 }}>
+                {retryGenActive ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontWeight: 700, color: "#dc2626" }}>
+                      <span>🔄 Retrying {(failedPrompts as any[]).length} failed scene{(failedPrompts as any[]).length > 1 ? "s" : ""}…</span>
+                      <span>{retryGenProgress}%</span>
+                    </div>
+                    <div style={{ height: 7, background: "#fee2e2", borderRadius: 4, overflow: "hidden" }}>
+                      <div style={{ height: "100%", background: retryGenProgress >= 100 ? "#16a34a" : "linear-gradient(90deg, #dc2626, #ef4444)", borderRadius: 4, width: `${retryGenProgress}%`, transition: "width 1.8s ease-out" }} />
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={handleRetryFailed} type="button"
+                    style={{ padding: "11px 24px", borderRadius: 10, border: "none", background: "linear-gradient(135deg, #dc2626, #ef4444)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8, boxShadow: "0 4px 12px rgba(220,38,38,0.3)", alignSelf: "flex-start" }}>
+                    🔄 Retry {(failedPrompts as any[]).length} Failed Scene{(failedPrompts as any[]).length > 1 ? "s" : ""} →
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* ── FAILED IMAGE PROMPTS PANEL ── */}
           {failedImagePrompts.length > 0 && (
