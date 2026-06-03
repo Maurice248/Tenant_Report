@@ -455,6 +455,7 @@ export default function Dashboard() {
   const [retryPrompt, setRetryPrompt] = useState("");
   const [isRetryingSubmit, setIsRetryingSubmit] = useState(false);
   const [acceptingPrompts, setAcceptingPrompts] = useState(false);
+  const [generationActive, setGenerationActive] = useState(false); // true while generation running, cards stay visible
   const [retryGenActive, setRetryGenActive] = useState(false);
   const [retryGenProgress, setRetryGenProgress] = useState(0);
   const retryGenTimerRef = useRef<any>(null);
@@ -1519,17 +1520,22 @@ export default function Dashboard() {
     };
     const webhookUrl = process.env.NEXT_PUBLIC_N8N_ACCEPT_PROMPTS_URL || "https://n8n.srv881198.hstgr.cloud/webhook/3be958fe-3d6e-4ccf-8d72-5a9a0bb2d932";
 
-    // ── IMMEDIATE: unblock UI, show progress bar, reset workspace ──
+    // ── IMMEDIATE: unblock UI, start progress bar, keep workspace cards visible ──
     setAcceptingPrompts(false);
-    resetCreateTabWorkspace();
+    setGenerationActive(true);   // cards stay, show "Generating..." overlay on each
+    setFailedPrompts([]);
     startVideoGenProgress();
-    addSbToast("✅ Prompts accepted! Video generation started — up to 6 min.", "success");
+    addSbToast("✅ Prompts accepted! Generation started — cards will update when done.", "success");
 
     // Start Supabase polling for completed videos
     const genStart = Date.now();
     clearInterval(videoGenPollRef.current);
     videoGenPollRef.current = setInterval(async () => {
-      if (Date.now() - genStart > VIDEO_GEN_DURATION) { clearInterval(videoGenPollRef.current); return; }
+      if (Date.now() - genStart > VIDEO_GEN_DURATION) {
+        clearInterval(videoGenPollRef.current);
+        setGenerationActive(false);
+        return;
+      }
       try {
         const { data } = await supabase
           .from("your_name_table")
@@ -1540,6 +1546,8 @@ export default function Dashboard() {
         if (data && data.length > 0) {
           clearInterval(videoGenPollRef.current);
           stopVideoGenProgress(true);
+          setGenerationActive(false);
+          resetCreateTabWorkspace(); // reset AFTER success, not before
           await fetchAdTableLinks();
           setAllApprovedAds(prev => {
             const newIds = new Set(data.map((d: any) => `${d.id}_${d.time}`));
@@ -1551,8 +1559,7 @@ export default function Dashboard() {
       } catch {}
     }, 30_000);
 
-    // ── BACKGROUND: fire webhook and read response for failure detection ──
-    // 10-minute background window — matches max generation duration (image gen can take 4-5 min)
+    // ── BACKGROUND: fire webhook, read response for error detection (10-min window) ──
     const bgController = new AbortController();
     const bgTimeout = setTimeout(() => bgController.abort(), 600_000);
     fetch(webhookUrl, {
@@ -1568,11 +1575,12 @@ export default function Dashboard() {
         if (failures.length > 0) {
           stopVideoGenProgress(false);
           clearInterval(videoGenPollRef.current);
+          setGenerationActive(false); // stop generating overlay, show error on specific cards
           setFailedPrompts(failures);
-          addSbToast(`⚠️ ${failures.length} scene(s) failed to generate. See the error panel.`, "error");
+          addSbToast(`⚠️ ${failures.length} scene(s) failed. Click the red card to view and fix prompts.`, "error");
         }
       })
-      .catch(() => { clearTimeout(bgTimeout); }); // aborted = fire-and-forget, progress bar already running
+      .catch(() => { clearTimeout(bgTimeout); });
   }
 
   /** Update a failed prompt's text (user edits it before retrying) */
@@ -1580,24 +1588,42 @@ export default function Dashboard() {
     setFailedPrompts((prev: any[]) => prev.map((f, i) => i === index ? { ...f, prompt: newPrompt } : f));
   }
 
-  /** Retry ALL failed scenes in ONE single request, ONE progress bar */
+  /** Retry: send ALL scenes for each errored ad (not just failed scenes) — one request, one progress bar */
   async function handleRetryFailed() {
     if (failedPrompts.length === 0) return;
     setRetryGenActive(true);
     setRetryGenProgress(0);
 
-    // Build scenes map from stored scene data (not from adScenesMap — already reset)
-    const failedScenesMap: Record<string, any[]> = {};
+    // Collect unique itemIds that had failures
+    const erroredItemIds = new Set((failedPrompts as any[]).map((f) => String(f.itemId)).filter(Boolean));
+
+    // Build scene map: send ALL scenes for each errored ad
+    // Merge user-edited prompts into the correct scenes
+    const editedPromptsBySceneIndex: Record<string, Record<number, string>> = {};
+    (failedPrompts as any[]).forEach((fail) => {
+      const key = String(fail.itemId);
+      if (!editedPromptsBySceneIndex[key]) editedPromptsBySceneIndex[key] = {};
+      editedPromptsBySceneIndex[key][fail.sceneIndex] = fail.prompt;
+    });
+
+    const retryScenesMap: Record<string, any[]> = {};
     const newIndexMap: Array<{ itemId: any; sceneIndex: number; scene: any }> = [];
 
-    (failedPrompts as any[]).forEach((fail) => {
-      if (!fail.scene) return;
-      const key = String(fail.itemId || `retry_${newIndexMap.length}`);
-      // Merge user-edited prompt back into the scene
-      const updatedScene = { ...fail.scene, prompt: fail.prompt, prompt_clean: fail.prompt };
-      if (!failedScenesMap[key]) failedScenesMap[key] = [];
-      failedScenesMap[key].push(updatedScene);
-      newIndexMap.push({ itemId: key, sceneIndex: fail.sceneIndex, scene: updatedScene });
+    erroredItemIds.forEach((itemId) => {
+      const allScenes: any[] = adScenesMap[itemId] || [];
+      if (allScenes.length === 0) return;
+      retryScenesMap[itemId] = allScenes.map((scene: any, si: number) => {
+        // Apply user edits to scenes that were failed
+        const editedPrompt = editedPromptsBySceneIndex[itemId]?.[si];
+        return editedPrompt
+          ? { ...scene, prompt: editedPrompt, prompt_clean: editedPrompt }
+          : scene;
+      });
+      allScenes.forEach((scene: any, si: number) => {
+        const editedPrompt = editedPromptsBySceneIndex[itemId]?.[si];
+        const finalScene = editedPrompt ? { ...scene, prompt: editedPrompt, prompt_clean: editedPrompt } : scene;
+        newIndexMap.push({ itemId, sceneIndex: si, scene: finalScene });
+      });
     });
 
     // One progress bar for all — 5 min max
@@ -1614,7 +1640,7 @@ export default function Dashboard() {
     const payload = {
       report_id: analysisData?.id || crypto.randomUUID(),
       report_data: analysisData,
-      generated_prompts: failedScenesMap,
+      generated_prompts: retryScenesMap,
       audioKeys: adAudioKeysMap,
       audio_keys: adAudioKeysMap,
       is_retry: true,
@@ -1640,7 +1666,11 @@ export default function Dashboard() {
         } else {
           setRetryGenProgress(100);
           setFailedPrompts([]);
-          setTimeout(() => { setRetryGenActive(false); setRetryGenProgress(0); }, 1500);
+          setTimeout(() => {
+            setRetryGenActive(false);
+            setRetryGenProgress(0);
+            resetCreateTabWorkspace(); // reset workspace after successful retry
+          }, 1500);
           addSbToast("✅ Retry successful! Check Ad Previews.", "success");
           fetchAdTableLinks();
         }
@@ -3929,6 +3959,16 @@ export default function Dashboard() {
                               <Spinner size={14} color={isVideo ? "#0284c7" : "#b45309"} />
                               Generating prompts… please wait
                             </div>
+                          ) : generationActive && !doesSlotHaveError(item.id) && adScenesMap[item.id]?.length > 0 ? (
+                            <div style={{
+                              marginTop: 16, padding: "13px 0", display: "flex", alignItems: "center",
+                              justifyContent: "center", gap: 8, borderTop: "1.5px solid #bae6fd",
+                              background: "linear-gradient(135deg, #f0f9ff, #e0f2fe)", borderRadius: "0 0 12px 12px",
+                              color: "#0284c7", fontSize: 12, fontWeight: 700,
+                            }}>
+                              <Spinner size={13} color="#0284c7" />
+                              Generating video…
+                            </div>
                           ) : adScenesMap[item.id]?.length > 0 ? (
                             <button
                               onClick={() => {
@@ -4145,8 +4185,8 @@ export default function Dashboard() {
                                   🔄 Retry {failedPrompts.length} Failed Ad{failedPrompts.length > 1 ? "s" : ""} →
                                 </button>
                               )}
-                              {/* Accept Prompts — only when no failures */}
-                              {failedPrompts.length === 0 && (
+                              {/* Accept Prompts — only when no failures and generation not already running */}
+                              {failedPrompts.length === 0 && !generationActive && (
                                 <button
                                   onClick={handleAcceptPrompts}
                                   disabled={acceptingPrompts}
