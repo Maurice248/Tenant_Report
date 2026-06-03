@@ -1552,8 +1552,9 @@ export default function Dashboard() {
     }, 30_000);
 
     // ── BACKGROUND: fire webhook and read response for failure detection ──
+    // 10-minute background window — matches max generation duration (image gen can take 4-5 min)
     const bgController = new AbortController();
-    const bgTimeout = setTimeout(() => bgController.abort(), 120_000);
+    const bgTimeout = setTimeout(() => bgController.abort(), 600_000);
     fetch(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1568,10 +1569,10 @@ export default function Dashboard() {
           stopVideoGenProgress(false);
           clearInterval(videoGenPollRef.current);
           setFailedPrompts(failures);
-          addSbToast(`⚠️ ${failures.length} scene(s) failed. See error panel below and retry.`, "error");
+          addSbToast(`⚠️ ${failures.length} scene(s) failed to generate. See the error panel.`, "error");
         }
       })
-      .catch(() => { clearTimeout(bgTimeout); }); // abort/timeout = already showing progress
+      .catch(() => { clearTimeout(bgTimeout); }); // aborted = fire-and-forget, progress bar already running
   }
 
   /** Update a failed prompt's text (user edits it before retrying) */
@@ -1621,7 +1622,7 @@ export default function Dashboard() {
     };
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 120_000);
+    const timeout = setTimeout(() => controller.abort(), 600_000); // 10 min
     fetch(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
