@@ -1394,23 +1394,60 @@ export default function Dashboard() {
     return map;
   }
 
-  /** Parse failures from n8n response; each failure includes stored scene data for self-contained retry */
+  /** Parse failures from n8n response — handles arrays of multiple response objects (one per ad item/type) */
   function parseGenerationFailures(responseData: any, indexMap: Array<{ itemId: any; sceneIndex: number; scene: any }>) {
-    const raw = Array.isArray(responseData) ? responseData[0] : responseData;
-    if (!raw || !Array.isArray(raw.results)) return [];
-    return raw.results
-      .filter((r: any) => r.success === false || r.state === "fail" || r.state === "error")
-      .map((r: any) => {
-        const mapped = indexMap[r.index] ?? null;
-        return {
-          taskId: r.taskId || "",
-          prompt: r.prompt || "",        // editable — user can fix this
-          failMsg: r.failMsg || r.reason || "Generation failed.",
-          itemId: mapped?.itemId ?? null,
-          sceneIndex: mapped?.sceneIndex ?? r.index,
-          scene: mapped?.scene ?? null,  // stored so retry doesn't need adScenesMap
-        };
-      });
+    // Normalize: always work with an array of response objects
+    const responses: any[] = Array.isArray(responseData) ? responseData.flat() : [responseData];
+    const seen = new Set<string>(); // dedupe by taskId or prompt
+    const failures: any[] = [];
+
+    responses.forEach((raw) => {
+      if (!raw || typeof raw !== "object") return;
+
+      // Path 1 — results[] array (most complete, has index for mapping)
+      if (Array.isArray(raw.results)) {
+        raw.results
+          .filter((r: any) => r.success === false || r.state === "fail" || r.state === "error")
+          .forEach((r: any) => {
+            const key = r.taskId || r.prompt?.slice(0, 80) || String(r.index);
+            if (seen.has(key)) return;
+            seen.add(key);
+            const mapped = indexMap[r.index] ?? null;
+            failures.push({
+              taskId: r.taskId || "",
+              prompt: r.prompt || "",
+              failMsg: r.failMsg || r.reason || "Generation failed.",
+              itemId: mapped?.itemId ?? null,
+              sceneIndex: mapped?.sceneIndex ?? r.index,
+              scene: mapped?.scene ?? null,
+            });
+          });
+      }
+
+      // Path 2 — failedPrompts[] (fallback: no index, match by prompt text)
+      if (Array.isArray(raw.failedPrompts)) {
+        raw.failedPrompts.forEach((fp: any) => {
+          const prompt = fp.prompt || "";
+          const key = prompt.slice(0, 80);
+          if (seen.has(key)) return;
+          seen.add(key);
+          // Try to match back to indexMap by prompt text
+          const mapped = indexMap.find(m =>
+            prompt.length > 20 && (m.scene?.prompt || m.scene?.prompt_clean || "").includes(prompt.slice(0, 60))
+          ) ?? null;
+          failures.push({
+            taskId: "",
+            prompt,
+            failMsg: fp.reason || "Generation failed.",
+            itemId: mapped?.itemId ?? null,
+            sceneIndex: mapped?.sceneIndex ?? null,
+            scene: mapped?.scene ?? null,
+          });
+        });
+      }
+    });
+
+    return failures;
   }
 
   async function handleAcceptPrompts() {
