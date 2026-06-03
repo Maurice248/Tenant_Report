@@ -1448,22 +1448,22 @@ export default function Dashboard() {
         // Timeout or network — treat as delivery confirmed, proceed normally
       }
 
+      // ── Unblock UI + start progress bar IMMEDIATELY (before checking failures) ──
       setAcceptingPrompts(false);
+      resetCreateTabWorkspace();
+      startVideoGenProgress();
+      addSbToast("✅ Prompts accepted! Video generation started — up to 6 min.", "success");
 
-      // ── Check for generation failures in response ──
+      // ── Check for generation failures in background response ──
       const failures = responseData ? parseGenerationFailures(responseData, indexMap) : [];
 
       if (failures.length > 0) {
+        // Stop the progress bar — generation has errors
+        stopVideoGenProgress(false);
         setFailedPrompts(failures);
-        addSbToast(`⚠️ ${failures.length} ad(s) failed to generate. Check the red cards below, fix the prompts, and retry.`, "error");
-        // Do NOT reset workspace — keep scenes visible for editing
+        addSbToast(`⚠️ ${failures.length} ad(s) failed to generate. Fix the red prompts below and retry.`, "error");
         return;
       }
-
-      // ── All succeeded — normal flow ──
-      resetCreateTabWorkspace();
-      startVideoGenProgress();
-      addSbToast("✅ Prompts sent! Video generation started — up to 6 min.", "success");
 
       const genStart = Date.now();
       clearInterval(videoGenPollRef.current);
@@ -1582,21 +1582,11 @@ export default function Dashboard() {
     }
   }
 
-  /** Returns true if any scene in this ad slot matched a failed generation task */
+  /** Returns true if this ad slot has any failed generation result */
   function doesSlotHaveError(itemId: any): boolean {
     if (failedPrompts.length === 0) return false;
-    const scenes: any[] = adScenesMap[itemId] || [];
-    if (scenes.length === 0) return false;
-    return scenes.some((scene: any) =>
-      failedPrompts.some((fail) => {
-        const scenario = (scene.video_scenario || "").trim();
-        const failPrompt = (fail.prompt || "").trim();
-        return (
-          (scenario && failPrompt.length > 10 && (failPrompt.includes(scenario.slice(0, 60)) || scenario.includes(failPrompt.slice(0, 60)))) ||
-          fail.taskId === scene.taskId
-        );
-      })
-    );
+    const id = String(itemId);
+    return (failedPrompts as any[]).some((fail) => String(fail.itemId) === id);
   }
 
   function formatSbDate(iso) {
@@ -3630,7 +3620,8 @@ export default function Dashboard() {
                                   <div style={{ fontSize: 10, fontWeight: 800, color: "#0284c7", textTransform: "uppercase", letterSpacing: "0.06em" }}>
                                     Script / Storyboard Idea <span style={{ color: "#ef4444" }}>*</span>
                                   </div>
-                                  <button
+                                  {/* Hide Generate An Idea button once prompts are being generated */}
+                                  {adStatus !== "generating" && !adScenesGenerating[item.id] && <button
                                     disabled={sentIdeaIds[item.id] || !item.idea?.trim()}
                                     onClick={async () => {
                                       if (sentIdeaIds[item.id]) return;
@@ -3692,7 +3683,7 @@ export default function Dashboard() {
                                     }}
                                   >
                                     {sentIdeaIds[item.id] ? "✨ Generating..." : "✨ Generate an idea"}
-                                  </button>
+                                  </button>}
                                 </div>
                                 <textarea
                                   placeholder="Required — describe your video concept, offer, or story angle..."
@@ -3754,7 +3745,7 @@ export default function Dashboard() {
                               <div>
                                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                                   <div style={{ fontSize: 10, fontWeight: 800, color: "#92400e", textTransform: "uppercase", letterSpacing: "0.06em" }}>Image Description / Prompt</div>
-                                  <button
+                                  {adStatus !== "generating" && !adScenesGenerating[item.id] && <button
                                     disabled={sentIdeaIds[item.id]}
                                     onClick={async () => {
                                       if (sentIdeaIds[item.id]) return;
@@ -3806,7 +3797,7 @@ export default function Dashboard() {
                                     }}
                                   >
                                     {sentIdeaIds[item.id] ? "✨ Generating..." : "✨ Generate an idea"}
-                                  </button>
+                                  </button>}
                                 </div>
                                 <textarea
                                   placeholder="Describe the aesthetic, colors, and subject of the image..."
