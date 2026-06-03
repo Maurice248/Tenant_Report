@@ -455,7 +455,8 @@ export default function Dashboard() {
   const [retryPrompt, setRetryPrompt] = useState("");
   const [isRetryingSubmit, setIsRetryingSubmit] = useState(false);
   const [acceptingPrompts, setAcceptingPrompts] = useState(false);
-  const [generationActive, setGenerationActive] = useState(false); // true while generation running, cards stay visible
+  const [generationActive, setGenerationActive] = useState(false);
+  const [completedItemIds, setCompletedItemIds] = useState<string[]>([]); // ads that finished with no errors → hidden
   const [retryGenActive, setRetryGenActive] = useState(false);
   const [retryGenProgress, setRetryGenProgress] = useState(0);
   const retryGenTimerRef = useRef<any>(null);
@@ -517,6 +518,8 @@ export default function Dashboard() {
     setAdStatus("idle");
     setPromptsAccepted(false);
     setFailedPrompts([]);
+    setCompletedItemIds([]);
+    setGenerationActive(false);
     setSentIdeaIds({});
     setGeneratedIdeas({});
     setWebhookError("");
@@ -1490,6 +1493,41 @@ export default function Dashboard() {
     return failures;
   }
 
+  /** Returns itemIds of ads where ALL scenes succeeded (failCount === 0 for that ad's response) */
+  function parseGenerationSuccesses(responseData: any, indexMap: Array<{ itemId: any; sceneIndex: number; scene: any }>): string[] {
+    const responses: any[] = Array.isArray(responseData) ? responseData.flat() : [responseData];
+    const successIds: string[] = [];
+
+    responses.forEach((raw) => {
+      if (!raw || typeof raw !== "object") return;
+      // Only mark complete if zero failures in this response object
+      const failCount = typeof raw.failCount === "number" ? raw.failCount
+        : Array.isArray(raw.results) ? raw.results.filter((r: any) => !r.success || r.state === "fail" || r.state === "error").length
+        : 1;
+      if (failCount > 0) return;
+
+      // Detect owner itemId by matching any result's prompt
+      let ownerItemId: any = null;
+      if (Array.isArray(raw.results)) {
+        for (const r of raw.results) {
+          const prompt = (r.prompt || "").trim();
+          if (!prompt || prompt.length < 20) continue;
+          const needle = prompt.slice(0, 80).toLowerCase();
+          const match = indexMap.find(m => {
+            const hay = (m.scene?.prompt || m.scene?.prompt_clean || "").slice(0, 80).toLowerCase();
+            return hay && (hay === needle || hay.includes(needle.slice(0, 50)) || needle.includes(hay.slice(0, 50)));
+          });
+          if (match) { ownerItemId = match.itemId; break; }
+        }
+      }
+      if (ownerItemId && !successIds.includes(String(ownerItemId))) {
+        successIds.push(String(ownerItemId));
+      }
+    });
+
+    return successIds;
+  }
+
   async function handleAcceptPrompts() {
     const videosMissingVoice = (createTabAdsConfig.items || []).filter(
       (item: any) => item.type === "video" && !voiceLabels[item.id]
@@ -1574,10 +1612,15 @@ export default function Dashboard() {
       .then(responseData => {
         if (!responseData) return;
         const failures = parseGenerationFailures(responseData, indexMap);
+        const successes = parseGenerationSuccesses(responseData, indexMap);
+        // Mark completed ads
+        if (successes.length > 0) {
+          setCompletedItemIds(prev => [...new Set([...prev, ...successes])]);
+        }
         if (failures.length > 0) {
           stopVideoGenProgress(false);
           clearInterval(videoGenPollRef.current);
-          setGenerationActive(false); // stop generating overlay, show error on specific cards
+          setGenerationActive(false);
           setFailedPrompts(failures);
           addSbToast(`⚠️ ${failures.length} scene(s) failed. Click the red card to view and fix prompts.`, "error");
         }
@@ -1588,6 +1631,111 @@ export default function Dashboard() {
   /** Update a failed prompt's text (user edits it before retrying) */
   function updateFailedPromptText(index: number, newPrompt: string) {
     setFailedPrompts((prev: any[]) => prev.map((f, i) => i === index ? { ...f, prompt: newPrompt } : f));
+  }
+
+  /** Start Again — sends error cards (with edited prompts) + not-started cards in one request */
+  function handleStartAgain() {
+    const errorItemIds = new Set((failedPrompts as any[]).map((f: any) => String(f.itemId)).filter(Boolean));
+    const notStartedItems = (createTabAdsConfig.items || []).filter((item: any) =>
+      !completedItemIds.includes(String(item.id)) && !errorItemIds.has(String(item.id))
+    );
+
+    const scenesForRequest: Record<string, any[]> = {};
+    const newIndexMap: Array<{ itemId: any; sceneIndex: number; scene: any }> = [];
+
+    // Error items with user-edited prompts
+    errorItemIds.forEach((itemId) => {
+      const allScenes: any[] = adScenesMap[itemId] || [];
+      const edits: Record<number, string> = {};
+      (failedPrompts as any[]).filter(f => String(f.itemId) === itemId).forEach(f => {
+        edits[f.sceneIndex] = f.prompt;
+      });
+      scenesForRequest[itemId] = allScenes.map((s: any, i: number) =>
+        edits[i] !== undefined ? { ...s, prompt: edits[i], prompt_clean: edits[i] } : s
+      );
+      scenesForRequest[itemId].forEach((s: any, i: number) => {
+        newIndexMap.push({ itemId, sceneIndex: i, scene: s });
+      });
+    });
+
+    // Not-started items with original prompts
+    notStartedItems.forEach((item: any) => {
+      const scenes: any[] = adScenesMap[item.id] || [];
+      scenesForRequest[item.id] = scenes;
+      scenes.forEach((s: any, i: number) => {
+        newIndexMap.push({ itemId: item.id, sceneIndex: i, scene: s });
+      });
+    });
+
+    if (Object.keys(scenesForRequest).length === 0) return;
+
+    // Reset failed prompts, start generation
+    setFailedPrompts([]);
+    setGenerationActive(true);
+    startVideoGenProgress();
+    addSbToast(`🔄 Restarting generation for ${Object.keys(scenesForRequest).length} ad(s)…`, "success");
+
+    const webhookUrl = process.env.NEXT_PUBLIC_N8N_ACCEPT_PROMPTS_URL || "https://n8n.srv881198.hstgr.cloud/webhook/3be958fe-3d6e-4ccf-8d72-5a9a0bb2d932";
+    const payload = {
+      report_id: analysisData?.id || crypto.randomUUID(),
+      report_data: analysisData,
+      generated_prompts: scenesForRequest,
+      audioKeys: adAudioKeysMap,
+      audio_keys: adAudioKeysMap,
+      is_retry: true,
+      scene_index_map: newIndexMap.map(m => ({ itemId: m.itemId, sceneIndex: m.sceneIndex })),
+    };
+
+    // Start Supabase polling
+    const genStart = Date.now();
+    clearInterval(videoGenPollRef.current);
+    videoGenPollRef.current = setInterval(async () => {
+      if (Date.now() - genStart > VIDEO_GEN_DURATION) { clearInterval(videoGenPollRef.current); setGenerationActive(false); return; }
+      try {
+        const { data } = await supabase
+          .from("your_name_table")
+          .select("id, time, text, format, Approved")
+          .gte("time", new Date(genStart - 5000).toISOString())
+          .order("time", { ascending: false })
+          .limit(10);
+        if (data && data.length > 0) {
+          clearInterval(videoGenPollRef.current);
+          stopVideoGenProgress(true);
+          setGenerationActive(false);
+          await fetchAdTableLinks();
+          setAllApprovedAds(prev => {
+            const newIds = new Set(data.map((d: any) => `${d.id}_${d.time}`));
+            return [...data, ...prev.filter((a: any) => !newIds.has(`${a.id}_${a.time}`))];
+          });
+          addSbToast("🎬 Videos are ready! Check Ad Previews.", "success");
+          setIsStatusPolling(true);
+        }
+      } catch {}
+    }, 30_000);
+
+    const bgController = new AbortController();
+    const bgTimeout = setTimeout(() => bgController.abort(), 600_000);
+    fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: bgController.signal,
+    })
+      .then(res => { clearTimeout(bgTimeout); return res.ok ? res.json() : null; })
+      .then(responseData => {
+        if (!responseData) return;
+        const failures = parseGenerationFailures(responseData, newIndexMap);
+        const successes = parseGenerationSuccesses(responseData, newIndexMap);
+        if (successes.length > 0) setCompletedItemIds(prev => [...new Set([...prev, ...successes])]);
+        if (failures.length > 0) {
+          stopVideoGenProgress(false);
+          clearInterval(videoGenPollRef.current);
+          setGenerationActive(false);
+          setFailedPrompts(failures);
+          addSbToast(`⚠️ ${failures.length} scene(s) failed again. Fix and retry.`, "error");
+        }
+      })
+      .catch(() => { clearTimeout(bgTimeout); });
   }
 
   /** Retry a single card — sends ALL scenes for that ad with edited prompts merged in */
@@ -1640,11 +1788,14 @@ export default function Dashboard() {
       .then(responseData => {
         clearInterval(retryGenTimerRef.current);
         const newFailures = responseData ? parseGenerationFailures(responseData, indexMap) : [];
+        const newSuccesses = responseData ? parseGenerationSuccesses(responseData, indexMap) : [];
+        if (newSuccesses.length > 0) {
+          setCompletedItemIds(prev => [...new Set([...prev, ...newSuccesses])]);
+        }
         // Replace failures for this card only
         setFailedPrompts((prev: any[]) => {
           const others = prev.filter(f => String(f.itemId) !== itemId);
           const updated = [...others, ...newFailures];
-          // If all errors resolved, reset workspace
           if (updated.length === 0) setTimeout(() => resetCreateTabWorkspace(), 1000);
           return updated;
         });
@@ -3678,33 +3829,39 @@ export default function Dashboard() {
                   <div className="create-ads-config-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, padding: "20px 24px", maxWidth: "100%", boxSizing: "border-box", overflowX: "hidden" }}>
                     {createTabAdsConfig.items.map((item, idx) => {
                       const isVideo = item.type === "video";
+                      const isCompleted = completedItemIds.includes(String(item.id));
+                      const isError = doesSlotHaveError(item.id);
+                      // Not-started: has prompts, not completed, not errored, generation ended
+                      const isNotStarted = !isCompleted && !isError && !generationActive && completedItemIds.length > 0 && !!adScenesMap[item.id]?.length;
+                      // Hide completed cards — they're done
+                      if (isCompleted) return null;
                       return (
                         <div key={item.id} style={{
                           borderRadius: 14,
                           background: "#fff",
-                          border: doesSlotHaveError(item.id) ? "2px solid #ef4444" : isVideo ? "1.5px solid #bfdbfe" : "1.5px solid #e2e8f0",
+                          border: isError ? "2px solid #ef4444" : isVideo ? "1.5px solid #bfdbfe" : "1.5px solid #e2e8f0",
                           overflow: "hidden",
-                          boxShadow: doesSlotHaveError(item.id) ? "0 4px 20px rgba(239,68,68,0.12)" : "0 2px 12px rgba(0,0,0,0.06)",
+                          boxShadow: isError ? "0 4px 20px rgba(239,68,68,0.12)" : "0 2px 12px rgba(0,0,0,0.06)",
                           maxWidth: "100%", boxSizing: "border-box", minWidth: 0
                         }}>
                           {/* Config card header */}
                           <div style={{
                             padding: "12px 18px",
-                            background: doesSlotHaveError(item.id)
-                              ? "linear-gradient(135deg, #fef2f2, #fee2e2)"
+                            background: isError ? "linear-gradient(135deg, #fef2f2, #fee2e2)"
+                              : isNotStarted ? "linear-gradient(135deg, #fffbeb, #fef3c7)"
                               : isVideo ? "linear-gradient(135deg, #eff6ff, #dbeafe)" : "linear-gradient(135deg, #f8fafc, #f1f5f9)",
                             display: "flex", alignItems: "center", gap: 10,
-                            borderBottom: doesSlotHaveError(item.id) ? "1.5px solid #fecaca" : isVideo ? "1.5px solid #bfdbfe" : "1.5px solid #e2e8f0"
+                            borderBottom: isError ? "1.5px solid #fecaca" : isNotStarted ? "1.5px solid #fde68a" : isVideo ? "1.5px solid #bfdbfe" : "1.5px solid #e2e8f0"
                           }}>
-                            <div style={{ width: 32, height: 32, borderRadius: 10, background: doesSlotHaveError(item.id) ? "#fee2e2" : isVideo ? "#dbeafe" : "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>
-                              {doesSlotHaveError(item.id) ? "⚠️" : isVideo ? "🎬" : "🖼️"}
+                            <div style={{ width: 32, height: 32, borderRadius: 10, background: isError ? "#fee2e2" : isNotStarted ? "#fef3c7" : isVideo ? "#dbeafe" : "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>
+                              {isError ? "⚠️" : isNotStarted ? "⏸" : isVideo ? "🎬" : "🖼️"}
                             </div>
                             <div>
-                              <div style={{ fontSize: 13, fontWeight: 800, color: doesSlotHaveError(item.id) ? "#dc2626" : isVideo ? "#1d4ed8" : "#475569" }}>
+                              <div style={{ fontSize: 13, fontWeight: 800, color: isError ? "#dc2626" : isNotStarted ? "#92400e" : isVideo ? "#1d4ed8" : "#475569" }}>
                                 {isVideo ? "Video" : "Image"} {idx + 1}
                               </div>
-                              <div style={{ fontSize: 10, color: doesSlotHaveError(item.id) ? "#ef4444" : isVideo ? "#3b82f6" : "#94a3b8", marginTop: 1, fontWeight: 600 }}>
-                                {doesSlotHaveError(item.id) ? "Policy violation — fix prompt" : "Configuration"}
+                              <div style={{ fontSize: 10, color: isError ? "#ef4444" : isNotStarted ? "#d97706" : isVideo ? "#3b82f6" : "#94a3b8", marginTop: 1, fontWeight: 600 }}>
+                                {isError ? "Failed — click to fix" : isNotStarted ? "Not started — pending retry" : "Configuration"}
                               </div>
                             </div>
                           </div>
@@ -4235,40 +4392,63 @@ export default function Dashboard() {
                             <div style={{ fontSize: 10, color: "#64748b" }}>Up to 9 min — you can wait here</div>
                           </div>
                         ) : Object.values(adScenesMap).some(scenes => Array.isArray(scenes) && scenes.length > 0) ? (
-                          <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }}>
-                            {/* When errors exist: hint pointing to the red cards above */}
-                            {(failedPrompts as any[]).length > 0 && (
-                              <div style={{ fontSize: 12, color: "#dc2626", fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
-                                <span>⚠️</span>
-                                {(failedPrompts as any[]).length} scene{(failedPrompts as any[]).length > 1 ? "s" : ""} failed — see the red card{(failedPrompts as any[]).length > 1 ? "s" : ""} above to edit and retry.
+                          (() => {
+                            const errIds = new Set((failedPrompts as any[]).map((f: any) => String(f.itemId)).filter(Boolean));
+                            const notStarted = (createTabAdsConfig.items || []).filter((it: any) =>
+                              !completedItemIds.includes(String(it.id)) && !errIds.has(String(it.id))
+                            );
+                            const hasErrors = (failedPrompts as any[]).length > 0;
+                            const hasRemaining = hasErrors || notStarted.length > 0;
+                            const generationEverRan = completedItemIds.length > 0 || hasErrors;
+
+                            return (
+                              <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }}>
+                                {/* Generation active */}
+                                {generationActive && (
+                                  <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "#0284c7" }}>
+                                    <Spinner size={14} color="#0284c7" /> Generation in progress…
+                                  </div>
+                                )}
+
+                                {/* START AGAIN — when errors or not-started exist after generation ran */}
+                                {!generationActive && generationEverRan && hasRemaining && (
+                                  <button
+                                    onClick={handleStartAgain}
+                                    type="button"
+                                    style={{
+                                      padding: "12px 28px", borderRadius: "var(--radius-lg)", border: "none",
+                                      background: "linear-gradient(135deg, #0284c7, #0ea5e9)", color: "#fff",
+                                      fontSize: 13, fontWeight: 700, cursor: "pointer",
+                                      display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+                                      boxShadow: "0 4px 12px rgba(2,132,199,0.3)"
+                                    }}
+                                  >
+                                    🔄 Start Again ({errIds.size + notStarted.length} ad{errIds.size + notStarted.length > 1 ? "s" : ""}) →
+                                  </button>
+                                )}
+
+                                {/* ACCEPT PROMPTS — first time, no generation has happened yet */}
+                                {!generationActive && !generationEverRan && (failedPrompts as any[]).length === 0 && (
+                                  <button
+                                    onClick={handleAcceptPrompts}
+                                    disabled={acceptingPrompts}
+                                    type="button"
+                                    style={{
+                                      padding: "12px 30px", borderRadius: "var(--radius-lg)", border: "none",
+                                      background: acceptingPrompts ? "var(--primary-light)" : "linear-gradient(135deg, #22c55e, #16a34a)",
+                                      color: acceptingPrompts ? "var(--primary)" : "#fff",
+                                      fontSize: 13, fontWeight: 700, cursor: acceptingPrompts ? "not-allowed" : "pointer",
+                                      display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+                                      opacity: acceptingPrompts ? 0.7 : 1,
+                                      boxShadow: acceptingPrompts ? "none" : "0 4px 12px rgba(34, 197, 94, 0.3)"
+                                    }}
+                                  >
+                                    {acceptingPrompts ? <><Spinner size={14} /> Accepting...</> : "Accept Prompts ✓"}
+                                  </button>
+                                )}
                               </div>
-                            )}
-                            {/* Accept Prompts — only when no failures and generation not already running */}
-                            {(failedPrompts as any[]).length === 0 && !generationActive && (
-                              <button
-                                onClick={handleAcceptPrompts}
-                                disabled={acceptingPrompts}
-                                type="button"
-                                style={{
-                                  padding: "12px 30px", borderRadius: "var(--radius-lg)", border: "none",
-                                  background: acceptingPrompts ? "var(--primary-light)" : "linear-gradient(135deg, #22c55e, #16a34a)",
-                                  color: acceptingPrompts ? "var(--primary)" : "#fff",
-                                  fontSize: 13, fontWeight: 700, cursor: acceptingPrompts ? "not-allowed" : "pointer",
-                                  display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
-                                  opacity: acceptingPrompts ? 0.7 : 1,
-                                  boxShadow: acceptingPrompts ? "none" : "0 4px 12px rgba(34, 197, 94, 0.3)"
-                                }}
-                              >
-                                {acceptingPrompts ? <><Spinner size={14} /> Accepting...</> : "Accept Prompts ✓"}
-                              </button>
-                            )}
-                            {/* Generating active — show status */}
-                            {generationActive && (failedPrompts as any[]).length === 0 && (
-                              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "#0284c7" }}>
-                                <Spinner size={14} color="#0284c7" /> Generation in progress — see cards above
-                              </div>
-                            )}
-                          </div>
+                            );
+                          })()
                         ) : (
                           <button
                             onClick={handleCreateTabTriggerAds}
