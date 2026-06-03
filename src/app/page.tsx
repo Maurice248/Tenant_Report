@@ -373,6 +373,10 @@ export default function Dashboard() {
         if (errMsg !== lastDismissedMsg) {
           setErrorNotification(errMsg);
           setErrorNotificationTime(errMsg); // reuse state field to carry the key for dismiss
+          // If a video generation is in progress, stop the stuck progress bar
+          if (localStorage.getItem("toga_video_gen_start")) {
+            stopVideoGenProgress(false);
+          }
         } else {
           setErrorNotification(null);
           setErrorNotificationTime(null);
