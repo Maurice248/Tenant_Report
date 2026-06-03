@@ -254,7 +254,13 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
       if (!config.ad?.name?.trim()) errs.push("Ad Name is required.");
       if (!config.ad?.primary_text?.trim()) errs.push("Primary Text is required.");
       if (!config.ad?.headline?.trim()) errs.push("Headline is required.");
-      if (!config.ad?.website_url?.trim()) errs.push("Destination URL is required.");
+      const url = config.ad?.website_url?.trim();
+      if (!url) {
+        errs.push("Destination URL is required.");
+      } else {
+        try { new URL(url); if (!/^https?:\/\/.+\..+/.test(url)) throw new Error(); }
+        catch { errs.push("Destination URL is invalid. Must start with https:// or http:// (e.g. https://example.com)."); }
+      }
     }
     return errs;
   };
@@ -708,13 +714,25 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
               </Label>
 
               {/* Destination URL */}
-              <div style={{ padding: "14px 16px", background: "#eff6ff", borderRadius: 12, border: "1px solid #bfdbfe" }}>
-                <Label label="🔗 Destination URL">
-                  <input value={config.ad?.website_url || ""} onChange={e => setField("ad", "website_url", e.target.value)}
-                    placeholder="https://togahh.com"
-                    style={{ ...inputSt, background: "#fff", borderColor: "#93c5fd", width: "100%", boxSizing: "border-box" }} />
-                </Label>
-              </div>
+              {(() => {
+                const url = config.ad?.website_url?.trim();
+                let urlValid = true;
+                if (url) { try { new URL(url); if (!/^https?:\/\/.+\..+/.test(url)) throw new Error(); } catch { urlValid = false; } }
+                return (
+                  <div style={{ padding: "14px 16px", background: urlValid ? "#eff6ff" : "#fef2f2", borderRadius: 12, border: `1px solid ${urlValid ? "#bfdbfe" : "#fca5a5"}` }}>
+                    <Label label="🔗 Destination URL *">
+                      <input value={config.ad?.website_url || ""} onChange={e => setField("ad", "website_url", e.target.value)}
+                        placeholder="https://example.com"
+                        style={{ ...inputSt, background: "#fff", borderColor: urlValid ? "#93c5fd" : "#f87171", width: "100%", boxSizing: "border-box" }} />
+                    </Label>
+                    {url && !urlValid && (
+                      <div style={{ fontSize: 11, color: "#dc2626", marginTop: 6, fontWeight: 600 }}>
+                        ⚠ Invalid URL — must start with https:// or http://
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>
 
