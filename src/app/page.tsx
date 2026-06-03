@@ -921,8 +921,8 @@ export default function Dashboard() {
           const exists = prev.some((a: any) => `${a.id}_${a.time}` === `${newAd.id}_${newAd.time}`);
           return exists ? prev : [newAd, ...prev];
         });
-        addSbToast("🎬 Videos are ready! Check Ad Previews.", "success");
-        setIsStatusPolling(true);
+        addSbToast("✅ Ads generated successfully! Check Ad Previews below.", "success");
+        setTimeout(() => resetCreateTabWorkspace(), 2000);
       })
       .subscribe();
     return () => { supabase.removeChannel(adsChannel); };
@@ -1587,14 +1587,13 @@ export default function Dashboard() {
           clearInterval(videoGenPollRef.current);
           stopVideoGenProgress(true);
           setGenerationActive(false);
-          // Keep workspace visible — user may still have errors to fix on other cards
           await fetchAdTableLinks();
           setAllApprovedAds(prev => {
             const newIds = new Set(data.map((d: any) => `${d.id}_${d.time}`));
             return [...data, ...prev.filter((a: any) => !newIds.has(`${a.id}_${a.time}`))];
           });
-          addSbToast("🎬 Videos are ready! Check Ad Previews.", "success");
-          setIsStatusPolling(true);
+          addSbToast("✅ Ads generated successfully! Check Ad Previews below.", "success");
+          setTimeout(() => resetCreateTabWorkspace(), 2000);
         }
       } catch {}
     }, 30_000);
@@ -1707,8 +1706,8 @@ export default function Dashboard() {
             const newIds = new Set(data.map((d: any) => `${d.id}_${d.time}`));
             return [...data, ...prev.filter((a: any) => !newIds.has(`${a.id}_${a.time}`))];
           });
-          addSbToast("🎬 Videos are ready! Check Ad Previews.", "success");
-          setIsStatusPolling(true);
+          addSbToast("✅ Ads generated successfully! Check Ad Previews below.", "success");
+          setTimeout(() => resetCreateTabWorkspace(), 2000);
         }
       } catch {}
     }, 30_000);
