@@ -5924,16 +5924,9 @@ export default function Dashboard() {
 
       {/* ── Scenes Prompt Modal ── */}
       {scenesModal.open && (() => {
-        // Determine which scenes inside this modal are flagged as failed
-        const modalFailures = failedPrompts.filter((fail) =>
-          editedScenes.some((scene: any) => {
-            const scenario = (scene.video_scenario || "").trim();
-            const failPrompt = (fail.prompt || "").trim();
-            return (
-              (scenario && failPrompt.length > 10 && (failPrompt.includes(scenario.slice(0, 60)) || scenario.includes(failPrompt.slice(0, 60)))) ||
-              fail.taskId === scene.taskId
-            );
-          })
+        // Determine which scenes are failed — match by itemId + sceneIndex (reliable, no text comparison)
+        const modalFailures = (failedPrompts as any[]).filter(
+          (fail) => String(fail.itemId) === String(scenesModal.itemId)
         );
         const hasFailuresInModal = modalFailures.length > 0;
         const headerBg = hasFailuresInModal
@@ -6066,7 +6059,7 @@ export default function Dashboard() {
               }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 800, color: "#dc2626" }}>
                   <span style={{ fontSize: 18 }}>⚠️</span>
-                  {modalFailures.length} scene(s) failed to generate. Edit the highlighted video scenario prompt and save.
+                  {modalFailures.length} scene(s) failed — highlighted in red below. Edit the image prompt and click Save &amp; Retry.
                 </div>
                 {modalFailures.map((fail, fi) => (
                   <div key={fi} style={{
@@ -6090,21 +6083,12 @@ export default function Dashboard() {
             <div style={{ overflowY: "auto", flex: 1 }}>
               {editedScenes.map((scene: any, i: number) => {
                 // Check if this specific scene is a failed one
-                const sceneIsFailed = failedPrompts.some((fail) => {
-                  const scenario = (scene.video_scenario || "").trim();
-                  const failPrompt = (fail.prompt || "").trim();
-                  return (
-                    (scenario && failPrompt.length > 10 && (failPrompt.includes(scenario.slice(0, 60)) || scenario.includes(failPrompt.slice(0, 60)))) ||
-                    fail.taskId === scene.taskId
-                  );
-                });
-                const sceneFailMsg = sceneIsFailed
-                  ? (failedPrompts.find((fail) => {
-                      const scenario = (scene.video_scenario || "").trim();
-                      const failPrompt = (fail.prompt || "").trim();
-                      return (scenario && failPrompt.length > 10 && (failPrompt.includes(scenario.slice(0, 60)) || scenario.includes(failPrompt.slice(0, 60)))) || fail.taskId === scene.taskId;
-                    })?.failMsg || "Generation failed.")
-                  : "";
+                // Match by itemId + sceneIndex — i is the scene position in editedScenes
+                const failEntry = (failedPrompts as any[]).find(
+                  (fail) => String(fail.itemId) === String(scenesModal.itemId) && fail.sceneIndex === i
+                );
+                const sceneIsFailed = !!failEntry;
+                const sceneFailMsg = failEntry?.failMsg || "";
 
                 return (
                   <div key={i} style={{ borderBottom: "1px solid #f1f5f9" }}>
