@@ -3832,7 +3832,9 @@ export default function Dashboard() {
                       const isCompleted = completedItemIds.includes(String(item.id));
                       const isError = doesSlotHaveError(item.id);
                       // Not-started: has prompts, not completed, not errored, generation ended
-                      const isNotStarted = !isCompleted && !isError && !generationActive && completedItemIds.length > 0 && !!adScenesMap[item.id]?.length;
+                      // Not started: has prompts but generation ended with errors (even if nothing completed yet)
+                      const generationEverRan = completedItemIds.length > 0 || (failedPrompts as any[]).length > 0;
+                      const isNotStarted = !isCompleted && !isError && !generationActive && generationEverRan && !!adScenesMap[item.id]?.length;
                       // Hide completed cards — they're done
                       if (isCompleted) return null;
                       return (
@@ -6185,40 +6187,11 @@ export default function Dashboard() {
                   style={{ background: "#fff", border: "none", color: hasFailuresInModal ? "#dc2626" : "#0284c7", borderRadius: 8, padding: "8px 14px", cursor: "pointer", fontSize: 12, fontWeight: 800, boxShadow: "0 2px 8px rgba(0,0,0,0.15)" }}
                 >{hasUnsavedChanges ? "💾 Save Changes *" : "✓ Saved"}</button>
 
-                {/* Retry — only shown when modal has failures */}
-                {hasFailuresInModal && scenesModal.itemId && (
-                  retryingItemId === String(scenesModal.itemId) ? (
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.15)", borderRadius: 8, padding: "8px 14px" }}>
-                      <Spinner size={12} color="#fff" />
-                      <span style={{ color: "#fff", fontSize: 12, fontWeight: 700 }}>Retrying… {retryItemProgress}%</span>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => {
-                        // Save first, then retry
-                        if (scenesModal.itemId) {
-                          setAdScenesMap(prev => {
-                            const updated = { ...prev };
-                            Object.keys(updated).forEach(k => {
-                              if (k === String(scenesModal.itemId)) updated[k] = editedScenes;
-                            });
-                            return updated;
-                          });
-                          setFailedPrompts((prev: any[]) => prev.map(f => {
-                            if (String(f.itemId) !== String(scenesModal.itemId)) return f;
-                            const updated = editedScenes[f.sceneIndex];
-                            return updated ? { ...f, prompt: updated.prompt || updated.prompt_clean || f.prompt } : f;
-                          }));
-                          setHasUnsavedChanges(false);
-                          setScenesModal({ open: false, scenes: [], adLabel: "", itemId: null });
-                          handleRetryCard(String(scenesModal.itemId));
-                        }
-                      }}
-                      style={{ background: "linear-gradient(135deg, #dc2626, #ef4444)", border: "none", color: "#fff", borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontSize: 12, fontWeight: 800, boxShadow: "0 3px 10px rgba(220,38,38,0.4)", display: "flex", alignItems: "center", gap: 6 }}
-                    >
-                      🔄 Save &amp; Retry →
-                    </button>
-                  )
+                {/* When failures: show hint to use Start Again button */}
+                {hasFailuresInModal && (
+                  <div style={{ background: "rgba(255,255,255,0.15)", borderRadius: 8, padding: "8px 14px", fontSize: 11, color: "#fff", fontWeight: 600 }}>
+                    Save edits, close, then click <b>Start Again</b> ↓
+                  </div>
                 )}
 
                 <button
@@ -6239,7 +6212,7 @@ export default function Dashboard() {
               }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 800, color: "#dc2626" }}>
                   <span style={{ fontSize: 18 }}>⚠️</span>
-                  {modalFailures.length} scene(s) failed — highlighted in red below. Edit the image prompt and click Save &amp; Retry.
+                  {modalFailures.length} scene(s) failed — highlighted in red below. Edit the prompt, save, close, then click <b>Start Again</b>.
                 </div>
                 {modalFailures.map((fail, fi) => (
                   <div key={fi} style={{
