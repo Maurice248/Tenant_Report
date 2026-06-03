@@ -252,7 +252,6 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
     }
     if (s === 3) {
       if (!config.ad?.name?.trim()) errs.push("Ad Name is required.");
-      if (!config.ad?.facebook_page?.trim()) errs.push("Facebook Page is required.");
       if (!config.ad?.primary_text?.trim()) errs.push("Primary Text is required.");
       if (!config.ad?.headline?.trim()) errs.push("Headline is required.");
       if (!config.ad?.website_url?.trim()) errs.push("Destination URL is required.");
@@ -668,15 +667,10 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
             <SectionHeader title="Ad Copy & Identity" sub="Customize the text and CTA for your ad." />
             <div style={{ padding: "20px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
 
-              {/* Ad Name + Facebook Page */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14 }}>
-                <Label label="Ad Name">
-                  <input value={config.ad?.name || ""} onChange={e => setField("ad", "name", e.target.value)} style={{ ...inputSt, width: "100%", boxSizing: "border-box" }} />
-                </Label>
-                <Label label="Facebook Page">
-                  <input value={config.ad?.facebook_page || ""} onChange={e => setField("ad", "facebook_page", e.target.value)} style={{ ...inputSt, width: "100%", boxSizing: "border-box" }} />
-                </Label>
-              </div>
+              {/* Ad Name */}
+              <Label label="Ad Name *">
+                <input value={config.ad?.name || ""} onChange={e => setField("ad", "name", e.target.value)} style={{ ...inputSt, width: "100%", boxSizing: "border-box" }} />
+              </Label>
 
               {/* Primary Text */}
               <Label label="Primary Text">
