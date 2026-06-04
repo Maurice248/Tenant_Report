@@ -3730,101 +3730,7 @@ export default function Dashboard() {
                   border: "1.5px solid #e0e7ff",
                   overflow: "hidden",
                 }}>
-                  {/* ── PHASE 1: TOTAL QUANTITY ── */}
-                  <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--border)" }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-                      <div>
-                        <div style={{ fontSize: 12, fontWeight: 800, color: "var(--primary)", marginBottom: 2, display: "flex", alignItems: "center", gap: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                          <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 20, height: 20, borderRadius: "50%", background: "var(--primary)", color: "#fff", fontSize: 10, fontWeight: 800 }}>1</span>
-                          How many ads?
-                        </div>
-                        <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Choose between 1 and 5 creatives.</div>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        {(() => {
-                          const hasScenes = Object.values(adScenesMap).some((s: any) => Array.isArray(s) && s.length > 0);
-                          const isGenerating = adStatus === "generating";
-                          if (isGenerating) return (
-                            <div style={{ fontSize: 11, color: "var(--text-muted)", fontStyle: "italic", display: "flex", alignItems: "center", gap: 6 }}>
-                              <Spinner size={11} color="var(--primary)" /> Locked during generation
-                            </div>
-                          );
-                          if (hasScenes) return (
-                            <div style={{ fontSize: 11, color: "#92400e", fontStyle: "italic", display: "flex", alignItems: "center", gap: 6, background: "#fffbeb", padding: "5px 10px", borderRadius: 8, border: "1px solid #fde68a" }}>
-                              🔒 Prompts generated — reset to change ad count
-                            </div>
-                          );
-                          return [1, 2, 3, 4, 5].map((n) => (
-                          <button
-                            key={n}
-                            onClick={() => updateCreateTabTotalAds(n)}
-                            type="button"
-                            style={{
-                              width: 38, height: 38, borderRadius: 10,
-                              border: createTabAdsConfig.totalAds === n ? "2px solid var(--primary)" : "1.5px solid var(--border)",
-                              background: createTabAdsConfig.totalAds === n ? "var(--primary)" : "var(--surface)",
-                              color: createTabAdsConfig.totalAds === n ? "#fff" : "var(--text-muted)",
-                              fontSize: 14, fontWeight: 800, cursor: "pointer", transition: "all 0.15s", fontFamily: "inherit",
-                              boxShadow: createTabAdsConfig.totalAds === n ? "0 4px 10px rgba(2,132,199,0.3)" : "none",
-                            }}
-                          >{n}</button>
-                          ));
-                        })()}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* ── PHASE 2: ALLOCATION ── */}
-                  <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--border)", background: "var(--surface)" }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 14 }}>
-                      <div>
-                        <div style={{ fontSize: 12, fontWeight: 800, color: "var(--text)", display: "flex", alignItems: "center", gap: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                          <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 20, height: 20, borderRadius: "50%", background: "var(--primary)", color: "#fff", fontSize: 10, fontWeight: 800 }}>2</span>
-                          Allocate Types
-                          <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 20, background: "var(--primary-light)", color: "var(--primary)", fontWeight: 700 }}>Max 3🎬 / 2🖼️</span>
-                        </div>
-                        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>Divide your {createTabAdsConfig.totalAds} ads into Videos and Images.</div>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--card-bg)", padding: "6px 14px", borderRadius: 20, border: "1px solid var(--border)" }}>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: "var(--primary)" }}>🎬 {createTabAdsConfig.videoCount}/3</span>
-                        <div style={{ width: 1, height: 14, background: "var(--border)" }} />
-                        <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)" }}>🖼️ {createTabAdsConfig.imageCount}/2</span>
-                      </div>
-                    </div>
-
-                    <div className="create-ads-allocate-row" style={{ display: "flex", flexDirection: "row", gap: 10, flexWrap: "wrap" }}>
-                      {createTabAdsConfig.items.map((item, idx) => {
-                        const videoDisabled = item.type !== "video" && createTabAdsConfig.videoCount >= 3;
-                        const imageDisabled = item.type !== "image" && createTabAdsConfig.imageCount >= 2;
-                        const isVideo = item.type === "video";
-                        const isImage = item.type === "image";
-                        return (
-                          <div key={item.id} style={{ flex: "1 1 80px", minWidth: 80, maxWidth: 120, display: "flex", flexDirection: "column", gap: 5 }}>
-                            <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", marginLeft: 2, textTransform: "uppercase", letterSpacing: "0.05em" }}>Ad {idx + 1}</div>
-                            <div style={{
-                              display: "flex", borderRadius: 10, overflow: "hidden",
-                              border: isVideo ? "1.5px solid var(--primary)" : isImage ? "1.5px solid #64748b" : "1.5px solid var(--border)",
-                              background: "var(--card-bg)", boxShadow: "var(--shadow-sm)"
-                            }}>
-                              <button onClick={() => adStatus !== "generating" && setCreateTabItemType(idx, "video")} type="button" style={{
-                                flex: 1, padding: "11px 0", border: "none", cursor: (videoDisabled || adStatus === "generating") ? "not-allowed" : "pointer",
-                                background: isVideo ? "var(--primary-light)" : "transparent",
-                                fontSize: 17, transition: "all 0.15s", opacity: (videoDisabled || adStatus === "generating") ? 0.25 : 1
-                              }} title={adStatus === "generating" ? "Locked during generation" : videoDisabled ? "3 Video max" : "Video"}>🎬</button>
-                              <div style={{ width: 1, background: "var(--border)" }} />
-                              <button onClick={() => adStatus !== "generating" && setCreateTabItemType(idx, "image")} type="button" style={{
-                                flex: 1, padding: "11px 0", border: "none", cursor: (imageDisabled || adStatus === "generating") ? "not-allowed" : "pointer",
-                                background: isImage ? "#f1f5f9" : "transparent",
-                                fontSize: 17, transition: "all 0.15s", opacity: (imageDisabled || adStatus === "generating") ? 0.25 : 1
-                              }} title={adStatus === "generating" ? "Locked during generation" : imageDisabled ? "2 Image max" : "Image"}>🖼️</button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* ── PHASE 3: DETAILED CONFIG ── */}
+                  {/* ── AD CONFIG ── */}
                   <div className="create-ads-config-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, padding: "20px 24px", maxWidth: "100%", boxSizing: "border-box", overflowX: "hidden" }}>
                     {createTabAdsConfig.items.map((item, idx) => {
                       const isVideo = item.type === "video";
@@ -4377,7 +4283,7 @@ export default function Dashboard() {
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                           <span style={{ fontSize: 18 }}>🚀</span>
                           <div style={{ fontSize: 13, color: "#92400e", fontWeight: 600 }}>
-                            <b>{createTabAdsConfig.totalAds} Ads</b> ready ({createTabAdsConfig.videoCount}V / {createTabAdsConfig.imageCount}I)
+                            <b>{createTabAdsConfig.items[0]?.type === "video" ? "🎬 Video" : "🖼️ Image"} Ad</b> ready
                           </div>
                         </div>
 
