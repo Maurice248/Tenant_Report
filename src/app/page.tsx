@@ -919,20 +919,28 @@ export default function Dashboard() {
     const adsChannel = supabase
       .channel("your_name_table_realtime")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "your_name_table" }, async (payload) => {
-        if (!videoGenerating) return;
+        if (!videoGenerating && !imageGenerating) return;
         const newAd = payload.new as any;
-        stopVideoGenProgress(true);
         await fetchAdTableLinks();
         setAllApprovedAds(prev => {
           const exists = prev.some((a: any) => `${a.id}_${a.time}` === `${newAd.id}_${newAd.time}`);
           return exists ? prev : [newAd, ...prev];
         });
-        addSbToast("✅ Ads generated successfully! Check Ad Previews below.", "success");
-        setTimeout(() => resetCreateTabWorkspace(), 2000);
+        if (videoGenerating) {
+          stopVideoGenProgress(true);
+          addSbToast("✅ Video Generated Successfully! Check Ad Previews below.", "success");
+          setTimeout(() => resetCreateTabWorkspace(), 2000);
+        } else if (imageGenerating) {
+          clearInterval(imageGenTimerRef.current);
+          clearInterval(videoGenPollRef.current);
+          setImageGenProgress(100);
+          addSbToast("✅ Image Generated Successfully! Check Ad Previews below.", "success");
+          setTimeout(() => { setImageGenerating(false); setImageGenProgress(0); resetCreateTabWorkspace(); }, 2000);
+        }
       })
       .subscribe();
     return () => { supabase.removeChannel(adsChannel); };
-  }, [videoGenerating]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [videoGenerating, imageGenerating]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     // Check local session (Bypassing Supabase Auth)
@@ -1539,7 +1547,7 @@ export default function Dashboard() {
     return successIds;
   }
 
-  /** IMAGE ONLY — one-step flow: Confirm → image generated directly (no scenes/accept step) */
+  /** IMAGE — fire-and-forget webhook, detect completion via Supabase polling + realtime */
   function handleImageGenerate() {
     const item = createTabAdsConfig.items[0];
     if (!item) return;
@@ -1548,34 +1556,40 @@ export default function Dashboard() {
     setImageGenProgress(0);
     setFailedPrompts([]);
 
-    // Progress bar — images take ~1-3 min
-    const IMAGE_GEN_DURATION = 180_000;
+    // Progress bar — images ~1-3 min, max 5 min
+    const IMAGE_MAX = 300_000;
     const imgStart = Date.now();
     clearInterval(imageGenTimerRef.current);
     imageGenTimerRef.current = setInterval(() => {
-      const pct = Math.min(99, ((Date.now() - imgStart) / IMAGE_GEN_DURATION) * 100);
+      const pct = Math.min(99, ((Date.now() - imgStart) / IMAGE_MAX) * 100);
       setImageGenProgress(Math.round(pct));
-      if (Date.now() - imgStart >= IMAGE_GEN_DURATION) clearInterval(imageGenTimerRef.current);
+      // Timeout fallback — if no image after 5 min, stop and warn
+      if (Date.now() - imgStart >= IMAGE_MAX) {
+        clearInterval(imageGenTimerRef.current);
+        clearInterval(videoGenPollRef.current);
+        setImageGenerating(false);
+        setImageGenProgress(0);
+        addSbToast("Image generation may still be running. Check Ad Previews to see results.", "info");
+      }
     }, 2000);
 
+    // Fire-and-forget — n8n sub-workflow 2 stores image in Supabase after returning
     const webhookUrl = process.env.NEXT_PUBLIC_N8N_ACCEPT_PROMPTS_URL || "https://n8n.srv881198.hstgr.cloud/webhook/3be958fe-3d6e-4ccf-8d72-5a9a0bb2d932";
-    const payload = {
-      report_id: analysisData?.id || crypto.randomUUID(),
-      report_data: analysisData,
-      ads_config: createTabAdsConfig,
-      type: "image",
-    };
+    fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        report_id: analysisData?.id || crypto.randomUUID(),
+        report_data: analysisData,
+        ads_config: createTabAdsConfig,
+        type: "image",
+      }),
+    }).catch(() => {}); // delivery only — n8n handles image gen async
 
-    // Supabase polling — detect when image lands in your_name_table
+    // Poll Supabase every 15s for the new image (same mechanism as video)
     const genStart = Date.now();
     clearInterval(videoGenPollRef.current);
     videoGenPollRef.current = setInterval(async () => {
-      if (Date.now() - genStart > IMAGE_GEN_DURATION + 60_000) {
-        clearInterval(videoGenPollRef.current);
-        clearInterval(imageGenTimerRef.current);
-        setImageGenerating(false);
-        return;
-      }
       try {
         const { data } = await supabase
           .from("your_name_table")
@@ -1584,6 +1598,7 @@ export default function Dashboard() {
           .order("time", { ascending: false })
           .limit(10);
         if (data && data.length > 0) {
+          // Realtime will handle the UI update — clear polling to avoid double-fire
           clearInterval(videoGenPollRef.current);
           clearInterval(imageGenTimerRef.current);
           setImageGenProgress(100);
@@ -1597,32 +1612,6 @@ export default function Dashboard() {
         }
       } catch {}
     }, 15_000);
-
-    // Background: fire webhook + detect errors
-    const bgController = new AbortController();
-    const bgTimeout = setTimeout(() => bgController.abort(), 600_000);
-    fetch(webhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      signal: bgController.signal,
-    })
-      .then(res => { clearTimeout(bgTimeout); return res.ok ? res.json() : null; })
-      .then(responseData => {
-        if (!responseData) return;
-        // Build a minimal indexMap for error parsing
-        const indexMap: Array<{ itemId: any; sceneIndex: number; scene: any }> = [];
-        const failures = parseGenerationFailures(responseData, indexMap);
-        if (failures.length > 0) {
-          clearInterval(videoGenPollRef.current);
-          clearInterval(imageGenTimerRef.current);
-          setImageGenerating(false);
-          setImageGenProgress(0);
-          setFailedPrompts(failures);
-          addSbToast(`⚠️ Image generation failed. Check the error below.`, "error");
-        }
-      })
-      .catch(() => { clearTimeout(bgTimeout); });
   }
 
   async function handleAcceptPrompts() {
@@ -4407,10 +4396,11 @@ export default function Dashboard() {
                       </div>
                     ) : (() => {
                       const allIdeasFilled = (createTabAdsConfig.items || []).every((item: any) => item.idea?.trim());
-                      return !allIdeasFilled ? (
+                      const ideaGenerating = Object.values(sentIdeaIds).some(Boolean);
+                      return (!allIdeasFilled || ideaGenerating) ? (
                         <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#92400e", fontSize: 13 }}>
-                          <span style={{ fontSize: 16 }}>✏️</span>
-                          <span>Fill in the <b>Script / Storyboard Idea</b> for each ad to unlock generation.</span>
+                          <span style={{ fontSize: 16 }}>{ideaGenerating ? "⏳" : "✏️"}</span>
+                          <span>{ideaGenerating ? <><Spinner size={12} color="#92400e" /> <b>Generating idea…</b> please wait before confirming.</> : <>Fill in the <b>Script / Storyboard Idea</b> for each ad to unlock generation.</>}</span>
                         </div>
                       ) : (
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5">
