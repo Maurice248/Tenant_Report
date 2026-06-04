@@ -1530,7 +1530,7 @@ export default function Dashboard() {
 
   async function handleAcceptPrompts() {
     const videosMissingVoice = (createTabAdsConfig.items || []).filter(
-      (item: any) => item.type === "video" && !voiceLabels[item.id]
+      (item: any) => item.type === "video" && item.audioStyle !== "Background Music" && !voiceLabels[item.id]
     );
     if (videosMissingVoice.length > 0) {
       addSbToast(`Please select a voice for all video ads before accepting. ${videosMissingVoice.length} video(s) missing a voice.`, "error");
@@ -3809,6 +3809,7 @@ export default function Dashboard() {
                                     options={[{ value: "male", label: "👨 Male" }, { value: "female", label: "👩 Female" }]}
                                   />
                                 </div>
+                                {item.audioStyle !== "Background Music" && (
                                 <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
                                   <div style={{ fontSize: 10, fontWeight: 800, color: "#64748b", marginBottom: 0, textTransform: "uppercase", letterSpacing: "0.06em" }}>Voice</div>
                                   <button
@@ -3843,6 +3844,7 @@ export default function Dashboard() {
                                     </div>
                                   )}
                                 </div>
+                                )}
                               </div>
                               <div className="config-input-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                                 <div>
@@ -3877,8 +3879,8 @@ export default function Dashboard() {
                                         addSbToast("Please enter a Script / Storyboard Idea first.", "error");
                                         return;
                                       }
-                                      // Require voice selection for video items
-                                      if (isVideo && !voiceLabels[item.id]) {
+                                      // Require voice selection for video items (not needed for Background Music)
+                                      if (isVideo && item.audioStyle !== "Background Music" && !voiceLabels[item.id]) {
                                         addSbToast("Please select a voice first — click the 🎙️ Voices button.", "error");
                                         return;
                                       }
