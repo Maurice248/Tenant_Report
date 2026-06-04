@@ -4420,7 +4420,6 @@ export default function Dashboard() {
                             <div style={{ height: 5, background: "#dbeafe", borderRadius: 3, overflow: "hidden" }}>
                               <div style={{ height: "100%", background: "linear-gradient(90deg, #2563eb, #0ea5e9)", borderRadius: 3, width: `${promptGenProgress}%`, transition: "width 1.8s ease-out" }} />
                             </div>
-                            <div style={{ fontSize: 10, color: "#64748b" }}>Up to 9 min — you can wait here</div>
                           </div>
                         ) : Object.values(adScenesMap).some(scenes => Array.isArray(scenes) && scenes.length > 0) ? (
                           (() => {
@@ -4492,7 +4491,6 @@ export default function Dashboard() {
                               <div style={{ height: 5, background: "#fef3c7", borderRadius: 3, overflow: "hidden" }}>
                                 <div style={{ height: "100%", background: "linear-gradient(90deg, #d97706, #f59e0b)", borderRadius: 3, width: `${imageGenProgress}%`, transition: "width 1.8s ease-out" }} />
                               </div>
-                              <div style={{ fontSize: 10, color: "#64748b" }}>Up to 3 min — you can wait here</div>
                             </div>
                           );
                           // Confirm & Generate button
