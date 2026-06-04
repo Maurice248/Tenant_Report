@@ -4143,7 +4143,7 @@ export default function Dashboard() {
                               color: isVideo ? "#0284c7" : "#b45309", fontSize: 12, fontWeight: 600,
                             }}>
                               <Spinner size={14} color={isVideo ? "#0284c7" : "#b45309"} />
-                              Generating prompts… please wait
+                              {isVideo ? "Generating prompts… please wait" : "Generating image… please wait"}
                             </div>
                           ) : generationActive && !doesSlotHaveError(item.id) && adScenesMap[item.id]?.length > 0 ? (
                             <div style={{
@@ -4332,7 +4332,7 @@ export default function Dashboard() {
                         {adStatus === "generating" ? (
                           <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1, maxWidth: 400 }}>
                             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, fontWeight: 700, color: "#0284c7" }}>
-                              <span><Spinner size={11} color="#0284c7" /> Generating prompts…</span>
+                              <span><Spinner size={11} color="#0284c7" /> {createTabAdsConfig.items[0]?.type === "video" ? "Generating prompts…" : "Generating image…"}</span>
                               <span>{promptGenProgress}%</span>
                             </div>
                             <div style={{ height: 5, background: "#dbeafe", borderRadius: 3, overflow: "hidden" }}>
