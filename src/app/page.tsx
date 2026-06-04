@@ -1066,7 +1066,7 @@ export default function Dashboard() {
   // ── Ads config helpers ──
   const VIDEO_TYPES = ["Reel", "Story", "Feed Post", "Carousel"];
   const DURATIONS = ["20 seconds", "28 seconds", "32 seconds", "36 seconds", "40 seconds"];
-  const AUDIO_STYLES = ["Background Music", "Voiceover Only", "Music + Voiceover", "No Audio"];
+  const AUDIO_STYLES = ["Background Music", "Voiceover"];
   const VIDEO_STYLES = ["Bold & Colorful", "Cinematic", "Minimal & Clean", "Dark & Moody", "Neon / Glow", "Hand-drawn / Sketch"];
   const LANGUAGES = ["English", "Spanish", "French", "Hebrew", "Turkish"];
   const VOICE_OPTIONS = {
