@@ -3779,32 +3779,24 @@ export default function Dashboard() {
                                 </div>
                               </div>
                             </div>
-                            {/* Right: Video / Image toggle (disabled once prompts generated or error) */}
-                            {!isError && !isNotStarted && (
-                              <div style={{ display: "flex", borderRadius: 10, overflow: "hidden", border: "1.5px solid #e2e8f0", flexShrink: 0 }}>
-                                <button
-                                  type="button"
-                                  onClick={() => !adScenesMap[item.id]?.length && setCreateTabItemType(idx, "video")}
-                                  style={{
-                                    padding: "6px 14px", border: "none", fontSize: 12, fontWeight: 700, cursor: adScenesMap[item.id]?.length ? "not-allowed" : "pointer",
-                                    background: isVideo ? "#2563eb" : "#f1f5f9",
-                                    color: isVideo ? "#fff" : "#64748b",
-                                    transition: "all 0.15s", opacity: adScenesMap[item.id]?.length && !isVideo ? 0.5 : 1,
-                                  }}
-                                >🎬 Video</button>
-                                <div style={{ width: 1, background: "#e2e8f0" }} />
-                                <button
-                                  type="button"
-                                  onClick={() => !adScenesMap[item.id]?.length && setCreateTabItemType(idx, "image")}
-                                  style={{
-                                    padding: "6px 14px", border: "none", fontSize: 12, fontWeight: 700, cursor: adScenesMap[item.id]?.length ? "not-allowed" : "pointer",
-                                    background: !isVideo ? "#2563eb" : "#f1f5f9",
-                                    color: !isVideo ? "#fff" : "#64748b",
-                                    transition: "all 0.15s", opacity: adScenesMap[item.id]?.length && isVideo ? 0.5 : 1,
-                                  }}
-                                >🖼️ Image</button>
-                              </div>
-                            )}
+                            {/* Right: Video / Image toggle — locked during idea generation or after prompts generated */}
+                            {!isError && !isNotStarted && (() => {
+                              const toggleLocked = !!adScenesMap[item.id]?.length || !!sentIdeaIds[item.id];
+                              return (
+                                <div style={{ display: "flex", borderRadius: 10, overflow: "hidden", border: `1.5px solid ${toggleLocked ? "#e2e8f0" : "#e2e8f0"}`, flexShrink: 0, opacity: toggleLocked ? 0.5 : 1 }}
+                                  title={toggleLocked ? "Locked while generating or after prompts are ready" : undefined}>
+                                  <button type="button"
+                                    onClick={() => !toggleLocked && setCreateTabItemType(idx, "video")}
+                                    style={{ padding: "6px 14px", border: "none", fontSize: 12, fontWeight: 700, cursor: toggleLocked ? "not-allowed" : "pointer", background: isVideo ? "#2563eb" : "#f1f5f9", color: isVideo ? "#fff" : "#64748b", transition: "all 0.15s" }}
+                                  >🎬 Video</button>
+                                  <div style={{ width: 1, background: "#e2e8f0" }} />
+                                  <button type="button"
+                                    onClick={() => !toggleLocked && setCreateTabItemType(idx, "image")}
+                                    style={{ padding: "6px 14px", border: "none", fontSize: 12, fontWeight: 700, cursor: toggleLocked ? "not-allowed" : "pointer", background: !isVideo ? "#2563eb" : "#f1f5f9", color: !isVideo ? "#fff" : "#64748b", transition: "all 0.15s" }}
+                                  >🖼️ Image</button>
+                                </div>
+                              );
+                            })()}
                           </div>
                           <div style={{ padding: 20, maxWidth: "100%", boxSizing: "border-box", overflowX: "hidden" }}>
 
@@ -3971,12 +3963,14 @@ export default function Dashboard() {
                                 <textarea
                                   placeholder="Required — describe your video concept, offer, or story angle..."
                                   value={item.idea}
+                                  disabled={!!sentIdeaIds[item.id]}
                                   onChange={(e) => updateCreateTabItemField(idx, "idea", e.target.value)}
                                   style={{
                                     width: "100%", minHeight: 80, padding: "12px", borderRadius: "var(--radius-md)",
                                     border: `1.5px solid ${item.idea?.trim() ? "#bae6fd" : "#fca5a5"}`,
-                                    background: item.idea?.trim() ? "#fff" : "#fff7f7",
-                                    fontSize: 12, outline: "none", color: "#0369a1", resize: "vertical", fontFamily: "inherit"
+                                    background: sentIdeaIds[item.id] ? "#f8fafc" : item.idea?.trim() ? "#fff" : "#fff7f7",
+                                    fontSize: 12, outline: "none", color: "#0369a1", resize: "vertical", fontFamily: "inherit",
+                                    cursor: sentIdeaIds[item.id] ? "not-allowed" : "auto"
                                   }}
                                 />
                                 {generatedIdeas[item.id] && generatedIdeas[item.id].length > 0 && (
@@ -4085,11 +4079,13 @@ export default function Dashboard() {
                                 <textarea
                                   placeholder="Describe the aesthetic, colors, and subject of the image..."
                                   value={item.idea}
+                                  disabled={!!sentIdeaIds[item.id]}
                                   onChange={(e) => updateCreateTabItemField(idx, "idea", e.target.value)}
                                   style={{
                                     width: "100%", minHeight: 80, padding: "12px", borderRadius: "var(--radius-md)",
-                                    border: "1.5px solid #fde68a", background: "#fff",
-                                    fontSize: 12, outline: "none", color: "#78350f", resize: "vertical", fontFamily: "inherit"
+                                    border: "1.5px solid #fde68a", background: sentIdeaIds[item.id] ? "#f8fafc" : "#fff",
+                                    fontSize: 12, outline: "none", color: "#78350f", resize: "vertical", fontFamily: "inherit",
+                                    cursor: sentIdeaIds[item.id] ? "not-allowed" : "auto"
                                   }}
                                 />
                                 {generatedIdeas[item.id] && generatedIdeas[item.id].length > 0 && (
