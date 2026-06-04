@@ -1573,8 +1573,8 @@ export default function Dashboard() {
       }
     }, 2000);
 
-    // Fire-and-forget — n8n sub-workflow 2 stores image in Supabase after returning
-    const webhookUrl = process.env.NEXT_PUBLIC_N8N_ACCEPT_PROMPTS_URL || "https://n8n.srv881198.hstgr.cloud/webhook/3be958fe-3d6e-4ccf-8d72-5a9a0bb2d932";
+    // Fire-and-forget — same generate_ad webhook handles both image and video
+    const webhookUrl = process.env.NEXT_PUBLIC_N8N_GENERATE_AD_URL || "https://n8n.srv1208919.hstgr.cloud/webhook/generate_ad";
     fetch(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
