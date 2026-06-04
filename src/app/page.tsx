@@ -464,6 +464,9 @@ export default function Dashboard() {
   const [retryItemProgress, setRetryItemProgress] = useState(0);
   const [promptGenProgress, setPromptGenProgress] = useState(0);
   const promptGenTimerRef = useRef<any>(null);
+  const [imageGenerating, setImageGenerating] = useState(false);
+  const [imageGenProgress, setImageGenProgress] = useState(0);
+  const imageGenTimerRef = useRef<any>(null);
   const [videoGenerating, setVideoGenerating] = useState(false);
   const [videoGenProgress, setVideoGenProgress] = useState(0);
   const videoGenTimerRef = useRef<any>(null);
@@ -520,6 +523,9 @@ export default function Dashboard() {
     setFailedPrompts([]);
     setCompletedItemIds([]);
     setGenerationActive(false);
+    setImageGenerating(false);
+    setImageGenProgress(0);
+    clearInterval(imageGenTimerRef.current);
     setSentIdeaIds({});
     setGeneratedIdeas({});
     setWebhookError("");
@@ -1531,6 +1537,92 @@ export default function Dashboard() {
     });
 
     return successIds;
+  }
+
+  /** IMAGE ONLY — one-step flow: Confirm → image generated directly (no scenes/accept step) */
+  function handleImageGenerate() {
+    const item = createTabAdsConfig.items[0];
+    if (!item) return;
+
+    setImageGenerating(true);
+    setImageGenProgress(0);
+    setFailedPrompts([]);
+
+    // Progress bar — images take ~1-3 min
+    const IMAGE_GEN_DURATION = 180_000;
+    const imgStart = Date.now();
+    clearInterval(imageGenTimerRef.current);
+    imageGenTimerRef.current = setInterval(() => {
+      const pct = Math.min(99, ((Date.now() - imgStart) / IMAGE_GEN_DURATION) * 100);
+      setImageGenProgress(Math.round(pct));
+      if (Date.now() - imgStart >= IMAGE_GEN_DURATION) clearInterval(imageGenTimerRef.current);
+    }, 2000);
+
+    const webhookUrl = process.env.NEXT_PUBLIC_N8N_ACCEPT_PROMPTS_URL || "https://n8n.srv881198.hstgr.cloud/webhook/3be958fe-3d6e-4ccf-8d72-5a9a0bb2d932";
+    const payload = {
+      report_id: analysisData?.id || crypto.randomUUID(),
+      report_data: analysisData,
+      ads_config: createTabAdsConfig,
+      type: "image",
+    };
+
+    // Supabase polling — detect when image lands in your_name_table
+    const genStart = Date.now();
+    clearInterval(videoGenPollRef.current);
+    videoGenPollRef.current = setInterval(async () => {
+      if (Date.now() - genStart > IMAGE_GEN_DURATION + 60_000) {
+        clearInterval(videoGenPollRef.current);
+        clearInterval(imageGenTimerRef.current);
+        setImageGenerating(false);
+        return;
+      }
+      try {
+        const { data } = await supabase
+          .from("your_name_table")
+          .select("id, time, text, format, Approved")
+          .gte("time", new Date(genStart - 5000).toISOString())
+          .order("time", { ascending: false })
+          .limit(10);
+        if (data && data.length > 0) {
+          clearInterval(videoGenPollRef.current);
+          clearInterval(imageGenTimerRef.current);
+          setImageGenProgress(100);
+          await fetchAdTableLinks();
+          setAllApprovedAds(prev => {
+            const newIds = new Set(data.map((d: any) => `${d.id}_${d.time}`));
+            return [...data, ...prev.filter((a: any) => !newIds.has(`${a.id}_${a.time}`))];
+          });
+          addSbToast("✅ Image Generated Successfully! Check Ad Previews below.", "success");
+          setTimeout(() => { setImageGenerating(false); setImageGenProgress(0); resetCreateTabWorkspace(); }, 2000);
+        }
+      } catch {}
+    }, 15_000);
+
+    // Background: fire webhook + detect errors
+    const bgController = new AbortController();
+    const bgTimeout = setTimeout(() => bgController.abort(), 600_000);
+    fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: bgController.signal,
+    })
+      .then(res => { clearTimeout(bgTimeout); return res.ok ? res.json() : null; })
+      .then(responseData => {
+        if (!responseData) return;
+        // Build a minimal indexMap for error parsing
+        const indexMap: Array<{ itemId: any; sceneIndex: number; scene: any }> = [];
+        const failures = parseGenerationFailures(responseData, indexMap);
+        if (failures.length > 0) {
+          clearInterval(videoGenPollRef.current);
+          clearInterval(imageGenTimerRef.current);
+          setImageGenerating(false);
+          setImageGenProgress(0);
+          setFailedPrompts(failures);
+          addSbToast(`⚠️ Image generation failed. Check the error below.`, "error");
+        }
+      })
+      .catch(() => { clearTimeout(bgTimeout); });
   }
 
   async function handleAcceptPrompts() {
@@ -4398,27 +4490,45 @@ export default function Dashboard() {
                               </div>
                             );
                           })()
-                        ) : (
-                          <button
-                            onClick={handleCreateTabTriggerAds}
-                            disabled={adStatus === "generating" || adStatus === "waiting" || !analysisData}
-                            type="button"
-                            className="w-full sm:w-auto"
-                            style={{
-                              padding: "12px 30px", borderRadius: "var(--radius-lg)", border: "none",
-                              background: (adStatus === "generating" || adStatus === "waiting" || !analysisData) ? "var(--primary-light)" : "linear-gradient(135deg, #0284c7, #0ea5e9)",
-                              color: (adStatus === "generating" || adStatus === "waiting" || !analysisData) ? "var(--primary)" : "#fff",
-                              fontSize: 13, fontWeight: 700, cursor: (adStatus === "generating" || !analysisData) ? "not-allowed" : "pointer",
-                              fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
-                              opacity: (adStatus === "generating" || !analysisData) ? 0.7 : 1, transition: "transform 0.15s, box-shadow 0.15s",
-                              boxShadow: (adStatus === "generating" || adStatus === "waiting" || !analysisData) ? "none" : "0 4px 12px rgba(2, 132, 199, 0.3)"
-                            }}
-                            onMouseEnter={(e) => { if (adStatus !== "generating") e.currentTarget.style.transform = "translateY(-1px)"; }}
-                            onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; }}
-                          >
-                            Confirm &amp; Generate Ads →
-                          </button>
-                        )}
+                        ) : (() => {
+                          const isImageAd = createTabAdsConfig.items[0]?.type === "image";
+                          // IMAGE: show progress bar while generating
+                          if (isImageAd && imageGenerating) return (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1, maxWidth: 400 }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, fontWeight: 700, color: "#d97706" }}>
+                                <span><Spinner size={11} color="#d97706" /> Generating image…</span>
+                                <span>{imageGenProgress}%</span>
+                              </div>
+                              <div style={{ height: 5, background: "#fef3c7", borderRadius: 3, overflow: "hidden" }}>
+                                <div style={{ height: "100%", background: "linear-gradient(90deg, #d97706, #f59e0b)", borderRadius: 3, width: `${imageGenProgress}%`, transition: "width 1.8s ease-out" }} />
+                              </div>
+                              <div style={{ fontSize: 10, color: "#64748b" }}>Up to 3 min — you can wait here</div>
+                            </div>
+                          );
+                          // Confirm & Generate button
+                          const locked = adStatus === "generating" || adStatus === "waiting" || !analysisData || imageGenerating;
+                          return (
+                            <button
+                              onClick={isImageAd ? handleImageGenerate : handleCreateTabTriggerAds}
+                              disabled={locked}
+                              type="button"
+                              className="w-full sm:w-auto"
+                              style={{
+                                padding: "12px 30px", borderRadius: "var(--radius-lg)", border: "none",
+                                background: locked ? "var(--primary-light)" : isImageAd ? "linear-gradient(135deg, #d97706, #f59e0b)" : "linear-gradient(135deg, #0284c7, #0ea5e9)",
+                                color: locked ? "var(--primary)" : "#fff",
+                                fontSize: 13, fontWeight: 700, cursor: locked ? "not-allowed" : "pointer",
+                                fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+                                opacity: locked ? 0.7 : 1, transition: "transform 0.15s, box-shadow 0.15s",
+                                boxShadow: locked ? "none" : `0 4px 12px ${isImageAd ? "rgba(217,119,6,0.3)" : "rgba(2,132,199,0.3)"}`
+                              }}
+                              onMouseEnter={(e) => { if (!locked) e.currentTarget.style.transform = "translateY(-1px)"; }}
+                              onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; }}
+                            >
+                              {isImageAd ? "🖼️ Generate Image →" : "Confirm & Generate Ads →"}
+                            </button>
+                          );
+                        })()}
                       </div>
                       );
                     })()}
