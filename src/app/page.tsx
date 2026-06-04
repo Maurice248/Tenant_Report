@@ -1161,11 +1161,16 @@ export default function Dashboard() {
         return prev;
       }
 
+      const itemId = prev.items[idx].id;
+      // Clear generated ideas and pending state for this item on type switch
+      setSentIdeaIds(s => { const n = { ...s }; delete n[itemId]; return n; });
+      setGeneratedIdeas(g => { const n = { ...g }; delete n[itemId]; return n; });
+
       const newItems = [...prev.items];
       if (type === "video") {
-        newItems[idx] = { id: newItems[idx].id, type: "video", duration: "28 seconds", audioStyle: "Background Music", videoStyle: "Bold & Colorful", idea: "", character: "male", voiceId: "rTOopItG6FIkKMIVxsl5" };
+        newItems[idx] = { id: itemId, type: "video", duration: "28 seconds", audioStyle: "Background Music", videoStyle: "Bold & Colorful", idea: "", character: "male", voiceId: "rTOopItG6FIkKMIVxsl5" };
       } else {
-        newItems[idx] = { id: newItems[idx].id, type: "image", imageStyle: "Bold & Colorful", idea: "" };
+        newItems[idx] = { id: itemId, type: "image", imageStyle: "Bold & Colorful", idea: "" };
       }
       const vCount = newItems.filter(x => x.type === "video").length;
       const iCount = newItems.filter(x => x.type === "image").length;
