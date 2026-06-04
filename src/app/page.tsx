@@ -3779,21 +3779,31 @@ export default function Dashboard() {
                                 </div>
                               </div>
                             </div>
-                            {/* Right: Video / Image toggle — locked during idea generation or after prompts generated */}
+                            {/* Right: toggle + reset */}
                             {!isError && !isNotStarted && (() => {
-                              const toggleLocked = !!adScenesMap[item.id]?.length || !!sentIdeaIds[item.id];
+                              const toggleLocked = !!adScenesMap[item.id]?.length || !!sentIdeaIds[item.id] || adStatus === "generating" || generationActive;
                               return (
-                                <div style={{ display: "flex", borderRadius: 10, overflow: "hidden", border: `1.5px solid ${toggleLocked ? "#e2e8f0" : "#e2e8f0"}`, flexShrink: 0, opacity: toggleLocked ? 0.5 : 1 }}
-                                  title={toggleLocked ? "Locked while generating or after prompts are ready" : undefined}>
-                                  <button type="button"
-                                    onClick={() => !toggleLocked && setCreateTabItemType(idx, "video")}
-                                    style={{ padding: "6px 14px", border: "none", fontSize: 12, fontWeight: 700, cursor: toggleLocked ? "not-allowed" : "pointer", background: isVideo ? "#2563eb" : "#f1f5f9", color: isVideo ? "#fff" : "#64748b", transition: "all 0.15s" }}
-                                  >🎬 Video</button>
-                                  <div style={{ width: 1, background: "#e2e8f0" }} />
-                                  <button type="button"
-                                    onClick={() => !toggleLocked && setCreateTabItemType(idx, "image")}
-                                    style={{ padding: "6px 14px", border: "none", fontSize: 12, fontWeight: 700, cursor: toggleLocked ? "not-allowed" : "pointer", background: !isVideo ? "#2563eb" : "#f1f5f9", color: !isVideo ? "#fff" : "#64748b", transition: "all 0.15s" }}
-                                  >🖼️ Image</button>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                                  {/* Reset button */}
+                                  <button
+                                    type="button"
+                                    onClick={() => resetCreateTabWorkspace()}
+                                    title="Reset and start over"
+                                    style={{ padding: "6px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", background: "#f8fafc", color: "#64748b", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
+                                  >↺ Reset</button>
+                                  {/* Video / Image toggle */}
+                                  <div style={{ display: "flex", borderRadius: 10, overflow: "hidden", border: "1.5px solid #e2e8f0", opacity: toggleLocked ? 0.45 : 1 }}
+                                    title={toggleLocked ? "Locked while generating" : undefined}>
+                                    <button type="button"
+                                      onClick={() => !toggleLocked && setCreateTabItemType(idx, "video")}
+                                      style={{ padding: "6px 14px", border: "none", fontSize: 12, fontWeight: 700, cursor: toggleLocked ? "not-allowed" : "pointer", background: isVideo ? "#2563eb" : "#f1f5f9", color: isVideo ? "#fff" : "#64748b", transition: "all 0.15s" }}
+                                    >🎬 Video</button>
+                                    <div style={{ width: 1, background: "#e2e8f0" }} />
+                                    <button type="button"
+                                      onClick={() => !toggleLocked && setCreateTabItemType(idx, "image")}
+                                      style={{ padding: "6px 14px", border: "none", fontSize: 12, fontWeight: 700, cursor: toggleLocked ? "not-allowed" : "pointer", background: !isVideo ? "#2563eb" : "#f1f5f9", color: !isVideo ? "#fff" : "#64748b", transition: "all 0.15s" }}
+                                    >🖼️ Image</button>
+                                  </div>
                                 </div>
                               );
                             })()}
