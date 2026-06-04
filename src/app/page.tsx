@@ -4023,7 +4023,7 @@ export default function Dashboard() {
                               <div>
                                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                                   <div style={{ fontSize: 10, fontWeight: 800, color: "#92400e", textTransform: "uppercase", letterSpacing: "0.06em" }}>Image Description / Prompt</div>
-                                  {adStatus !== "generating" && !adScenesGenerating[item.id] && <button
+                                  {adStatus !== "generating" && !adScenesGenerating[item.id] && item.idea?.trim() && <button
                                     disabled={sentIdeaIds[item.id]}
                                     onClick={async () => {
                                       if (sentIdeaIds[item.id]) return;
