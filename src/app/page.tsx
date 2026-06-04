@@ -3731,7 +3731,7 @@ export default function Dashboard() {
                   overflow: "hidden",
                 }}>
                   {/* ── AD CONFIG ── */}
-                  <div className="create-ads-config-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, padding: "20px 24px", maxWidth: "100%", boxSizing: "border-box", overflowX: "hidden" }}>
+                  <div className="create-ads-config-grid" style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 16, padding: "20px 24px", maxWidth: "100%", boxSizing: "border-box" }}>
                     {createTabAdsConfig.items.map((item, idx) => {
                       const isVideo = item.type === "video";
                       const isCompleted = completedItemIds.includes(String(item.id));
@@ -3749,7 +3749,7 @@ export default function Dashboard() {
                           border: isError ? "2px solid #ef4444" : isVideo ? "1.5px solid #bfdbfe" : "1.5px solid #e2e8f0",
                           overflow: "hidden",
                           boxShadow: isError ? "0 4px 20px rgba(239,68,68,0.12)" : "0 2px 12px rgba(0,0,0,0.06)",
-                          maxWidth: "100%", boxSizing: "border-box", minWidth: 0
+                          width: "100%", maxWidth: 520, boxSizing: "border-box",
                         }}>
                           {/* Config card header */}
                           <div style={{
@@ -3757,20 +3757,49 @@ export default function Dashboard() {
                             background: isError ? "linear-gradient(135deg, #fef2f2, #fee2e2)"
                               : isNotStarted ? "linear-gradient(135deg, #fffbeb, #fef3c7)"
                               : isVideo ? "linear-gradient(135deg, #eff6ff, #dbeafe)" : "linear-gradient(135deg, #f8fafc, #f1f5f9)",
-                            display: "flex", alignItems: "center", gap: 10,
+                            display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
                             borderBottom: isError ? "1.5px solid #fecaca" : isNotStarted ? "1.5px solid #fde68a" : isVideo ? "1.5px solid #bfdbfe" : "1.5px solid #e2e8f0"
                           }}>
-                            <div style={{ width: 32, height: 32, borderRadius: 10, background: isError ? "#fee2e2" : isNotStarted ? "#fef3c7" : isVideo ? "#dbeafe" : "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>
-                              {isError ? "⚠️" : isNotStarted ? "⏸" : isVideo ? "🎬" : "🖼️"}
-                            </div>
-                            <div>
-                              <div style={{ fontSize: 13, fontWeight: 800, color: isError ? "#dc2626" : isNotStarted ? "#92400e" : isVideo ? "#1d4ed8" : "#475569" }}>
-                                {isVideo ? "Video" : "Image"} {idx + 1}
+                            {/* Left: icon + label */}
+                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                              <div style={{ width: 32, height: 32, borderRadius: 10, background: isError ? "#fee2e2" : isNotStarted ? "#fef3c7" : isVideo ? "#dbeafe" : "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>
+                                {isError ? "⚠️" : isNotStarted ? "⏸" : isVideo ? "🎬" : "🖼️"}
                               </div>
-                              <div style={{ fontSize: 10, color: isError ? "#ef4444" : isNotStarted ? "#d97706" : isVideo ? "#3b82f6" : "#94a3b8", marginTop: 1, fontWeight: 600 }}>
-                                {isError ? "Failed — click to fix" : isNotStarted ? "Not started — pending retry" : "Configuration"}
+                              <div>
+                                <div style={{ fontSize: 13, fontWeight: 800, color: isError ? "#dc2626" : isNotStarted ? "#92400e" : isVideo ? "#1d4ed8" : "#475569" }}>
+                                  {isVideo ? "Video" : "Image"} Ad
+                                </div>
+                                <div style={{ fontSize: 10, color: isError ? "#ef4444" : isNotStarted ? "#d97706" : isVideo ? "#3b82f6" : "#94a3b8", marginTop: 1, fontWeight: 600 }}>
+                                  {isError ? "Failed — click to fix" : isNotStarted ? "Not started — pending retry" : "Configuration"}
+                                </div>
                               </div>
                             </div>
+                            {/* Right: Video / Image toggle (disabled once prompts generated or error) */}
+                            {!isError && !isNotStarted && (
+                              <div style={{ display: "flex", borderRadius: 10, overflow: "hidden", border: "1.5px solid #e2e8f0", flexShrink: 0 }}>
+                                <button
+                                  type="button"
+                                  onClick={() => !adScenesMap[item.id]?.length && setCreateTabItemType(idx, "video")}
+                                  style={{
+                                    padding: "6px 14px", border: "none", fontSize: 12, fontWeight: 700, cursor: adScenesMap[item.id]?.length ? "not-allowed" : "pointer",
+                                    background: isVideo ? "#2563eb" : "#f1f5f9",
+                                    color: isVideo ? "#fff" : "#64748b",
+                                    transition: "all 0.15s", opacity: adScenesMap[item.id]?.length && !isVideo ? 0.5 : 1,
+                                  }}
+                                >🎬 Video</button>
+                                <div style={{ width: 1, background: "#e2e8f0" }} />
+                                <button
+                                  type="button"
+                                  onClick={() => !adScenesMap[item.id]?.length && setCreateTabItemType(idx, "image")}
+                                  style={{
+                                    padding: "6px 14px", border: "none", fontSize: 12, fontWeight: 700, cursor: adScenesMap[item.id]?.length ? "not-allowed" : "pointer",
+                                    background: !isVideo ? "#2563eb" : "#f1f5f9",
+                                    color: !isVideo ? "#fff" : "#64748b",
+                                    transition: "all 0.15s", opacity: adScenesMap[item.id]?.length && isVideo ? 0.5 : 1,
+                                  }}
+                                >🖼️ Image</button>
+                              </div>
+                            )}
                           </div>
                           <div style={{ padding: 20, maxWidth: "100%", boxSizing: "border-box", overflowX: "hidden" }}>
 
