@@ -508,7 +508,7 @@ export default function Dashboard() {
   const [selectedCampaignForReports, setSelectedCampaignForReports] = useState(null);
 
   // Meta Account Balance State
-  const [accountBalance, setAccountBalance] = useState<{ balance: number; amount_spent: number; spend_cap: number | null; currency: string } | null>(null);
+  const [accountBalance, setAccountBalance] = useState<{ balance: number; amount_spent: number; total_funded: number | null; spend_cap: number | null; currency: string } | null>(null);
   const [accountBalanceLoading, setAccountBalanceLoading] = useState(false);
 
   function resetCreateTabWorkspace() {
@@ -2643,46 +2643,47 @@ export default function Dashboard() {
             {(accountBalance || accountBalanceLoading) && (
               <div style={{
                 marginBottom: 12,
-                padding: "14px 20px",
+                padding: "16px 20px",
                 borderRadius: "var(--radius-lg)",
-                background: "linear-gradient(135deg, #0f172a, #1e3a5f)",
+                background: "linear-gradient(135deg, #eff6ff, #f0fdf4)",
+                border: "1px solid #bfdbfe",
                 display: "flex", alignItems: "center", justifyContent: "space-between",
                 flexWrap: "wrap", gap: 12,
-                boxShadow: "0 4px 16px rgba(2,132,199,0.18)"
+                boxShadow: "0 2px 8px rgba(2,132,199,0.08)"
               }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ fontSize: 22 }}>💳</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 10, background: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>💳</div>
                   <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.55)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Meta Account Balance</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 2 }}>Available Balance</div>
                     {accountBalanceLoading && !accountBalance ? (
-                      <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>Loading…</div>
+                      <div style={{ fontSize: 13, color: "var(--text-muted)" }}>Loading…</div>
                     ) : (
-                      <div style={{ fontSize: 24, fontWeight: 800, color: "#38bdf8" }}>
+                      <div style={{ fontSize: 22, fontWeight: 800, color: "var(--primary)" }}>
                         {accountBalance!.currency} {accountBalance!.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
                     )}
                   </div>
                 </div>
                 {accountBalance && (
-                  <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
-                    <div style={{ textAlign: "center" }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.45)", textTransform: "uppercase", marginBottom: 2 }}>Amount Spent</div>
-                      <div style={{ fontSize: 16, fontWeight: 700, color: "#fb923c" }}>
-                        {accountBalance.currency} {accountBalance.amount_spent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </div>
-                    </div>
-                    {accountBalance.spend_cap !== null && accountBalance.spend_cap > 0 && (
+                  <div style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "center" }}>
+                    {accountBalance.total_funded !== null && (
                       <div style={{ textAlign: "center" }}>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.45)", textTransform: "uppercase", marginBottom: 2 }}>Spend Cap</div>
-                        <div style={{ fontSize: 16, fontWeight: 700, color: "rgba(255,255,255,0.8)" }}>
-                          {accountBalance.currency} {accountBalance.spend_cap.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 2 }}>Total Added</div>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: "var(--green)" }}>
+                          {accountBalance.currency} {accountBalance.total_funded!.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </div>
                       </div>
                     )}
+                    <div style={{ textAlign: "center" }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 2 }}>Amount Spent</div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: "var(--amber)" }}>
+                        {accountBalance.currency} {accountBalance.amount_spent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                    </div>
                     <button
                       onClick={fetchAccountBalance}
                       disabled={accountBalanceLoading}
-                      style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 8, color: "#fff", fontSize: 12, padding: "4px 12px", cursor: "pointer", opacity: accountBalanceLoading ? 0.5 : 1 }}
+                      style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: 8, color: "var(--text)", fontSize: 12, padding: "5px 12px", cursor: "pointer", opacity: accountBalanceLoading ? 0.5 : 1 }}
                     >
                       {accountBalanceLoading ? "…" : "↻ Refresh"}
                     </button>
@@ -5522,47 +5523,48 @@ export default function Dashboard() {
           {/* Account Balance Banner — Reports */}
           {(accountBalance || accountBalanceLoading) && (
             <div style={{
-              marginBottom: 4,
-              padding: "14px 20px",
+              marginBottom: 8,
+              padding: "16px 20px",
               borderRadius: "var(--radius-lg)",
-              background: "linear-gradient(135deg, #0f172a, #1e3a5f)",
+              background: "linear-gradient(135deg, #eff6ff, #f0fdf4)",
+              border: "1px solid #bfdbfe",
               display: "flex", alignItems: "center", justifyContent: "space-between",
               flexWrap: "wrap", gap: 12,
-              boxShadow: "0 4px 16px rgba(2,132,199,0.18)"
+              boxShadow: "0 2px 8px rgba(2,132,199,0.08)"
             }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ fontSize: 22 }}>💳</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>💳</div>
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.55)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Meta Account Balance</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 2 }}>Available Balance</div>
                   {accountBalanceLoading && !accountBalance ? (
-                    <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>Loading…</div>
+                    <div style={{ fontSize: 13, color: "var(--text-muted)" }}>Loading…</div>
                   ) : (
-                    <div style={{ fontSize: 24, fontWeight: 800, color: "#38bdf8" }}>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: "var(--primary)" }}>
                       {accountBalance!.currency} {accountBalance!.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </div>
                   )}
                 </div>
               </div>
               {accountBalance && (
-                <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
-                  <div style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.45)", textTransform: "uppercase", marginBottom: 2 }}>Amount Spent</div>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: "#fb923c" }}>
-                      {accountBalance.currency} {accountBalance.amount_spent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </div>
-                  </div>
-                  {accountBalance.spend_cap !== null && accountBalance.spend_cap > 0 && (
+                <div style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "center" }}>
+                  {accountBalance.total_funded !== null && (
                     <div style={{ textAlign: "center" }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.45)", textTransform: "uppercase", marginBottom: 2 }}>Spend Cap</div>
-                      <div style={{ fontSize: 16, fontWeight: 700, color: "rgba(255,255,255,0.8)" }}>
-                        {accountBalance.currency} {accountBalance.spend_cap.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 2 }}>Total Added</div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: "var(--green)" }}>
+                        {accountBalance.currency} {accountBalance.total_funded!.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
                     </div>
                   )}
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 2 }}>Amount Spent</div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: "var(--amber)" }}>
+                      {accountBalance.currency} {accountBalance.amount_spent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                  </div>
                   <button
                     onClick={fetchAccountBalance}
                     disabled={accountBalanceLoading}
-                    style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 8, color: "#fff", fontSize: 12, padding: "4px 12px", cursor: "pointer", opacity: accountBalanceLoading ? 0.5 : 1 }}
+                    style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: 8, color: "var(--text)", fontSize: 12, padding: "5px 12px", cursor: "pointer", opacity: accountBalanceLoading ? 0.5 : 1 }}
                   >
                     {accountBalanceLoading ? "…" : "↻ Refresh"}
                   </button>
