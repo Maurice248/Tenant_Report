@@ -432,7 +432,7 @@ export default function Dashboard() {
     videoCount: 1,
     imageCount: 0,
     items: [
-      { id: Date.now(), type: "video", duration: "28 seconds", audioStyle: "Background Music", videoStyle: "Bold & Colorful", idea: "", character: "male", voiceId: "rTOopItG6FIkKMIVxsl5" }
+      { id: Date.now(), type: "video", duration: "28 seconds", audioStyle: "Background Music", videoStyle: "Bold & Colorful", language: "English", idea: "", character: "male", voiceId: "rTOopItG6FIkKMIVxsl5" }
     ]
   });
   const [createTabConfigOpen, setCreateTabConfigOpen] = useState(false);
@@ -513,7 +513,7 @@ export default function Dashboard() {
       videoCount: 1,
       imageCount: 0,
       items: [
-        { id: Date.now(), type: "video", duration: "28 seconds", audioStyle: "Background Music", videoStyle: "Bold & Colorful", idea: "", character: "male", voiceId: "rTOopItG6FIkKMIVxsl5" }
+        { id: Date.now(), type: "video", duration: "28 seconds", audioStyle: "Background Music", videoStyle: "Bold & Colorful", language: "English", idea: "", character: "male", voiceId: "rTOopItG6FIkKMIVxsl5" }
       ]
     });
     setAdScenesMap({});
@@ -1139,7 +1139,7 @@ export default function Dashboard() {
           const type = vCount < 3 ? "video" : "image";
 
           if (type === "video") {
-            newItems.push({ id: Date.now() + i, type: "video", duration: "28 seconds", audioStyle: "Background Music", videoStyle: "Bold & Colorful", idea: "", character: "male", voiceId: "rTOopItG6FIkKMIVxsl5" });
+            newItems.push({ id: Date.now() + i, type: "video", duration: "28 seconds", audioStyle: "Background Music", videoStyle: "Bold & Colorful", language: "English", idea: "", character: "male", voiceId: "rTOopItG6FIkKMIVxsl5" });
           } else {
             // Check if we can add image
             const iCount = newItems.filter(x => x.type === "image").length;
@@ -1182,7 +1182,7 @@ export default function Dashboard() {
 
       const newItems = [...prev.items];
       if (type === "video") {
-        newItems[idx] = { id: itemId, type: "video", duration: "28 seconds", audioStyle: "Background Music", videoStyle: "Bold & Colorful", idea: "", character: "male", voiceId: "rTOopItG6FIkKMIVxsl5" };
+        newItems[idx] = { id: itemId, type: "video", duration: "28 seconds", audioStyle: "Background Music", videoStyle: "Bold & Colorful", language: "English", idea: "", character: "male", voiceId: "rTOopItG6FIkKMIVxsl5" };
       } else {
         newItems[idx] = { id: itemId, type: "image", imageStyle: "Bold & Colorful", idea: "" };
       }
