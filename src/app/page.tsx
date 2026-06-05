@@ -507,6 +507,10 @@ export default function Dashboard() {
   const [metaReportsError, setMetaReportsError] = useState("");
   const [selectedCampaignForReports, setSelectedCampaignForReports] = useState(null);
 
+  // Meta Account Balance State
+  const [accountBalance, setAccountBalance] = useState<{ balance: number; amount_spent: number; spend_cap: number | null; currency: string } | null>(null);
+  const [accountBalanceLoading, setAccountBalanceLoading] = useState(false);
+
   function resetCreateTabWorkspace() {
     setCreateTabAdsConfig({
       totalAds: 1,
@@ -827,6 +831,16 @@ export default function Dashboard() {
     }
   }, []);
 
+  const fetchAccountBalance = useCallback(async () => {
+    setAccountBalanceLoading(true);
+    try {
+      const res = await fetch("/api/meta/account-balance");
+      const data = await res.json();
+      if (res.ok) setAccountBalance(data);
+    } catch (_) {}
+    finally { setAccountBalanceLoading(false); }
+  }, []);
+
   // On mount: if analysisStatus is "generating" but no sessionStorage flag,
   // it means the page was refreshed mid-analysis — reset to idle so user can re-trigger
   useEffect(() => {
@@ -989,8 +1003,9 @@ export default function Dashboard() {
     }
     if (tab === "reports" || tab === "overview") {
       fetchMetaInsights();
+      if (!accountBalance) fetchAccountBalance();
     }
-  }, [tab, fetchLiveCampaigns, fetchMetaInsights]);
+  }, [tab, fetchLiveCampaigns, fetchMetaInsights, fetchAccountBalance, accountBalance]);
 
   // ── Polling workflow status from Supabase status_table (id: 1) ──
   useEffect(() => {
@@ -2623,6 +2638,58 @@ export default function Dashboard() {
                 bg="var(--surface)"
               />
             </div>
+
+            {/* Account Balance Banner */}
+            {(accountBalance || accountBalanceLoading) && (
+              <div style={{
+                marginBottom: 12,
+                padding: "14px 20px",
+                borderRadius: "var(--radius-lg)",
+                background: "linear-gradient(135deg, #0f172a, #1e3a5f)",
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                flexWrap: "wrap", gap: 12,
+                boxShadow: "0 4px 16px rgba(2,132,199,0.18)"
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ fontSize: 22 }}>💳</div>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.55)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Meta Account Balance</div>
+                    {accountBalanceLoading && !accountBalance ? (
+                      <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>Loading…</div>
+                    ) : (
+                      <div style={{ fontSize: 24, fontWeight: 800, color: "#38bdf8" }}>
+                        {accountBalance!.currency} {accountBalance!.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {accountBalance && (
+                  <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
+                    <div style={{ textAlign: "center" }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.45)", textTransform: "uppercase", marginBottom: 2 }}>Amount Spent</div>
+                      <div style={{ fontSize: 16, fontWeight: 700, color: "#fb923c" }}>
+                        {accountBalance.currency} {accountBalance.amount_spent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                    </div>
+                    {accountBalance.spend_cap !== null && accountBalance.spend_cap > 0 && (
+                      <div style={{ textAlign: "center" }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.45)", textTransform: "uppercase", marginBottom: 2 }}>Spend Cap</div>
+                        <div style={{ fontSize: 16, fontWeight: 700, color: "rgba(255,255,255,0.8)" }}>
+                          {accountBalance.currency} {accountBalance.spend_cap.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </div>
+                      </div>
+                    )}
+                    <button
+                      onClick={fetchAccountBalance}
+                      disabled={accountBalanceLoading}
+                      style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 8, color: "#fff", fontSize: 12, padding: "4px 12px", cursor: "pointer", opacity: accountBalanceLoading ? 0.5 : 1 }}
+                    >
+                      {accountBalanceLoading ? "…" : "↻ Refresh"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Dash Body Panels */}
             <div
@@ -5450,6 +5517,58 @@ export default function Dashboard() {
                 <div style={{ fontSize: 15, fontWeight: 600, color: "var(--primary)" }}>Connecting to Meta Graph API...</div>
               </div>
             </Card>
+          )}
+
+          {/* Account Balance Banner — Reports */}
+          {(accountBalance || accountBalanceLoading) && (
+            <div style={{
+              marginBottom: 4,
+              padding: "14px 20px",
+              borderRadius: "var(--radius-lg)",
+              background: "linear-gradient(135deg, #0f172a, #1e3a5f)",
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              flexWrap: "wrap", gap: 12,
+              boxShadow: "0 4px 16px rgba(2,132,199,0.18)"
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ fontSize: 22 }}>💳</div>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.55)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Meta Account Balance</div>
+                  {accountBalanceLoading && !accountBalance ? (
+                    <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>Loading…</div>
+                  ) : (
+                    <div style={{ fontSize: 24, fontWeight: 800, color: "#38bdf8" }}>
+                      {accountBalance!.currency} {accountBalance!.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                  )}
+                </div>
+              </div>
+              {accountBalance && (
+                <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.45)", textTransform: "uppercase", marginBottom: 2 }}>Amount Spent</div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: "#fb923c" }}>
+                      {accountBalance.currency} {accountBalance.amount_spent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                  {accountBalance.spend_cap !== null && accountBalance.spend_cap > 0 && (
+                    <div style={{ textAlign: "center" }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.45)", textTransform: "uppercase", marginBottom: 2 }}>Spend Cap</div>
+                      <div style={{ fontSize: 16, fontWeight: 700, color: "rgba(255,255,255,0.8)" }}>
+                        {accountBalance.currency} {accountBalance.spend_cap.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                    </div>
+                  )}
+                  <button
+                    onClick={fetchAccountBalance}
+                    disabled={accountBalanceLoading}
+                    style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 8, color: "#fff", fontSize: 12, padding: "4px 12px", cursor: "pointer", opacity: accountBalanceLoading ? 0.5 : 1 }}
+                  >
+                    {accountBalanceLoading ? "…" : "↻ Refresh"}
+                  </button>
+                </div>
+              )}
+            </div>
           )}
 
           {metaInsights && (
