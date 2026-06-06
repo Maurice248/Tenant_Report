@@ -2639,59 +2639,6 @@ export default function Dashboard() {
               />
             </div>
 
-            {/* Account Balance Banner */}
-            {(accountBalance || accountBalanceLoading) && (
-              <div style={{
-                marginBottom: 12,
-                padding: "16px 20px",
-                borderRadius: "var(--radius-lg)",
-                background: "linear-gradient(135deg, #eff6ff, #f0fdf4)",
-                border: "1px solid #bfdbfe",
-                display: "flex", alignItems: "center", justifyContent: "space-between",
-                flexWrap: "wrap", gap: 12,
-                boxShadow: "0 2px 8px rgba(2,132,199,0.08)"
-              }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 10, background: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>💳</div>
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 2 }}>Available Balance</div>
-                    {accountBalanceLoading && !accountBalance ? (
-                      <div style={{ fontSize: 13, color: "var(--text-muted)" }}>Loading…</div>
-                    ) : (
-                      <div style={{ fontSize: 22, fontWeight: 800, color: "var(--primary)" }}>
-                        {accountBalance!.currency} {accountBalance!.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                {accountBalance && (
-                  <div style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "center" }}>
-                    {accountBalance.total_funded !== null && (
-                      <div style={{ textAlign: "center" }}>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 2 }}>Total Added</div>
-                        <div style={{ fontSize: 15, fontWeight: 700, color: "var(--green)" }}>
-                          {accountBalance.currency} {accountBalance.total_funded!.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </div>
-                      </div>
-                    )}
-                    <div style={{ textAlign: "center" }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 2 }}>Amount Spent</div>
-                      <div style={{ fontSize: 15, fontWeight: 700, color: "var(--amber)" }}>
-                        {accountBalance.currency} {accountBalance.amount_spent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </div>
-                    </div>
-                    <button
-                      onClick={fetchAccountBalance}
-                      disabled={accountBalanceLoading}
-                      style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: 8, color: "var(--text)", fontSize: 12, padding: "5px 12px", cursor: "pointer", opacity: accountBalanceLoading ? 0.5 : 1 }}
-                    >
-                      {accountBalanceLoading ? "…" : "↻ Refresh"}
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
             {/* Dash Body Panels */}
             <div
               className="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-4"
@@ -5518,59 +5465,6 @@ export default function Dashboard() {
                 <div style={{ fontSize: 15, fontWeight: 600, color: "var(--primary)" }}>Connecting to Meta Graph API...</div>
               </div>
             </Card>
-          )}
-
-          {/* Account Balance Banner — Reports */}
-          {(accountBalance || accountBalanceLoading) && (
-            <div style={{
-              marginBottom: 8,
-              padding: "16px 20px",
-              borderRadius: "var(--radius-lg)",
-              background: "linear-gradient(135deg, #eff6ff, #f0fdf4)",
-              border: "1px solid #bfdbfe",
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              flexWrap: "wrap", gap: 12,
-              boxShadow: "0 2px 8px rgba(2,132,199,0.08)"
-            }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ width: 40, height: 40, borderRadius: 10, background: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>💳</div>
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 2 }}>Available Balance</div>
-                  {accountBalanceLoading && !accountBalance ? (
-                    <div style={{ fontSize: 13, color: "var(--text-muted)" }}>Loading…</div>
-                  ) : (
-                    <div style={{ fontSize: 22, fontWeight: 800, color: "var(--primary)" }}>
-                      {accountBalance!.currency} {accountBalance!.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </div>
-                  )}
-                </div>
-              </div>
-              {accountBalance && (
-                <div style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "center" }}>
-                  {accountBalance.total_funded !== null && (
-                    <div style={{ textAlign: "center" }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 2 }}>Total Added</div>
-                      <div style={{ fontSize: 15, fontWeight: 700, color: "var(--green)" }}>
-                        {accountBalance.currency} {accountBalance.total_funded!.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </div>
-                    </div>
-                  )}
-                  <div style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 2 }}>Amount Spent</div>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: "var(--amber)" }}>
-                      {accountBalance.currency} {accountBalance.amount_spent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </div>
-                  </div>
-                  <button
-                    onClick={fetchAccountBalance}
-                    disabled={accountBalanceLoading}
-                    style={{ background: "#fff", border: "1px solid var(--border)", borderRadius: 8, color: "var(--text)", fontSize: 12, padding: "5px 12px", cursor: "pointer", opacity: accountBalanceLoading ? 0.5 : 1 }}
-                  >
-                    {accountBalanceLoading ? "…" : "↻ Refresh"}
-                  </button>
-                </div>
-              )}
-            </div>
           )}
 
           {metaInsights && (
