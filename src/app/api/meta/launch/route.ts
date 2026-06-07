@@ -13,11 +13,20 @@ async function fetchMetaJson(res) {
     throw new Error(`Meta API returned non-JSON. Status: ${res.status}. Body: ${text.slice(0, 200)}...`);
   }
   if (!res.ok) {
+    const subcode = parsed.error?.error_subcode;
+    const FRIENDLY: Record<number, string> = {
+      4834002: "Budget conflict: You cannot use Campaign Budget Optimization (CBO) and Ad Set budget sharing at the same time. Go to Campaign Setup → disable one of them.",
+      1487390: "Your ad account has a spend limit reached. Go to Meta Ads Manager → Billing → raise or remove your account spend limit.",
+      1885252: "The video is still processing on Meta's servers. Wait a minute and try launching again.",
+      1487297: "Your Meta ad account has been disabled. Check Meta Ads Manager → Account Quality for details.",
+      2446164: "Ad creative was rejected by Meta's policy review. Edit the ad text or image and try again.",
+      1487851: "Invalid targeting: the selected location or audience is too small. Broaden your targeting and try again.",
+      100:     "Invalid parameter sent to Meta. Check your Campaign Setup fields (objective, budget, targeting) and try again.",
+    };
+    const friendly = subcode && FRIENDLY[subcode];
+    if (friendly) throw new Error(friendly);
     const msg = parsed.error?.message || "Unknown Meta API error";
-    const subcode = parsed.error?.error_subcode ? ` (Subcode: ${parsed.error.error_subcode})` : "";
-    const userTitle = parsed.error?.error_user_title ? ` - ${parsed.error.error_user_title}` : "";
-    const userMsg = parsed.error?.error_user_msg ? `: ${parsed.error.error_user_msg}` : "";
-    throw new Error(`Meta API Error: ${msg}${subcode}${userTitle}${userMsg} | Full: ${JSON.stringify(parsed.error)}`);
+    throw new Error(`Meta rejected the request: ${msg} (code ${parsed.error?.code || "?"}${subcode ? `, subcode ${subcode}` : ""}). Check your Campaign Setup settings and try again.`);
   }
   return parsed;
 }
