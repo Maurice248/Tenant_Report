@@ -189,7 +189,6 @@ async function createCampaign(existingCampaignId, adAccountId, accessToken, camp
         objective,
         status: "PAUSED",
         special_ad_categories: specialAdCats,
-        is_adset_budget_sharing_enabled: isCbo,
         ...(isCbo ? (budgetType === "DAILY" ? { daily_budget: dailyBudget } : { lifetime_budget: lifetimeBudget }) : {}),
         access_token: accessToken,
       }),
