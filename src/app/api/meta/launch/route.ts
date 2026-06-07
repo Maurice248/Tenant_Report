@@ -203,7 +203,12 @@ async function createCampaign(existingCampaignId, adAccountId, accessToken, camp
         objective,
         status: "PAUSED",
         special_ad_categories: specialAdCats,
-        ...(isCbo ? (budgetType === "DAILY" ? { daily_budget: dailyBudget } : { lifetime_budget: lifetimeBudget }) : {}),
+        // CBO: set campaign-level budget, no flag
+        // Non-CBO: set flag=false (required by Meta), budget goes on ad set
+        ...(isCbo
+          ? (budgetType === "DAILY" ? { daily_budget: dailyBudget } : { lifetime_budget: lifetimeBudget })
+          : { is_adset_budget_sharing_enabled: false }
+        ),
         access_token: accessToken,
       }),
     }
