@@ -16,7 +16,6 @@ async function fetchMetaJson(res) {
     const subcode = parsed.error?.error_subcode;
     const FRIENDLY: Record<number, string> = {
       4834002: "Budget conflict: You cannot use Campaign Budget Optimization (CBO) and Ad Set budget sharing at the same time. Go to Campaign Setup → disable one of them.",
-      4834011: "Budget conflict: The selected campaign already has a Campaign Budget (CBO). Ad Sets inside a CBO campaign cannot have their own budget. Either select a different campaign or disable CBO on the campaign.",
       1487390: "Your ad account has a spend limit reached. Go to Meta Ads Manager → Billing → raise or remove your account spend limit.",
       1885252: "The video is still processing on Meta's servers. Wait a minute and try launching again.",
       1487297: "Your Meta ad account has been disabled. Check Meta Ads Manager → Account Quality for details.",
@@ -26,8 +25,11 @@ async function fetchMetaJson(res) {
     };
     const friendly = subcode && FRIENDLY[subcode];
     if (friendly) throw new Error(friendly);
-    const msg = parsed.error?.message || "Unknown Meta API error";
-    throw new Error(`Meta rejected the request: ${msg} (code ${parsed.error?.code || "?"}${subcode ? `, subcode ${subcode}` : ""}). Check your Campaign Setup settings and try again.`);
+    // Use Meta's own user-facing title/message when available — they're in the user's language but describe the real issue
+    const userTitle = parsed.error?.error_user_title;
+    const userMsg   = parsed.error?.error_user_msg;
+    const metaMsg   = userTitle ? `${userTitle}: ${userMsg || ""}` : (parsed.error?.message || "Unknown Meta API error");
+    throw new Error(`Meta: ${metaMsg} (code ${parsed.error?.code || "?"}${subcode ? `, subcode ${subcode}` : ""})`);
   }
   return parsed;
 }
