@@ -16,6 +16,7 @@ async function fetchMetaJson(res) {
     const subcode = parsed.error?.error_subcode;
     const FRIENDLY: Record<number, string> = {
       4834002: "Budget conflict: You cannot use Campaign Budget Optimization (CBO) and Ad Set budget sharing at the same time. Go to Campaign Setup → disable one of them.",
+      4834011: "Budget conflict: The selected campaign already has a Campaign Budget (CBO). Ad Sets inside a CBO campaign cannot have their own budget. Either select a different campaign or disable CBO on the campaign.",
       1487390: "Your ad account has a spend limit reached. Go to Meta Ads Manager → Billing → raise or remove your account spend limit.",
       1885252: "The video is still processing on Meta's servers. Wait a minute and try launching again.",
       1487297: "Your Meta ad account has been disabled. Check Meta Ads Manager → Account Quality for details.",
@@ -134,13 +135,15 @@ async function fetchPageId(accessToken) {
   return pageId;
 }
 
-// ── STEP 1c: Fetch Campaign Objective (For existing campaigns) ──
-async function fetchCampaignObjective(campaignId, accessToken) {
+// ── STEP 1c: Fetch Campaign info (objective + CBO detection) ──
+async function fetchCampaignInfo(campaignId, accessToken) {
   const res = await fetch(
-    `https://graph.facebook.com/v21.0/${campaignId}?fields=objective&access_token=${accessToken}`
+    `https://graph.facebook.com/v21.0/${campaignId}?fields=objective,daily_budget,lifetime_budget&access_token=${accessToken}`
   );
   const data = await fetchMetaJson(res);
-  return data.objective;
+  // Campaign has CBO if it already carries a budget
+  const hasCampaignBudget = !!(parseInt(data.daily_budget || "0", 10) || parseInt(data.lifetime_budget || "0", 10));
+  return { objective: data.objective, isCbo: hasCampaignBudget };
 }
 
 // ── STEP 1d: Get or Create Pixel ID (Self-healing discover / create fallback) ──
@@ -347,18 +350,23 @@ export async function POST(request) {
 
     // ── Resolve config values ──
     let objective = campaign?.objective || "OUTCOME_TRAFFIC";
+    let isCbo     = campaign?.is_adset_budget_sharing_enabled || false;
+
     if (existingCampaignId) {
       try {
-        objective = await fetchCampaignObjective(existingCampaignId, accessToken);
-        console.log(`Fetched existing campaign objective: ${objective}`);
+        const campaignInfo = await fetchCampaignInfo(existingCampaignId, accessToken);
+        objective = campaignInfo.objective;
+        // Override isCbo from actual campaign data — existing CBO campaigns already
+        // have a budget set, so sending ad-set budget would trigger error 4834011
+        isCbo = campaignInfo.isCbo;
+        console.log(`Existing campaign: objective=${objective}, isCbo=${isCbo}`);
       } catch (err: any) {
-        console.warn(`Failed to fetch campaign objective for ${existingCampaignId}:`, err.message);
+        console.warn(`Failed to fetch campaign info for ${existingCampaignId}:`, err.message);
       }
     }
 
     const campaignName    = campaign?.name             || `[DRAFT] ${objective}_${Date.now()}`;
     const specialAdCats   = (campaign?.special_ad_categories || []).filter((c: string) => c && c !== "NONE");
-    const isCbo           = campaign?.is_adset_budget_sharing_enabled || false;
     
     // Budget & Schedule
     const budgetType      = ad_set?.budget_type       || "DAILY";
