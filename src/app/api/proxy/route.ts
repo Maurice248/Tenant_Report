@@ -8,9 +8,6 @@ export async function POST(request) {
       return NextResponse.json({ error: 'URL is required' }, { status: 400 });
     }
 
-    console.log(`[PROXY] ${method} → ${url}`);
-    console.log(`[PROXY] Body:`, JSON.stringify(body, null, 2));
-
     const controller = new AbortController();
     // 5-minute timeout for long n8n workflows
     const timeout = setTimeout(() => controller.abort(), 300_000);
@@ -43,10 +40,7 @@ export async function POST(request) {
 
     clearTimeout(timeout);
 
-    console.log(`[PROXY] Response status: ${response.status}`);
-
     const rawText = await response.text();
-    console.log(`[PROXY] Raw response:`, rawText.slice(0, 500));
 
     let data;
     try {

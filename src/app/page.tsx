@@ -107,7 +107,7 @@ const normalizeSupabaseUrl = (url) => {
     const newUrl = `${currentUrl}/storage/v1/object/public/${bucket}/${filename}`;
 
     if (url !== newUrl) {
-      console.log(`[Strict URL Fix] ${url} -> ${newUrl}`);
+      // URL normalized to current Supabase credentials
     }
     return newUrl;
   }
@@ -169,10 +169,6 @@ export default function Dashboard() {
   // Auto-open Meta Ads group when navigating to one of its tabs
   useEffect(() => { if (META_ADS_IDS.has(tab)) setMetaAdsOpen(true); }, [tab]);
 
-  // Analysis
-  useEffect(() => {
-    console.log("[Diagnostics] Supabase URL:", process.env.NEXT_PUBLIC_SUPABASE_URL);
-  }, []);
 
   // Analysis state — status and data persist across refresh
   const [analysisStatus, setAnalysisStatus] = useLocalStorage("toga_analysis_status", "idle");
@@ -512,9 +508,6 @@ export default function Dashboard() {
   const [metaReportsError, setMetaReportsError] = useState("");
   const [selectedCampaignForReports, setSelectedCampaignForReports] = useState(null);
 
-  // Meta Account Balance State
-  const [accountBalance, setAccountBalance] = useState<{ balance: number; amount_spent: number; total_funded: number | null; spend_cap: number | null; currency: string } | null>(null);
-  const [accountBalanceLoading, setAccountBalanceLoading] = useState(false);
 
   function resetCreateTabWorkspace() {
     setCreateTabAdsConfig({
@@ -591,8 +584,6 @@ export default function Dashboard() {
     const approvedList = [];
     const validPending = [];
 
-    console.log(`[Diagnostics] DB rows found: ${dbData?.length || 0}`);
-    console.log(`[Diagnostics] Storage lookup size: ${storageLookup.size}`);
 
     // Process DB data
     (dbData || []).forEach(row => {
@@ -616,14 +607,9 @@ export default function Dashboard() {
         }
       }
 
-      if (!storageInfo && storageLookup.size > 0) {
-        console.warn(`[Diagnostics] File not detected in storage list, but showing from DB: ${fileName}`);
-      }
     });
 
 
-    console.log(`[Diagnostics] Valid pending found: ${validPending.length}`);
-    console.log(`[Diagnostics] Approved found: ${approvedList.length}`);
 
     // Filter pending ads to only include the latest batch (within 1 hour of the absolute newest ad overall)
     let batchPending = [...validPending];
@@ -640,7 +626,6 @@ export default function Dashboard() {
     const topVideos = batchPending.filter(a => (a.format || "").toLowerCase() === "video").slice(0, 3);
     const topImages = batchPending.filter(a => (a.format || "").toLowerCase() !== "video").slice(0, 2);
 
-    console.log(`[Diagnostics] Top Videos: ${topVideos.length}, Top Images: ${topImages.length}`);
     setPendingAds([...topVideos, ...topImages]);
 
     setAdTableLinks(latest);
@@ -836,15 +821,6 @@ export default function Dashboard() {
     }
   }, []);
 
-  const fetchAccountBalance = useCallback(async () => {
-    setAccountBalanceLoading(true);
-    try {
-      const res = await fetch("/api/meta/account-balance");
-      const data = await res.json();
-      if (res.ok) setAccountBalance(data);
-    } catch (_) {}
-    finally { setAccountBalanceLoading(false); }
-  }, []);
 
   // On mount: if analysisStatus is "generating" but no sessionStorage flag,
   // it means the page was refreshed mid-analysis — reset to idle so user can re-trigger
@@ -1008,9 +984,8 @@ export default function Dashboard() {
     }
     if (tab === "reports" || tab === "overview") {
       fetchMetaInsights();
-      if (!accountBalance) fetchAccountBalance();
     }
-  }, [tab, fetchLiveCampaigns, fetchMetaInsights, fetchAccountBalance, accountBalance]);
+  }, [tab, fetchLiveCampaigns, fetchMetaInsights]);
 
   // ── Polling workflow status from Supabase status_table (id: 1) ──
   useEffect(() => {
@@ -2104,8 +2079,6 @@ export default function Dashboard() {
     setPendingAnalysisTopic(selectedTopic);
     await new Promise((r) => setTimeout(r, 100));
 
-    console.log("[Analysis] Triggering webhook with keywords:", kwSnapshot);
-
     try {
       const result = await callWebhook({
         action: "competitor_analysis",
@@ -2117,8 +2090,6 @@ export default function Dashboard() {
         sort: researchSort,
         timestamp: new Date().toISOString(),
       }, setAnalysisStatus);
-
-      console.log("[Analysis] Webhook response:", result);
 
       if (result && !result.error) {
         setAnalysisData(result);
@@ -2189,7 +2160,6 @@ export default function Dashboard() {
       timestamp: new Date().toISOString(),
     }, setAdStatus);
     if (result) {
-      console.log("n8n ad response:", result);
       setAdData(result);
       setAdStatus("done");
     } else if (adStatus !== "error") {
@@ -4100,7 +4070,6 @@ export default function Dashboard() {
                                       }
                                       setSentIdeaIds(prev => ({ ...prev, [item.id]: true }));
                                       addSbToast(`Generating Video ${idx + 1} ideas via webhook...`);
-                                      console.log("Sending to Webhook:", item);
                                       try {
                                         const webhookUrl = process.env.NEXT_PUBLIC_N8N_SINGLE_IDEA_URL || "https://n8n.srv881198.hstgr.cloud/webhook/5dd8a76d-f4e4-45b5-808a-c784057d29b1";
                                         const res = await fetch(webhookUrl, {
@@ -4216,7 +4185,6 @@ export default function Dashboard() {
                                       if (sentIdeaIds[item.id]) return;
                                       setSentIdeaIds(prev => ({ ...prev, [item.id]: true }));
                                       addSbToast(`Generating Image ${idx + 1} ideas via webhook...`);
-                                      console.log("Sending to Webhook:", item);
                                       try {
                                         const webhookUrl = process.env.NEXT_PUBLIC_N8N_SINGLE_IDEA_URL || "https://n8n.srv881198.hstgr.cloud/webhook/5dd8a76d-f4e4-45b5-808a-c784057d29b1";
                                         const res = await fetch(webhookUrl, {
