@@ -1,6 +1,3 @@
-import fs from "fs";
-import path from "path";
-
 export const maxDuration = 60; // Allow Vercel to run up to 60s for video polling
 
 // ── Helper to parse JSON with fallback ──
@@ -76,27 +73,8 @@ async function uploadMedia(link_data, isVideo, accessToken, adAccountId) {
       console.warn(`Video ${videoId} is still processing after 45 seconds. Attempting to proceed, but it may fail with 1885252.`);
     }
 
-    // Upload a fallback thumbnail (Toga logo) to get an image_hash
-    let imageHash = null;
-    try {
-      const logoPath = path.join(process.cwd(), "public", "toga-health-logo.png");
-      const logoBuffer = fs.readFileSync(logoPath);
-      const logoBlob = new Blob([logoBuffer]);
-      const thumbForm = new FormData();
-      thumbForm.append("source", logoBlob, "toga-health-logo.png");
-      thumbForm.append("access_token", accessToken);
-
-      const thumbRes = await fetch(`https://graph.facebook.com/v21.0/act_${adAccountId}/adimages`, {
-        method: "POST",
-        body: thumbForm,
-      });
-      const thumbData = await fetchMetaJson(thumbRes);
-      imageHash = thumbData.images?.["toga-health-logo.png"]?.hash;
-    } catch (err) {
-      console.log("Failed to upload fallback thumbnail:", err.message);
-    }
-
-    return { video_id: videoId, image_hash: imageHash };
+    // No thumbnail uploaded — Meta auto-generates from the video's first frame
+    return { video_id: videoId };
   } else {
     // Image upload
     const mediaRes = await fetch(link_data);
@@ -260,7 +238,6 @@ async function createAdCreative(adAccountId, accessToken, isVideo, pageId, media
       page_id: pageId,
       video_data: {
         video_id: mediaPayload.video_id,
-        ...(mediaPayload.image_hash ? { image_hash: mediaPayload.image_hash } : { image_url: "https://togahh.com/toga-health-logo.png" }),
         title: headline,
         message: primaryText,
         link_description: headline,
