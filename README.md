@@ -53,7 +53,6 @@ togahh-dashboard/
 │   │   │   ├── elevenlabs/        # ElevenLabs voice listing
 │   │   │   ├── executions/        # Workflow execution lookup
 │   │   │   ├── meta/
-│   │   │   │   ├── account-balance/   # Meta ad account balance
 │   │   │   │   ├── campaign-details/  # Fetch existing campaign info
 │   │   │   │   ├── launch/            # Launch campaign to Meta (main)
 │   │   │   │   ├── live-campaigns/    # Fetch active Meta campaigns
@@ -64,7 +63,6 @@ togahh-dashboard/
 │   │   │   ├── notifications/error/   # Error alert notifications
 │   │   │   ├── proxy/                 # Generic CORS proxy
 │   │   │   ├── scraper/               # Lead scraper trigger + jobs
-│   │   │   ├── seed/                  # DB seed endpoint
 │   │   │   ├── trigger-ads/           # Trigger ad generation via n8n
 │   │   │   ├── trigger-n8n/           # General n8n CORS proxy
 │   │   │   ├── upload-ad/             # Upload ad creative to Supabase storage
@@ -131,8 +129,6 @@ togahh-dashboard/
 │   │   ├── socialSupabase.ts      # Supabase client (SocialDash project)
 │   │   ├── utils.ts               # Utility functions (cn, formatters)
 │   │   ├── validations.ts         # Zod validation schemas
-│   │   └── hooks/
-│   │       └── useN8nStatus.js    # Hook for polling n8n execution status
 │   │
 │   └── types/
 │       └── index.ts               # Shared TypeScript types
