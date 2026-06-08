@@ -239,7 +239,8 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
   const validateStep = (s: number): string[] => {
     const errs: string[] = [];
     if (s === 1) {
-      if (!config.campaign?.name?.trim()) errs.push("Campaign Name is required.");
+      // Campaign name only required when creating a new campaign, not when appending to existing
+      if (!selectedId && !config.campaign?.name?.trim()) errs.push("Campaign Name is required.");
     }
     if (s === 2) {
       if (!config.ad_set?.name?.trim()) errs.push("Ad Set Name is required.");
