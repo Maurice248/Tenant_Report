@@ -73,8 +73,19 @@ async function uploadMedia(link_data, isVideo, accessToken, adAccountId) {
       console.warn(`Video ${videoId} is still processing after 45 seconds. Attempting to proceed, but it may fail with 1885252.`);
     }
 
-    // No thumbnail uploaded — Meta auto-generates from the video's first frame
-    return { video_id: videoId };
+    // Fetch the auto-generated thumbnail URL from the video's own picture field
+    let thumbnailUrl: string | null = null;
+    try {
+      const thumbRes = await fetch(
+        `https://graph.facebook.com/v21.0/${videoId}?fields=picture&access_token=${accessToken}`
+      );
+      const thumbData = await thumbRes.json();
+      thumbnailUrl = thumbData.picture || null;
+    } catch (err) {
+      console.log("Could not fetch video thumbnail:", err);
+    }
+
+    return { video_id: videoId, thumbnail_url: thumbnailUrl };
   } else {
     // Image upload
     const mediaRes = await fetch(link_data);
@@ -238,6 +249,7 @@ async function createAdCreative(adAccountId, accessToken, isVideo, pageId, media
       page_id: pageId,
       video_data: {
         video_id: mediaPayload.video_id,
+        ...(mediaPayload.thumbnail_url ? { image_url: mediaPayload.thumbnail_url } : {}),
         title: headline,
         message: primaryText,
         link_description: headline,
