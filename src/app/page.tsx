@@ -48,13 +48,14 @@ const TABS = [
   { id: "approval", label: "Approval", icon: "◉" },
   { id: "campaigns", label: "Campaign Setup", icon: "◷" },
   { id: "live_campaigns", label: "Running Campaign", icon: "🚀" },
-
   { id: "reports", label: "Reports", icon: "◧" },
   { id: "social-dash", label: "Social-Dash", icon: "🎨" },
   { id: "newsletter", label: "Newsletter", icon: "📰", externalLink: "https://newsletter-weld-rho.vercel.app/newsletter/generate" },
   { id: "outreach", label: "Outreach", icon: "✉️", externalLink: "https://togaah-outreach-kc5r.vercel.app" },
   { id: "profile", label: "Profile", icon: "👤" },
 ];
+
+const META_ADS_IDS = new Set(["approval", "campaigns", "live_campaigns", "reports"]);
 
 const TOPICS = [
   "Advanced Orthopedics",
@@ -160,9 +161,13 @@ export default function Dashboard() {
   const [tab, setTab] = useLocalStorage("toga_active_tab", "overview");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useLocalStorage("toga_sidebar_collapsed", false);
+  const [metaAdsOpen, setMetaAdsOpen] = useState(false);
   const [selectedTopic, setSelectedTopic] = useState(TOPICS[1]);
   const [user, setUser] = useState(null);
   const [isAuthenticating, setIsAuthenticating] = useState(true);
+
+  // Auto-open Meta Ads group when navigating to one of its tabs
+  useEffect(() => { if (META_ADS_IDS.has(tab)) setMetaAdsOpen(true); }, [tab]);
 
   // Analysis
   useEffect(() => {
@@ -2452,66 +2457,145 @@ export default function Dashboard() {
 
         {/* Navigation Tabs */}
         <nav style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
-          {TABS.map((t) => (
-            <div key={t.id} style={{ position: "relative" }} className="sidebar-nav-item">
-              <button
-                title={sidebarCollapsed ? t.label : ""}
-                style={{
-                  width: "100%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: sidebarCollapsed ? "center" : "flex-start",
-                  gap: sidebarCollapsed ? 0 : 10,
-                  padding: sidebarCollapsed ? "10px 0" : "9px 12px",
-                  borderRadius: "var(--radius-md)",
-                  border: "none",
-                  fontSize: 13,
-                  fontWeight: tab === t.id ? 700 : 500,
-                  textAlign: "left",
-                  cursor: "pointer",
-                  background: tab === t.id ? "var(--primary-light)" : "transparent",
-                  color: tab === t.id ? "var(--primary-dark)" : "var(--text-muted)",
-                  transition: "all 0.18s ease",
-                  boxShadow: tab === t.id ? "0 1px 3px rgba(37,99,235,0.12)" : "none",
-                  position: "relative",
-                  overflow: "hidden",
-                  fontFamily: "inherit",
-                }}
-                onClick={() => {
-                  if (t.externalLink) {
-                    window.open(t.externalLink, "_blank", "noopener,noreferrer");
-                  } else {
-                    setTab(t.id);
-                    setMobileMenuOpen(false);
-                  }
-                }}
-                onMouseEnter={e => { if (tab !== t.id) e.currentTarget.style.background = "var(--surface-hover)"; }}
-                onMouseLeave={e => { if (tab !== t.id) e.currentTarget.style.background = "transparent"; }}
-              >
-                <span style={{ fontSize: 16, flexShrink: 0, lineHeight: 1 }}>{t.icon}</span>
-                {!sidebarCollapsed && (
-                  <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", transition: "opacity 0.2s", opacity: sidebarCollapsed ? 0 : 1 }}>{t.label}</span>
+          {(() => {
+            const metaAdsActive = META_ADS_IDS.has(tab);
+            const showChildren = metaAdsOpen || metaAdsActive;
+
+            const renderTabBtn = (t: any, indent = false) => (
+              <div key={t.id} style={{ position: "relative" }} className="sidebar-nav-item">
+                <button
+                  title={sidebarCollapsed ? t.label : ""}
+                  style={{
+                    width: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: sidebarCollapsed ? "center" : "flex-start",
+                    gap: sidebarCollapsed ? 0 : 10,
+                    padding: sidebarCollapsed ? "10px 0" : indent ? "8px 12px 8px 28px" : "9px 12px",
+                    borderRadius: "var(--radius-md)",
+                    border: "none",
+                    fontSize: indent ? 12 : 13,
+                    fontWeight: tab === t.id ? 700 : 500,
+                    textAlign: "left",
+                    cursor: "pointer",
+                    background: tab === t.id ? "var(--primary-light)" : "transparent",
+                    color: tab === t.id ? "var(--primary-dark)" : "var(--text-muted)",
+                    transition: "all 0.18s ease",
+                    boxShadow: tab === t.id ? "0 1px 3px rgba(37,99,235,0.12)" : "none",
+                    position: "relative",
+                    overflow: "hidden",
+                    fontFamily: "inherit",
+                  }}
+                  onClick={() => {
+                    if (t.externalLink) { window.open(t.externalLink, "_blank", "noopener,noreferrer"); }
+                    else { setTab(t.id); setMobileMenuOpen(false); }
+                  }}
+                  onMouseEnter={e => { if (tab !== t.id) e.currentTarget.style.background = "var(--surface-hover)"; }}
+                  onMouseLeave={e => { if (tab !== t.id) e.currentTarget.style.background = "transparent"; }}
+                >
+                  <span style={{ fontSize: indent ? 14 : 16, flexShrink: 0, lineHeight: 1 }}>{t.icon}</span>
+                  {!sidebarCollapsed && (
+                    <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.label}</span>
+                  )}
+                  {tab === t.id && (
+                    <span style={{ position: "absolute", left: 0, top: "20%", width: 3, height: "60%", borderRadius: "0 3px 3px 0", background: "var(--primary)" }} />
+                  )}
+                </button>
+                {sidebarCollapsed && (
+                  <span className="sidebar-tooltip" style={{
+                    position: "absolute", left: "calc(100% + 8px)", top: "50%", transform: "translateY(-50%)",
+                    background: "#1e293b", color: "#fff", fontSize: 11, fontWeight: 600,
+                    padding: "4px 10px", borderRadius: 6, whiteSpace: "nowrap",
+                    pointerEvents: "none", zIndex: 9999,
+                    opacity: 0, transition: "opacity 0.15s",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+                  }}>
+                    {t.label}
+                  </span>
                 )}
-                {/* Active indicator bar */}
-                {tab === t.id && (
-                  <span style={{ position: "absolute", left: 0, top: "20%", width: 3, height: "60%", borderRadius: "0 3px 3px 0", background: "var(--primary)" }} />
-                )}
-              </button>
-              {/* Tooltip in collapsed mode */}
-              {sidebarCollapsed && (
-                <span className="sidebar-tooltip" style={{
-                  position: "absolute", left: "calc(100% + 8px)", top: "50%", transform: "translateY(-50%)",
-                  background: "#1e293b", color: "#fff", fontSize: 11, fontWeight: 600,
-                  padding: "4px 10px", borderRadius: 6, whiteSpace: "nowrap",
-                  pointerEvents: "none", zIndex: 9999,
-                  opacity: 0, transition: "opacity 0.15s",
-                  boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
-                }}>
-                  {t.label}
-                </span>
-              )}
-            </div>
-          ))}
+              </div>
+            );
+
+            return (
+              <>
+                {/* Tabs before Meta Ads group */}
+                {TABS.filter(t => ["overview", "analysis", "create"].includes(t.id)).map(t => renderTabBtn(t))}
+
+                {/* Meta Ads group */}
+                <div style={{ position: "relative" }} className="sidebar-nav-item">
+                  <button
+                    title={sidebarCollapsed ? "Meta Ads" : ""}
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: sidebarCollapsed ? "center" : "flex-start",
+                      gap: sidebarCollapsed ? 0 : 10,
+                      padding: sidebarCollapsed ? "10px 0" : "9px 12px",
+                      borderRadius: showChildren ? "var(--radius-md) var(--radius-md) 0 0" : "var(--radius-md)",
+                      border: "none",
+                      fontSize: 13,
+                      fontWeight: metaAdsActive ? 700 : 500,
+                      textAlign: "left",
+                      cursor: "pointer",
+                      background: metaAdsActive ? "var(--primary-light)" : showChildren ? "var(--surface)" : "transparent",
+                      color: metaAdsActive ? "var(--primary-dark)" : showChildren ? "var(--text)" : "var(--text-muted)",
+                      transition: "all 0.18s ease",
+                      fontFamily: "inherit",
+                      position: "relative",
+                      overflow: "hidden",
+                    }}
+                    onClick={() => setMetaAdsOpen(o => !o)}
+                    onMouseEnter={e => { if (!metaAdsActive) e.currentTarget.style.background = "var(--surface-hover)"; }}
+                    onMouseLeave={e => { if (!metaAdsActive) e.currentTarget.style.background = showChildren ? "var(--surface)" : "transparent"; }}
+                  >
+                    <span style={{ fontSize: 16, flexShrink: 0, lineHeight: 1 }}>📢</span>
+                    {!sidebarCollapsed && (
+                      <>
+                        <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Meta Ads</span>
+                        <span style={{
+                          fontSize: 10, color: "var(--text-muted)", flexShrink: 0,
+                          transform: showChildren ? "rotate(180deg)" : "rotate(0deg)",
+                          transition: "transform 0.2s ease",
+                        }}>▼</span>
+                      </>
+                    )}
+                    {metaAdsActive && (
+                      <span style={{ position: "absolute", left: 0, top: "20%", width: 3, height: "60%", borderRadius: "0 3px 3px 0", background: "var(--primary)" }} />
+                    )}
+                  </button>
+                  {sidebarCollapsed && (
+                    <span className="sidebar-tooltip" style={{
+                      position: "absolute", left: "calc(100% + 8px)", top: "50%", transform: "translateY(-50%)",
+                      background: "#1e293b", color: "#fff", fontSize: 11, fontWeight: 600,
+                      padding: "4px 10px", borderRadius: 6, whiteSpace: "nowrap",
+                      pointerEvents: "none", zIndex: 9999,
+                      opacity: 0, transition: "opacity 0.15s",
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+                    }}>
+                      Meta Ads
+                    </span>
+                  )}
+
+                  {/* Children — inline below the group header */}
+                  {showChildren && (
+                    <div style={{
+                      background: "var(--surface)",
+                      borderRadius: "0 0 var(--radius-md) var(--radius-md)",
+                      borderTop: "1px solid var(--border-light)",
+                      paddingBottom: 4,
+                      overflow: "hidden",
+                    }}>
+                      {TABS.filter(t => META_ADS_IDS.has(t.id)).map(t => renderTabBtn(t, true))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Tabs after Meta Ads group */}
+                {TABS.filter(t => ["social-dash", "newsletter", "outreach", "profile"].includes(t.id)).map(t => renderTabBtn(t))}
+              </>
+            );
+          })()}
         </nav>
 
         {/* Sidebar Footer (User Profile & Sign Out) */}

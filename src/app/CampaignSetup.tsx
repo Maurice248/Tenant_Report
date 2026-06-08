@@ -1013,12 +1013,14 @@ function LocationSearch({ geoLocations, onChange }: LocationSearchProps) {
   const [loading, setLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
 
+  // Always store as country codes only — pills show "country code (display name)"
   const selectedPills: any[] = [];
-  if (geoLocations) {
-    if (geoLocations.countries) geoLocations.countries.forEach((c: any) => selectedPills.push({ type: "country", key: c, name: c }));
-    if (geoLocations.cities) geoLocations.cities.forEach((c: any) => selectedPills.push({ type: "city", key: c.key, name: c.name || c.key }));
-    if (geoLocations.regions) geoLocations.regions.forEach((c: any) => selectedPills.push({ type: "region", key: c.key, name: c.name || c.key }));
-    if (geoLocations.zips) geoLocations.zips.forEach((c: any) => selectedPills.push({ type: "zip", key: c.key, name: c.name || c.key }));
+  if (geoLocations?.countries) {
+    geoLocations.countries.forEach((c: any) => {
+      const display = typeof c === "object" ? `${c.name} (${c.code})` : c;
+      const key = typeof c === "object" ? c.code : c;
+      selectedPills.push({ key, name: display });
+    });
   }
 
   useEffect(() => {
@@ -1035,25 +1037,24 @@ function LocationSearch({ geoLocations, onChange }: LocationSearchProps) {
   }, [query]);
 
   const handleSelect = (item: any) => {
+    // Always extract just the country code regardless of location type selected
+    const countryCode = item.type === "country" ? item.key : item.country_code;
+    if (!countryCode) return;
     const newGeo = { ...geoLocations, location_types: geoLocations?.location_types || ["home", "recent"] };
-    if (item.type === "country") {
-      newGeo.countries = [...(newGeo.countries || []), item.country_code];
-    } else {
-      const obj = { key: item.key, name: item.name, country_code: item.country_code };
-      if (item.type === "city") newGeo.cities = [...(newGeo.cities || []), obj];
-      if (item.type === "region") newGeo.regions = [...(newGeo.regions || []), obj];
-      if (item.country_code && newGeo.countries?.includes(item.country_code)) newGeo.countries = newGeo.countries.filter((c: any) => c !== item.country_code);
+    const existing: string[] = newGeo.countries || [];
+    // Deduplicate — don't add same country twice
+    if (!existing.includes(countryCode)) {
+      newGeo.countries = [...existing, countryCode];
     }
-    ["countries", "cities", "regions", "zips"].forEach(k => { if (newGeo[k]?.length === 0) delete newGeo[k]; });
+    // Remove cities/regions/zips — backend only uses countries
+    delete newGeo.cities; delete newGeo.regions; delete newGeo.zips;
     onChange(newGeo); setQuery(""); setShowDropdown(false);
   };
 
   const handleRemove = (pill: any) => {
     const newGeo = { ...geoLocations };
-    if (pill.type === "country") newGeo.countries = newGeo.countries?.filter((c: any) => c !== pill.key);
-    if (pill.type === "city") newGeo.cities = newGeo.cities?.filter((c: any) => c.key !== pill.key);
-    if (pill.type === "region") newGeo.regions = newGeo.regions?.filter((c: any) => c.key !== pill.key);
-    ["countries", "cities", "regions", "zips"].forEach(k => { if (newGeo[k]?.length === 0) delete newGeo[k]; });
+    newGeo.countries = (newGeo.countries || []).filter((c: any) => c !== pill.key);
+    if (!newGeo.countries.length) delete newGeo.countries;
     onChange(newGeo);
   };
 
