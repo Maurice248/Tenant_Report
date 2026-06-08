@@ -173,7 +173,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
     try { localStorage.setItem(STORE_SEL_AD, JSON.stringify(selectedApprovedAd)); } catch {}
   }, [selectedApprovedAd, hydrated]);
 
-  // Apply selectedAd from Approval tab — only sets media URL + type, all other fields stay empty for user to fill
+  // Apply selectedAd from Approval tab — sets media URL + type, and auto-fills ad copy from "json data" column
   useEffect(() => {
     if (!selectedAd) return;
     if (!hydrated) return;
@@ -183,6 +183,18 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
     lastAppliedAdRef.current = selectedAd.text || "";
     try { localStorage.setItem(STORE_LAST_AD, selectedAd.text || ""); } catch {}
     const isVideo = (selectedAd.format || "").toLowerCase() === "video";
+
+    // Parse "json data" column for ad copy auto-fill
+    let adMeta: any = {};
+    try {
+      const raw = selectedAd["json data"];
+      if (raw) {
+        adMeta = typeof raw === "string" ? JSON.parse(raw) : raw;
+      }
+    } catch (e) {
+      console.warn("[CampaignSetup] Failed to parse ad metadata from 'json data' column:", e);
+    }
+
     const fresh: any = {
       ...DEFAULT_CONFIG,
       campaign: { ...DEFAULT_CONFIG.campaign },
@@ -192,6 +204,12 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
         id: selectedAd.id || Date.now(),
         media_type: isVideo ? "video" : "image",
         type: isVideo ? "video" : "image",
+        // Auto-fill from "json data" — fallback to empty string if not present
+        name: adMeta.ad_name || DEFAULT_CONFIG.ad.name || "",
+        primary_text: adMeta.primary_text || DEFAULT_CONFIG.ad.primary_text || "",
+        headline: adMeta.headline || DEFAULT_CONFIG.ad.headline || "",
+        description: adMeta.ad_description || DEFAULT_CONFIG.ad.description || "",
+        website_url: adMeta.destination_url || DEFAULT_CONFIG.ad.website_url || "",
       },
       link_data: selectedAd.text || "",
     };
