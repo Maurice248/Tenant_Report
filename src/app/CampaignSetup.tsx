@@ -421,7 +421,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
 
           {/* Campaign Fields */}
           <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
-            <div style={{ padding: "16px 24px", borderBottom: "1px solid #f1f5f9", background: "#f8fafc" }}>
+            <div style={{ padding: "16px 24px", borderBottom: "1px solid #f1f5f9", background: "#f8fafc", borderRadius: "16px 16px 0 0" }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>{selectedId ? "Appending to Selected Campaign" : "New Campaign"}</div>
               <div style={{ fontSize: 11, color: "#64748b", marginTop: 1 }}>{selectedId ? "Campaign-level fields are locked when appending." : "Configure your new campaign."}</div>
             </div>
@@ -475,7 +475,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
 
           {/* Placements */}
           <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
-            <div style={{ padding: "16px 24px", borderBottom: "1px solid #f1f5f9", background: "#f8fafc" }}>
+            <div style={{ padding: "16px 24px", borderBottom: "1px solid #f1f5f9", background: "#f8fafc", borderRadius: "16px 16px 0 0" }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>Placements</div>
               <div style={{ fontSize: 11, color: "#64748b", marginTop: 1 }}>Choose where your ads appear.</div>
             </div>
@@ -499,7 +499,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
       {step === 2 && selectedAd && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
-          <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+          <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", overflow: "visible", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
             <SectionHeader title="Targeting" sub="Define your audience and locations." />
             <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
               <Label label="Ad Set Name">
@@ -638,7 +638,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
 
           {/* Select Approved Ad */}
           <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
-            <div style={{ padding: "16px 24px", borderBottom: "1px solid #f1f5f9", background: "#f8fafc" }}>
+            <div style={{ padding: "16px 24px", borderBottom: "1px solid #f1f5f9", background: "#f8fafc", borderRadius: "16px 16px 0 0" }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>Selected Ad</div>
               <div style={{ fontSize: 11, color: "#64748b", marginTop: 1 }}>
                 {selectedAd ? "Ad selected from the Approval tab." : `Pick an approved creative. ${approvedAdsProp.length > 0 ? approvedAdsProp.length + " available" : ""}`}
@@ -862,7 +862,7 @@ function NavButtons({ step, setStep, onNext, isFirst, isLast }: { step: number; 
 // ─── Section Header ───────────────────────────────────────────────────────────
 function SectionHeader({ title, sub }: { title: string; sub: string }) {
   return (
-    <div style={{ padding: "16px 24px", borderBottom: "1px solid #f1f5f9", background: "#f8fafc" }}>
+    <div style={{ padding: "16px 24px", borderBottom: "1px solid #f1f5f9", background: "#f8fafc", borderRadius: "16px 16px 0 0" }}>
       <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>{title}</div>
       <div style={{ fontSize: 11, color: "#475569", marginTop: 1, fontWeight: 500 }}>{sub}</div>
     </div>
