@@ -73,19 +73,45 @@ async function uploadMedia(link_data, isVideo, accessToken, adAccountId) {
       console.warn(`Video ${videoId} is still processing after 45 seconds. Attempting to proceed, but it may fail with 1885252.`);
     }
 
-    // Fetch the auto-generated thumbnail URL from the video's own picture field
-    let thumbnailUrl: string | null = null;
+    // Get auto-generated thumbnail from Meta, download it, re-upload as adimage to get a stable hash
+    let imageHash: string | null = null;
     try {
-      const thumbRes = await fetch(
+      // Step A: get the video's generated picture URL
+      const picRes = await fetch(
         `https://graph.facebook.com/v21.0/${videoId}?fields=picture&access_token=${accessToken}`
       );
-      const thumbData = await thumbRes.json();
-      thumbnailUrl = thumbData.picture || null;
+      const picData = await picRes.json();
+      const pictureUrl = picData.picture;
+
+      if (pictureUrl) {
+        // Step B: download that frame image
+        const imgRes = await fetch(pictureUrl);
+        if (imgRes.ok) {
+          const imgBuffer = await imgRes.arrayBuffer();
+          const imgBlob = new Blob([imgBuffer], { type: "image/jpeg" });
+
+          // Step C: upload as adimage to get a proper image_hash
+          const thumbForm = new FormData();
+          thumbForm.append("source", imgBlob, "video_thumb.jpg");
+          thumbForm.append("access_token", accessToken);
+
+          const uploadRes = await fetch(
+            `https://graph.facebook.com/v21.0/act_${adAccountId}/adimages`,
+            { method: "POST", body: thumbForm }
+          );
+          const uploadData = await uploadRes.json();
+          imageHash = uploadData.images?.["video_thumb.jpg"]?.hash || null;
+        }
+      }
     } catch (err) {
-      console.log("Could not fetch video thumbnail:", err);
+      console.log("Could not generate video thumbnail hash:", err);
     }
 
-    return { video_id: videoId, thumbnail_url: thumbnailUrl };
+    if (!imageHash) {
+      throw new Error("Could not generate a thumbnail for the video. Please wait a moment for the video to finish processing on Meta and try again.");
+    }
+
+    return { video_id: videoId, image_hash: imageHash };
   } else {
     // Image upload
     const mediaRes = await fetch(link_data);
@@ -249,7 +275,7 @@ async function createAdCreative(adAccountId, accessToken, isVideo, pageId, media
       page_id: pageId,
       video_data: {
         video_id: mediaPayload.video_id,
-        ...(mediaPayload.thumbnail_url ? { image_url: mediaPayload.thumbnail_url } : {}),
+        image_hash: mediaPayload.image_hash,
         title: headline,
         message: primaryText,
         link_description: headline,
