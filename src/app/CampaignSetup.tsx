@@ -74,10 +74,23 @@ const CAMPAIGN_OBJECTIVES = [
 const OPTIMIZATION_GOALS = [
   { value: "OFFSITE_CONVERSIONS", label: "Conversions" },
   { value: "LINK_CLICKS", label: "Link Clicks" },
+  { value: "LANDING_PAGE_VIEWS", label: "Landing Page Views" },
   { value: "REACH", label: "Reach" },
   { value: "IMPRESSIONS", label: "Impressions" },
   { value: "POST_ENGAGEMENT", label: "Post Engagement" },
+  { value: "LEAD_GENERATION", label: "Lead Generation" },
+  { value: "QUALITY_LEAD", label: "Quality Lead" },
+  { value: "THRUPLAY", label: "ThruPlay (Video)" },
 ];
+
+// Valid optimization goals per campaign objective (Meta API rules)
+const OBJECTIVE_GOAL_MAP: Record<string, string[]> = {
+  OUTCOME_AWARENESS:  ["REACH", "IMPRESSIONS", "THRUPLAY"],
+  OUTCOME_TRAFFIC:    ["LINK_CLICKS", "LANDING_PAGE_VIEWS", "REACH", "IMPRESSIONS"],
+  OUTCOME_ENGAGEMENT: ["POST_ENGAGEMENT", "LINK_CLICKS", "REACH", "IMPRESSIONS"],
+  OUTCOME_LEADS:      ["LEAD_GENERATION", "QUALITY_LEAD", "LINK_CLICKS"],
+  OUTCOME_SALES:      ["OFFSITE_CONVERSIONS", "LINK_CLICKS"],
+};
 const BUDGET_TYPES = [
   { value: "DAILY", label: "Daily Budget" },
   { value: "LIFETIME", label: "Lifetime Budget" },
@@ -429,7 +442,15 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
                   <Label label="Campaign Objective">
                     <CustomSelect
                       value={config.campaign?.objective || ""}
-                      onChange={v => setField("campaign", "objective", v)}
+                      onChange={v => {
+                        setField("campaign", "objective", v);
+                        // Auto-reset optimization goal if it's not valid for the new objective
+                        const allowed = OBJECTIVE_GOAL_MAP[v] || [];
+                        const currentGoal = config.ad_set?.optimization_goal;
+                        if (currentGoal && !allowed.includes(currentGoal)) {
+                          setField("ad_set", "optimization_goal", allowed[0] || "LINK_CLICKS");
+                        }
+                      }}
                       options={CAMPAIGN_OBJECTIVES.map(o => ({ value: o.value, label: `${o.icon} ${o.label}` }))}
                     />
                   </Label>
@@ -491,7 +512,11 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
                 <CustomSelect
                   value={config.ad_set?.optimization_goal || ""}
                   onChange={v => setField("ad_set", "optimization_goal", v)}
-                  options={OPTIMIZATION_GOALS.map(g => ({ value: g.value, label: g.label }))}
+                  options={(() => {
+                    const objective = config.campaign?.objective || "OUTCOME_TRAFFIC";
+                    const allowed = OBJECTIVE_GOAL_MAP[objective] || OPTIMIZATION_GOALS.map(g => g.value);
+                    return OPTIMIZATION_GOALS.filter(g => allowed.includes(g.value)).map(g => ({ value: g.value, label: g.label }));
+                  })()}
                 />
               </Label>
             </div>
