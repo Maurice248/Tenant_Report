@@ -3397,9 +3397,7 @@ export default function Dashboard() {
                       }}
                     >
                       <option value="Impressions High → Low">Impressions High → Low</option>
-                      <option value="Impressions Low → High">Impressions Low → High</option>
                       <option value="Newest First">Newest First</option>
-                      <option value="Oldest First">Oldest First</option>
                     </select>
                   </div>
                 </div>
