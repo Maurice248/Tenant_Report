@@ -281,8 +281,9 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
       const geo = config.ad_set?.geo_locations;
       const hasGeo = (geo?.countries?.length > 0) || (geo?.cities?.length > 0) || (geo?.regions?.length > 0);
       if (!hasGeo) errs.push("At least one Target Location is required.");
+      const isCbo = config.campaign?.is_adset_budget_sharing_enabled || false;
       const budget = config.ad_set?.budget_type === "DAILY" ? config.ad_set?.daily_budget : config.ad_set?.lifetime_budget;
-      if (!budget || Number(budget) <= 0) errs.push("Budget amount must be greater than 0.");
+      if (!isCbo && (!budget || Number(budget) <= 0)) errs.push("Budget amount must be greater than 0.");
       if (!config.ad_set?.start_time) errs.push("Start Date is required.");
     }
     if (s === 3) {
@@ -490,6 +491,31 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
                   </div>
                   <Toggle checked={config.campaign?.is_adset_budget_sharing_enabled || false} onChange={v => setField("campaign", "is_adset_budget_sharing_enabled", v)} />
                 </div>
+                {config.campaign?.is_adset_budget_sharing_enabled && (
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                    <Label label="Budget Type">
+                      <CustomSelect
+                        value={config.ad_set?.budget_type || "DAILY"}
+                        onChange={v => setField("ad_set", "budget_type", v)}
+                        options={BUDGET_TYPES.map(b => ({ value: b.value, label: b.label }))}
+                      />
+                    </Label>
+                    <Label label={`Campaign Budget (${config.ad_set?.budget_type === "DAILY" ? "Daily" : "Lifetime"}) USD`}>
+                      <div style={{ position: "relative" }}>
+                        <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#64748b", fontWeight: 600 }}>$</span>
+                        <input type="number" style={{ ...inputSt, paddingLeft: 26 }}
+                          value={config.ad_set?.budget_type === "DAILY"
+                            ? (config.ad_set?.daily_budget / 100 || "")
+                            : (config.ad_set?.lifetime_budget / 100 || "")}
+                          onChange={e => {
+                            const key = config.ad_set?.budget_type === "DAILY" ? "daily_budget" : "lifetime_budget";
+                            setField("ad_set", key, Math.round(Number(e.target.value) * 100));
+                          }}
+                        />
+                      </div>
+                    </Label>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -546,29 +572,36 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
           <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
             <SectionHeader title="Budget & Schedule" sub="Set your spending limits and campaign dates." />
             <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16 }}>
-                <Label label="Budget Type">
-                  <CustomSelect
-                    value={config.ad_set?.budget_type || "DAILY"}
-                    onChange={v => setField("ad_set", "budget_type", v)}
-                    options={BUDGET_TYPES.map(b => ({ value: b.value, label: b.label }))}
-                  />
-                </Label>
-                <Label label={`Amount (${config.ad_set?.budget_type === "DAILY" ? "Daily" : "Lifetime"}) USD`}>
-                  <div style={{ position: "relative" }}>
-                    <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#64748b", fontWeight: 600 }}>$</span>
-                    <input type="number" style={{ ...inputSt, paddingLeft: 26 }}
-                      value={config.ad_set?.budget_type === "DAILY"
-                        ? (config.ad_set?.daily_budget / 100 || "")
-                        : (config.ad_set?.lifetime_budget / 100 || "")}
-                      onChange={e => {
-                        const key = config.ad_set?.budget_type === "DAILY" ? "daily_budget" : "lifetime_budget";
-                        setField("ad_set", key, Math.round(Number(e.target.value) * 100));
-                      }}
+              {!config.campaign?.is_adset_budget_sharing_enabled && (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16 }}>
+                  <Label label="Budget Type">
+                    <CustomSelect
+                      value={config.ad_set?.budget_type || "DAILY"}
+                      onChange={v => setField("ad_set", "budget_type", v)}
+                      options={BUDGET_TYPES.map(b => ({ value: b.value, label: b.label }))}
                     />
-                  </div>
-                </Label>
-              </div>
+                  </Label>
+                  <Label label={`Amount (${config.ad_set?.budget_type === "DAILY" ? "Daily" : "Lifetime"}) USD`}>
+                    <div style={{ position: "relative" }}>
+                      <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#64748b", fontWeight: 600 }}>$</span>
+                      <input type="number" style={{ ...inputSt, paddingLeft: 26 }}
+                        value={config.ad_set?.budget_type === "DAILY"
+                          ? (config.ad_set?.daily_budget / 100 || "")
+                          : (config.ad_set?.lifetime_budget / 100 || "")}
+                        onChange={e => {
+                          const key = config.ad_set?.budget_type === "DAILY" ? "daily_budget" : "lifetime_budget";
+                          setField("ad_set", key, Math.round(Number(e.target.value) * 100));
+                        }}
+                      />
+                    </div>
+                  </Label>
+                </div>
+              )}
+              {config.campaign?.is_adset_budget_sharing_enabled && (
+                <div style={{ padding: "10px 14px", background: "#f0fdf4", borderRadius: 8, border: "1px solid #bbf7d0", fontSize: 12, color: "#15803d" }}>
+                  Campaign budget is set in Step 1 (Advantage+ Budget).
+                </div>
+              )}
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 <Label label="Start Date">
                   <input type="datetime-local" value={config.ad_set?.start_time || ""} onChange={e => setField("ad_set", "start_time", e.target.value)} style={{ ...inputSt, width: "100%", boxSizing: "border-box" }} />
