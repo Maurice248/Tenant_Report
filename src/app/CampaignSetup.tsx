@@ -1031,13 +1031,22 @@ function LocationSearch({ geoLocations, onChange }: LocationSearchProps) {
   const [loading, setLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
 
-  // Always store as country codes only — pills show "country code (display name)"
+  // Build pills from countries, cities, and regions
   const selectedPills: any[] = [];
   if (geoLocations?.countries) {
     geoLocations.countries.forEach((c: any) => {
-      const display = typeof c === "object" ? `${c.name} (${c.code})` : c;
       const key = typeof c === "object" ? c.code : c;
-      selectedPills.push({ key, name: display });
+      selectedPills.push({ key, name: key, type: "country" });
+    });
+  }
+  if (geoLocations?.cities) {
+    geoLocations.cities.forEach((c: any) => {
+      selectedPills.push({ key: c.key, name: c.name, type: "city" });
+    });
+  }
+  if (geoLocations?.regions) {
+    geoLocations.regions.forEach((r: any) => {
+      selectedPills.push({ key: r.key, name: r.name, type: "region" });
     });
   }
 
@@ -1055,24 +1064,59 @@ function LocationSearch({ geoLocations, onChange }: LocationSearchProps) {
   }, [query]);
 
   const handleSelect = (item: any) => {
-    // Always extract just the country code regardless of location type selected
-    const countryCode = item.type === "country" ? item.key : item.country_code;
-    if (!countryCode) return;
     const newGeo = { ...geoLocations, location_types: geoLocations?.location_types || ["home", "recent"] };
-    const existing: string[] = newGeo.countries || [];
-    // Deduplicate — don't add same country twice
-    if (!existing.includes(countryCode)) {
-      newGeo.countries = [...existing, countryCode];
+
+    if (item.type === "country") {
+      // Add country — remove any cities/regions in this country to avoid Meta overlap error
+      const existing: string[] = newGeo.countries || [];
+      if (!existing.includes(item.key)) {
+        newGeo.countries = [...existing, item.key];
+      }
+      newGeo.cities = (newGeo.cities || []).filter((c: any) => c.country_code !== item.key);
+      newGeo.regions = (newGeo.regions || []).filter((r: any) => r.country_code !== item.key);
+      if (!newGeo.cities.length) delete newGeo.cities;
+      if (!newGeo.regions.length) delete newGeo.regions;
+
+    } else if (item.type === "city" || item.type === "neighborhood") {
+      // Add city — remove parent country to avoid Meta overlap error
+      const cityObj = { key: item.key, name: item.name, country_code: item.country_code };
+      const existing = newGeo.cities || [];
+      if (!existing.find((c: any) => c.key === item.key)) {
+        newGeo.cities = [...existing, cityObj];
+      }
+      if (newGeo.countries) {
+        newGeo.countries = newGeo.countries.filter((c: any) => c !== item.country_code);
+        if (!newGeo.countries.length) delete newGeo.countries;
+      }
+
+    } else if (item.type === "region") {
+      // Add region — remove parent country to avoid Meta overlap error
+      const regionObj = { key: item.key, name: item.name, country_code: item.country_code };
+      const existing = newGeo.regions || [];
+      if (!existing.find((r: any) => r.key === item.key)) {
+        newGeo.regions = [...existing, regionObj];
+      }
+      if (newGeo.countries) {
+        newGeo.countries = newGeo.countries.filter((c: any) => c !== item.country_code);
+        if (!newGeo.countries.length) delete newGeo.countries;
+      }
     }
-    // Remove cities/regions/zips — backend only uses countries
-    delete newGeo.cities; delete newGeo.regions; delete newGeo.zips;
+
     onChange(newGeo); setQuery(""); setShowDropdown(false);
   };
 
   const handleRemove = (pill: any) => {
     const newGeo = { ...geoLocations };
-    newGeo.countries = (newGeo.countries || []).filter((c: any) => c !== pill.key);
-    if (!newGeo.countries.length) delete newGeo.countries;
+    if (pill.type === "country") {
+      newGeo.countries = (newGeo.countries || []).filter((c: any) => c !== pill.key);
+      if (!newGeo.countries.length) delete newGeo.countries;
+    } else if (pill.type === "city") {
+      newGeo.cities = (newGeo.cities || []).filter((c: any) => c.key !== pill.key);
+      if (!newGeo.cities.length) delete newGeo.cities;
+    } else if (pill.type === "region") {
+      newGeo.regions = (newGeo.regions || []).filter((r: any) => r.key !== pill.key);
+      if (!newGeo.regions.length) delete newGeo.regions;
+    }
     onChange(newGeo);
   };
 
