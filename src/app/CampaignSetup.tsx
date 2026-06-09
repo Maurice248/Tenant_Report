@@ -226,6 +226,9 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
 
   useEffect(() => { setHasLaunchedThisSegment(false); }, [selectedId, selectedAd]);
 
+  // Reset success banner when user navigates away from step 3 so the Launch button reappears on return
+  useEffect(() => { if (step !== 3) { setLaunchSuccess(false); setHasLaunchedThisSegment(false); } }, [step]);
+
   const handleFullLaunch = async () => {
     setLaunching(true);
     setLaunchError("");
