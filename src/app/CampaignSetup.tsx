@@ -483,13 +483,6 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
                     />
                   </Label>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "#f8fafc", borderRadius: 10, border: "1px solid #e2e8f0" }}>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: "#0f172a" }}>Advantage+ Budget</div>
-                    <div style={{ fontSize: 11, color: "#64748b", marginTop: 1 }}>Let Meta AI optimise budget distribution</div>
-                  </div>
-                  <Toggle checked={config.campaign?.is_adset_budget_sharing_enabled || false} onChange={v => setField("campaign", "is_adset_budget_sharing_enabled", v)} />
-                </div>
               </div>
             )}
           </div>
