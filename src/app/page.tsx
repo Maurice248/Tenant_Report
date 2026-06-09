@@ -55,7 +55,7 @@ const TABS = [
   { id: "profile", label: "Profile", icon: "👤" },
 ];
 
-const META_ADS_IDS = new Set(["approval", "campaigns", "live_campaigns", "reports"]);
+const META_ADS_IDS = new Set(["overview", "analysis", "create", "approval", "campaigns", "live_campaigns", "reports"]);
 
 const TOPICS = [
   "Advanced Orthopedics",
@@ -2429,7 +2429,7 @@ export default function Dashboard() {
         <nav style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
           {(() => {
             const metaAdsActive = META_ADS_IDS.has(tab);
-            const showChildren = metaAdsOpen || metaAdsActive;
+            const showChildren = metaAdsOpen;
 
             const renderTabBtn = (t: any, indent = false) => (
               <div key={t.id} style={{ position: "relative" }} className="sidebar-nav-item">
@@ -2488,9 +2488,6 @@ export default function Dashboard() {
 
             return (
               <>
-                {/* Tabs before Meta Ads group */}
-                {TABS.filter(t => ["overview", "analysis", "create"].includes(t.id)).map(t => renderTabBtn(t))}
-
                 {/* Meta Ads group */}
                 <div style={{ position: "relative" }} className="sidebar-nav-item">
                   <button
