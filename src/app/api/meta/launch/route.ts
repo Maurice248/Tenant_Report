@@ -18,7 +18,6 @@ async function fetchMetaJson(res) {
       1487297: "Your Meta ad account has been disabled. Check Meta Ads Manager → Account Quality for details.",
       2446164: "Ad creative was rejected by Meta's policy review. Edit the ad text or image and try again.",
       1487851: "Invalid targeting: the selected location or audience is too small. Broaden your targeting and try again.",
-      1815857: "Bid strategy conflict: Turn OFF the 'Advantage+ Budget' toggle in Campaign Setup Step 1, then try again. If using an existing campaign, make sure its bid strategy in Meta Ads Manager is set to 'Lowest Cost' (no bid cap).",
       100:     "Invalid parameter sent to Meta. Check your Campaign Setup fields (objective, budget, targeting) and try again.",
     };
     const friendly = subcode && FRIENDLY[subcode];
@@ -244,8 +243,7 @@ async function createAdSet(adAccountId, accessToken, adSetName, campaignId, isCb
     ...(stopTime ? { stop_time: stopTime } : {}),
     billing_event: "IMPRESSIONS",
     optimization_goal: optimizationGoal,
-    // CBO campaigns manage bid strategy at campaign level — setting it on the ad set causes Meta error 1815857
-    ...(!isCbo ? { bid_strategy: "LOWEST_COST_WITHOUT_CAP" } : {}),
+    bid_strategy: "LOWEST_COST_WITHOUT_CAP",
     targeting,
     ...dsaFields,
     status: "PAUSED",
