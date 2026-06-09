@@ -733,17 +733,20 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
               <Label label="Call to Action">
                 <CustomSelect
                   value={config.ad?.call_to_action_type || "LEARN_MORE"}
-                  onChange={v => {
-                    const suggestions: Record<string, string> = { WHATSAPP_MESSAGE: "+10000000000", CONTACT_US: "https://togahh.com/contact", MESSAGE_PAGE: "https://m.me/togahh" };
-                    setConfig((prev: any) => ({ ...prev, ad: { ...prev.ad, call_to_action_type: v, website_url: suggestions[v] || prev.ad.website_url } }));
-                  }}
+                  onChange={v => setField("ad", "call_to_action_type", v)}
                   options={[
-                    { value: "LEARN_MORE", label: "Learn More" },
-                    { value: "BOOK_NOW", label: "Book Now" },
-                    { value: "CONTACT_US", label: "Contact Us" },
-                    { value: "GET_QUOTE", label: "Get Estimate" },
-                    { value: "WHATSAPP_MESSAGE", label: "WhatsApp" },
-                    { value: "MESSAGE_PAGE", label: "Message Page" },
+                    { value: "LEARN_MORE",  label: "Learn More" },
+                    { value: "SHOP_NOW",    label: "Shop Now" },
+                    { value: "BOOK_TRAVEL", label: "Book Now" },
+                    { value: "SIGN_UP",     label: "Sign Up" },
+                    { value: "CONTACT_US",  label: "Contact Us" },
+                    { value: "GET_QUOTE",   label: "Get Quote" },
+                    { value: "APPLY_NOW",   label: "Apply Now" },
+                    { value: "DOWNLOAD",    label: "Download" },
+                    { value: "SUBSCRIBE",   label: "Subscribe" },
+                    { value: "GET_OFFER",   label: "Get Offer" },
+                    { value: "ORDER_NOW",   label: "Order Now" },
+                    { value: "WATCH_MORE",  label: "Watch More" },
                   ]}
                 />
               </Label>
