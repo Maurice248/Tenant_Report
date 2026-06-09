@@ -13,7 +13,7 @@ export async function GET(request) {
 
   try {
     const res = await fetch(
-      `https://graph.facebook.com/v21.0/search?type=adgeolocation&q=${encodeURIComponent(q)}&limit=50&access_token=${token}`
+      `https://graph.facebook.com/v21.0/search?type=adgeolocation&q=${encodeURIComponent(q)}&locale=en_US&limit=50&access_token=${token}`
     );
     const data = await res.json();
 
