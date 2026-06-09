@@ -29,6 +29,15 @@ import {
   Mail,
   Send,
   Info,
+  LayoutDashboard,
+  BarChart3,
+  WandSparkles,
+  ClipboardCheck,
+  Settings2,
+  TrendingUp,
+  PieChart,
+  Share2,
+  Newspaper,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useRouter } from "next/navigation";
@@ -42,17 +51,17 @@ import "./globals.css";
 const API_URL = "/api/trigger-n8n";
 
 const TABS = [
-  { id: "overview", label: "Overview", icon: "▦" },
-  { id: "analysis", label: "Ads Analysis", icon: "◎" },
-  { id: "create", label: "Create Ad", icon: "◈" },
-  { id: "approval", label: "Approval", icon: "◉" },
-  { id: "campaigns", label: "Campaign Setup", icon: "◷" },
-  { id: "live_campaigns", label: "Running Campaign", icon: "🚀" },
-  { id: "reports", label: "Reports", icon: "◧" },
-  { id: "social-dash", label: "Social-Dash", icon: "🎨" },
-  { id: "newsletter", label: "Newsletter", icon: "📰", externalLink: "https://newsletter-weld-rho.vercel.app/newsletter/generate" },
-  { id: "outreach", label: "Outreach", icon: "✉️", externalLink: "https://togaah-outreach-kc5r.vercel.app" },
-  { id: "profile", label: "Profile", icon: "👤" },
+  { id: "overview", label: "Overview", icon: LayoutDashboard },
+  { id: "analysis", label: "Ads Analysis", icon: BarChart3 },
+  { id: "create", label: "Create Ad", icon: WandSparkles },
+  { id: "approval", label: "Approval", icon: ClipboardCheck },
+  { id: "campaigns", label: "Campaign Setup", icon: Settings2 },
+  { id: "live_campaigns", label: "Running Campaign", icon: TrendingUp },
+  { id: "reports", label: "Reports", icon: PieChart },
+  { id: "social-dash", label: "Social-Dash", icon: Share2 },
+  { id: "newsletter", label: "Newsletter", icon: Newspaper, externalLink: "https://newsletter-weld-rho.vercel.app/newsletter/generate" },
+  { id: "outreach", label: "Outreach", icon: Send, externalLink: "https://togaah-outreach-kc5r.vercel.app" },
+  { id: "profile", label: "Profile", icon: User },
 ];
 
 const META_ADS_IDS = new Set(["overview", "analysis", "create", "approval", "campaigns", "live_campaigns", "reports"]);
@@ -2463,7 +2472,7 @@ export default function Dashboard() {
                   onMouseEnter={e => { if (tab !== t.id) e.currentTarget.style.background = "var(--surface-hover)"; }}
                   onMouseLeave={e => { if (tab !== t.id) e.currentTarget.style.background = "transparent"; }}
                 >
-                  <span style={{ fontSize: indent ? 14 : 16, flexShrink: 0, lineHeight: 1 }}>{t.icon}</span>
+                  {(() => { const Icon = t.icon; return <Icon size={indent ? 13 : 15} style={{ flexShrink: 0 }} />; })()}
                   {!sidebarCollapsed && (
                     <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.label}</span>
                   )}
@@ -2516,7 +2525,7 @@ export default function Dashboard() {
                     onMouseEnter={e => { if (!metaAdsActive) e.currentTarget.style.background = "var(--surface-hover)"; }}
                     onMouseLeave={e => { if (!metaAdsActive) e.currentTarget.style.background = showChildren ? "var(--surface)" : "transparent"; }}
                   >
-                    <span style={{ fontSize: 16, flexShrink: 0, lineHeight: 1 }}>📢</span>
+                    <Megaphone size={15} style={{ flexShrink: 0 }} />
                     {!sidebarCollapsed && (
                       <>
                         <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Meta Ads</span>
