@@ -219,13 +219,10 @@ async function createCampaign(existingCampaignId, adAccountId, accessToken, camp
         objective,
         status: "PAUSED",
         special_ad_categories: specialAdCats,
-        // CBO: set explicit flag + campaign-level budget; Meta requires both for Advantage+ Budget
-        // Non-CBO: set flag=false (required by Meta), budget goes on ad set
+        // CBO (Advantage+ Budget ON): budget at campaign level — Meta enables CBO automatically, no flag needed
+        // Non-CBO (Advantage+ Budget OFF): explicit flag=false required by Meta, budget goes on ad set instead
         ...(isCbo
-          ? {
-              is_adset_budget_sharing_enabled: true,
-              ...(budgetType === "DAILY" ? { daily_budget: dailyBudget } : { lifetime_budget: lifetimeBudget }),
-            }
+          ? (budgetType === "DAILY" ? { daily_budget: dailyBudget } : { lifetime_budget: lifetimeBudget })
           : { is_adset_budget_sharing_enabled: false }
         ),
         access_token: accessToken,
