@@ -51,8 +51,9 @@ import "./globals.css";
 const API_URL = "/api/trigger-n8n";
 
 const TABS = [
-  { id: "overview", label: "Overview", icon: LayoutDashboard },
+  { id: "profile", label: "Brand", icon: User },
   { id: "analysis", label: "Ads Analysis", icon: BarChart3 },
+  { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "create", label: "Create Ad", icon: WandSparkles },
   { id: "approval", label: "Approval", icon: ClipboardCheck },
   { id: "campaigns", label: "Campaign Setup", icon: Settings2 },
@@ -61,10 +62,9 @@ const TABS = [
   { id: "social-dash", label: "Social-Dash", icon: Share2 },
   { id: "newsletter", label: "Newsletter", icon: Newspaper, externalLink: "https://newsletter-weld-rho.vercel.app/newsletter/generate" },
   { id: "outreach", label: "Outreach", icon: Send, externalLink: "https://togaah-outreach-kc5r.vercel.app" },
-  { id: "profile", label: "Profile", icon: User },
 ];
 
-const META_ADS_IDS = new Set(["overview", "analysis", "create", "approval", "campaigns", "live_campaigns", "reports"]);
+const META_ADS_IDS = new Set(["overview", "create", "approval", "campaigns", "live_campaigns", "reports"]);
 
 const TOPICS = [
   "Advanced Orthopedics",
@@ -340,10 +340,10 @@ export default function Dashboard() {
     });
 
     if (res.ok) {
-      addSbToast("Profile saved successfully!", "success");
+      addSbToast("Brand saved successfully!", "success");
       setIsEditingProfile(false);
     } else {
-      addSbToast("Error saving profile", "error");
+      addSbToast("Error saving brand", "error");
     }
     setIsSavingProfile(false);
   };
@@ -2497,6 +2497,12 @@ export default function Dashboard() {
 
             return (
               <>
+                {/* Brand (top) */}
+                {renderTabBtn(TABS.find(t => t.id === "profile")!)}
+
+                {/* Ads Analysis */}
+                {renderTabBtn(TABS.find(t => t.id === "analysis")!)}
+
                 {/* Meta Ads group */}
                 <div style={{ position: "relative" }} className="sidebar-nav-item">
                   <button
@@ -2568,7 +2574,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Tabs after Meta Ads group */}
-                {TABS.filter(t => ["social-dash", "newsletter", "outreach", "profile"].includes(t.id)).map(t => renderTabBtn(t))}
+                {TABS.filter(t => ["social-dash", "newsletter", "outreach"].includes(t.id)).map(t => renderTabBtn(t))}
               </>
             );
           })()}
