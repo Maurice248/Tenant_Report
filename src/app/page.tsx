@@ -61,7 +61,7 @@ const TABS = [
   { id: "reports", label: "Reports", icon: PieChart },
   { id: "social-dash", label: "Social-Dash", icon: Share2 },
   { id: "newsletter", label: "Newsletter", icon: Newspaper, externalLink: "https://newsletter-weld-rho.vercel.app/newsletter/generate" },
-  { id: "outreach", label: "Outreach", icon: Send, externalLink: "https://togaah-outreach-kc5r.vercel.app" },
+  { id: "outreach", label: "Outreach", icon: Send, externalLink: "https://outreach-seven-phi.vercel.app" },
 ];
 
 const META_ADS_IDS = new Set(["overview", "create", "approval", "campaigns", "live_campaigns", "reports"]);
