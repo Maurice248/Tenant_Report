@@ -1,0 +1,41 @@
+'use client';
+
+const VOICE_AGENT_ENABLED = false;
+
+const TAB_PATHS: Record<string, string> = {
+  ...(VOICE_AGENT_ENABLED ? { 'voice-dashboard': '/voice/dashboard' } : {}),
+  'newsletter-dashboard': '/newsletter/dashboard',
+  'newsletter-generate': '/newsletter/generate',
+  'newsletter-campaign': '/newsletter/campaign',
+  'newsletter-history': '/newsletter/history',
+  'newsletter-services': '/newsletter/services',
+};
+
+export default function NewsletterTab({ activeTab }: { activeTab: string }) {
+  const path = TAB_PATHS[activeTab] ?? '/newsletter/dashboard';
+  const src = `${path}?embed=1`;
+
+  return (
+    <div
+      className="animate-fade-in"
+      style={{
+        margin: '-24px -32px -4rem',
+        height: 'calc(100vh - 64px)',
+        minHeight: 560,
+      }}
+    >
+      <iframe
+        key={src}
+        src={src}
+        title="Newsletter & Voice Agent"
+        style={{
+          width: '100%',
+          height: '100%',
+          border: 'none',
+          display: 'block',
+          background: '#f9fafb',
+        }}
+      />
+    </div>
+  );
+}

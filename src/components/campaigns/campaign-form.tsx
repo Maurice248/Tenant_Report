@@ -36,14 +36,14 @@ export function CampaignForm() {
     resolver: zodResolver(campaignSchema),
     defaultValues: {
       campaign_name: '',
-      service_type: 'Hair_Transplant',
-      target_region: 'Europe',
-      campaign_goal: 'Book a free consultation',
+      service_type: 'Tenant_Reports',
+      target_region: 'Canada',
+      campaign_goal: 'Get tenant reports',
       campaign_message: '',
-      cta_button_text: 'Book Free Analysis',
-      cta_link: 'https://www.togahh.com/en/contact',
+      cta_button_text: 'Start Free Screening',
+      cta_link: 'https://www.tenantreport.ai',
       tone: 'Warm and educational',
-      selected_sheet: 'Hair Transplant Leads',
+      selected_sheet: 'Tenant Screening Leads',
     },
   });
 
@@ -88,7 +88,7 @@ export function CampaignForm() {
                 <FormItem>
                   <FormLabel>Campaign Name</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g. April Hair Transplant Awareness" {...field} />
+                    <Input placeholder="e.g. April Tenant Screening Awareness" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -109,12 +109,11 @@ export function CampaignForm() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="Hair_Transplant">Hair Transplant</SelectItem>
-                        <SelectItem value="Dental_Treatment">Dental Treatment</SelectItem>
-                        <SelectItem value="Cosmetic_Surgery">Cosmetic Surgery</SelectItem>
-                        <SelectItem value="Eye_Treatment">Eye Treatment</SelectItem>
-                        <SelectItem value="IVF_Fertility">IVF Fertility</SelectItem>
-                        <SelectItem value="Thermal_Wellness">Thermal Wellness</SelectItem>
+                        <SelectItem value="Tenant_Reports">Tenant Reports</SelectItem>
+                        <SelectItem value="Smart_Tenant_Subscription">Smart Tenant Subscription</SelectItem>
+                        <SelectItem value="Rent_Protection">Rent Promise &amp; Protection</SelectItem>
+                        <SelectItem value="Background_Screening">Background Screening</SelectItem>
+                        <SelectItem value="Credit_Reports">Credit Reports</SelectItem>
                         <SelectItem value="All_Services">All Services</SelectItem>
                       </SelectContent>
                     </Select>
@@ -136,9 +135,7 @@ export function CampaignForm() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="Europe">Europe</SelectItem>
-                        <SelectItem value="Middle East">Middle East</SelectItem>
-                        <SelectItem value="Asia">Asia</SelectItem>
+                        <SelectItem value="Canada">Canada</SelectItem>
                         <SelectItem value="North America">North America</SelectItem>
                         <SelectItem value="Global">Global</SelectItem>
                       </SelectContent>
@@ -162,11 +159,10 @@ export function CampaignForm() {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="Hair Transplant Leads">Hair Transplant Leads</SelectItem>
-                      <SelectItem value="Dental Treatment Leads">Dental Treatment Leads</SelectItem>
-                      <SelectItem value="Cosmetic Surgery Leads">Cosmetic Surgery Leads</SelectItem>
-                      <SelectItem value="IVF Fertility Leads">IVF Fertility Leads</SelectItem>
-                      <SelectItem value="Eye Treatment Leads">Eye Treatment Leads</SelectItem>
+                      <SelectItem value="Tenant Screening Leads">Tenant Screening Leads</SelectItem>
+                      <SelectItem value="Background Check Leads">Background Check Leads</SelectItem>
+                      <SelectItem value="Landlord Outreach Leads">Landlord Outreach Leads</SelectItem>
+                      <SelectItem value="Property Manager Leads">Property Manager Leads</SelectItem>
                       <SelectItem value="All Services Leads">All Services Leads</SelectItem>
                     </SelectContent>
                   </Select>
@@ -211,7 +207,7 @@ export function CampaignForm() {
                 <FormItem>
                   <FormLabel>Campaign Goal</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g. Book a free consultation" {...field} />
+                    <Input placeholder="e.g. Get tenant reports" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -256,7 +252,7 @@ export function CampaignForm() {
                 <FormItem>
                   <FormLabel>Button Text</FormLabel>
                   <FormControl>
-                    <Input placeholder="Book Free Analysis" {...field} />
+                    <Input placeholder="Start Free Screening" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -270,7 +266,7 @@ export function CampaignForm() {
                 <FormItem>
                   <FormLabel>Button Link (optional)</FormLabel>
                   <FormControl>
-                    <Input placeholder="https://www.togahh.com/en/contact" {...field} />
+                    <Input placeholder="https://www.tenantreport.ai" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

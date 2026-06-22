@@ -9,7 +9,7 @@ const nextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'admin.togahh.com',
+        hostname: 'www.tenantreport.ai',
       },
     ],
   },

@@ -1,17 +1,13 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { getRequestUserId } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import axios from 'axios';
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const userId = await getRequestUserId();
 
     const body = await req.json();
     const { campaignId, decision, comments } = body;
@@ -36,6 +32,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
     }
 
+    if (campaign.execution.userId !== userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     if (campaign.status !== 'PENDING_APPROVAL') {
       return NextResponse.json(
         { error: `Campaign is already ${campaign.status}` },
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
         where: { id: campaignId },
         data: {
           status: 'REJECTED',
-          rejectedBy: session.user.id,
+          rejectedBy: userId,
           rejectedAt: new Date(),
           rejectionReason: comments || 'No reason provided',
         },
@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
     const approvalPayload = {
       execution_id: campaign.execution.n8nExecutionId,
       decision: 'approved',
-      user_id: session.user.id,
+      user_id: userId,
       comments: comments || '',
       campaign_data: {
         campaign_name: campaign.campaignName,
@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
     // Log approval execution
     await prisma.workflowExecution.create({
       data: {
-        userId: session.user.id,
+        userId,
         workflowType: 'CAMPAIGN_APPROVAL',
         workflowName: `Approve: ${campaign.campaignName}`,
         status: n8nData.status === 'success' ? 'SUCCESS' : 'FAILED',
@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
       where: { id: campaignId },
       data: {
         status: 'APPROVED',
-        approvedBy: session.user.id,
+        approvedBy: userId,
         approvedAt: new Date(),
         comments: comments || null,
       },

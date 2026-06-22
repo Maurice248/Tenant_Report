@@ -6,23 +6,29 @@ import {
   Cell,
   Tooltip,
   ResponsiveContainer,
-  Legend,
 } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useAppSection } from '@/lib/app-section';
+import { cn } from '@/lib/utils';
+import { outreachCardClass } from '@/components/outreach/page-body';
 
 const COLORS = ['#0077b6', '#2e86ab', '#48cae4', '#00b4d8', '#90e0ef', '#ade8f4'];
 
 interface LeadChartProps {
   data: { sheet: string; count: number }[];
+  title?: string;
 }
 
-export function LeadChart({ data }: LeadChartProps) {
+export function LeadChart({ data, title = 'Leads by Sheet' }: LeadChartProps) {
+  const { section } = useAppSection();
+  const isOutreach = section === 'outreach';
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Leads by Sheet</CardTitle>
+    <Card className={cn(isOutreach && outreachCardClass)}>
+      <CardHeader className={cn(isOutreach && 'p-5 pb-2')}>
+        <CardTitle className="text-base font-semibold text-gray-900">{title}</CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className={cn(isOutreach && 'px-5 pb-5 pt-0')}>
         <ResponsiveContainer width="100%" height={280}>
           <PieChart>
             <Pie

@@ -1,7 +1,30 @@
 import { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
+import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
+
+const DEFAULT_ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || 'admin@tenantreport.ai';
+
+/** Session user id, or seeded admin from DB when auth is bypassed in dev. */
+export async function getRequestUserId(): Promise<string> {
+  const session = await getServerSession(authOptions);
+  if (session?.user?.id) return session.user.id;
+
+  const user = await prisma.user.findUnique({
+    where: { email: DEFAULT_ADMIN_EMAIL },
+    select: { id: true },
+  });
+  if (!user) {
+    throw new Error(`No user found for ${DEFAULT_ADMIN_EMAIL}. Run: npx prisma db seed`);
+  }
+  return user.id;
+}
+
+export async function getRequestUserEmail(): Promise<string> {
+  const session = await getServerSession(authOptions);
+  return session?.user?.email ?? DEFAULT_ADMIN_EMAIL;
+}
 
 export const authOptions: NextAuthOptions = {
   session: {

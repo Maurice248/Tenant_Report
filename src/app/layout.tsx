@@ -11,12 +11,12 @@ const inter = Inter({
 });
 
 export const metadata = {
-  title: "Toga Health AI — Healthcare Ads Manager",
+  title: "Tenant Report AI - Tenant Ads manager",
   description:
-    "Professional AI-powered advertising and marketing automation for hospitals, clinics, and healthcare providers. Managed campaigns, competitor clinical analysis, and patient growth automation.",
+    "Professional AI-powered advertising and marketing automation for property management. Managed campaigns, competitor analysis, and tenant growth automation.",
   icons: {
-    icon: "/favicon.ico",
-    shortcut: "/favicon.ico",
+    icon: "/tenant-report-logo.png",
+    shortcut: "/tenant-report-logo.png",
     apple: "/apple-touch-icon.png",
   },
 };

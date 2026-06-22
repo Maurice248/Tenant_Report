@@ -17,6 +17,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/use-toast';
 import { Header } from '@/components/dashboard/header';
+import { PageBody } from '@/components/outreach/page-body';
+import { useAppSection } from '@/lib/app-section';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -106,6 +108,7 @@ export default function CampaignsPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const router = useRouter();
+  const { basePath, labels } = useAppSection();
 
   const [selectedCampaign, setSelectedCampaign]   = useState<Campaign | null>(null);
   const [comments, setComments]                   = useState('');
@@ -197,18 +200,24 @@ export default function CampaignsPage() {
     }
   }
 
-  async function handleQuickReject(campaignId: string) {
+  async function handleQuickReject(campaignId: string, campaignName: string) {
+    if (!confirm(`Reject "${campaignName}"?`)) return;
     try {
       const res = await fetch('/api/campaigns/approve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ campaignId, decision: 'rejected', comments: 'Quick reject' }),
       });
-      if (!res.ok) throw new Error('Failed');
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || 'Failed');
       queryClient.invalidateQueries({ queryKey: ['campaigns'] });
       toast({ title: 'Campaign rejected' });
-    } catch {
-      toast({ title: 'Error', description: 'Could not reject campaign', variant: 'destructive' });
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: err instanceof Error ? err.message : 'Could not reject campaign',
+        variant: 'destructive',
+      });
     }
   }
 
@@ -220,11 +229,16 @@ export default function CampaignsPage() {
     setDeletingId(campaignId);
     try {
       const res = await fetch(`/api/campaigns/${campaignId}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Delete failed');
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || 'Delete failed');
       queryClient.invalidateQueries({ queryKey: ['campaigns'] });
       toast({ title: 'Campaign deleted', description: `"${campaignName}" has been removed.` });
-    } catch {
-      toast({ title: 'Error', description: 'Could not delete campaign.', variant: 'destructive' });
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: err instanceof Error ? err.message : 'Could not delete campaign.',
+        variant: 'destructive',
+      });
     } finally {
       setDeletingId(null);
     }
@@ -242,7 +256,7 @@ export default function CampaignsPage() {
 
       // Store original input in sessionStorage → new campaign page reads it
       sessionStorage.setItem('reuse_campaign', JSON.stringify(json.originalInput));
-      router.push('/dashboard/campaigns/new');
+      router.push(`${basePath}/campaigns/new`);
     } catch {
       toast({ title: 'Error', description: 'Could not load campaign data.', variant: 'destructive' });
       setReusingId(null);
@@ -260,13 +274,13 @@ export default function CampaignsPage() {
 
   return (
     <div>
-      <Header title="Campaigns" description="AI-generated email campaigns with in-dashboard approval" />
+      <Header title={labels.campaignsTitle} description={labels.campaignsDescription} />
 
-      <div className="p-6 space-y-8">
+      <PageBody className="space-y-8">
         {/* New Campaign */}
         <div className="flex justify-end">
           <Button asChild className="bg-[#0077b6] hover:bg-[#005f8f] text-white">
-            <Link href="/dashboard/campaigns/new">
+            <Link href={`${basePath}/campaigns/new`}>
               <Plus className="mr-2 h-4 w-4" /> New Campaign
             </Link>
           </Button>
@@ -337,7 +351,7 @@ export default function CampaignsPage() {
                       <Button
                         variant="outline"
                         className="border-red-200 text-red-600 hover:bg-red-50"
-                        onClick={() => handleQuickReject(campaign.id)}
+                        onClick={() => handleQuickReject(campaign.id, campaign.campaignName)}
                       >
                         <XCircle className="mr-2 h-4 w-4" /> Reject
                       </Button>
@@ -432,7 +446,7 @@ export default function CampaignsPage() {
             </div>
           </section>
         )}
-      </div>
+      </PageBody>
 
       {/* ════════════════════════════════════════════════
           Review & Approval Dialog

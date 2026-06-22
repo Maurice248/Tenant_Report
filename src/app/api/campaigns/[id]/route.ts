@@ -1,8 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { getRequestUserId } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
 // DELETE /api/campaigns/[id]
@@ -12,10 +11,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const userId = await getRequestUserId();
 
     const campaign = await prisma.campaign.findUnique({
       where: { id },
@@ -27,7 +23,7 @@ export async function DELETE(
     }
 
     // Only owner can delete
-    if (campaign.execution.userId !== session.user.id) {
+    if (campaign.execution.userId !== userId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -48,10 +44,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const userId = await getRequestUserId();
 
     const campaign = await prisma.campaign.findUnique({
       where: { id },
@@ -62,7 +55,7 @@ export async function GET(
       return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
     }
 
-    if (campaign.execution.userId !== session.user.id) {
+    if (campaign.execution.userId !== userId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

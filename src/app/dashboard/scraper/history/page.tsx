@@ -8,6 +8,8 @@ import {
   ExternalLink, AlertCircle, Clock,
 } from 'lucide-react';
 import { Header } from '@/components/dashboard/header';
+import { PageBody } from '@/components/outreach/page-body';
+import { useAppSection } from '@/lib/app-section';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -52,6 +54,7 @@ function SuccessRate({ valid, total }: { valid: number; total: number }) {
 }
 
 export default function ScraperHistoryPage() {
+  const { basePath } = useAppSection();
   const { data, isLoading, error } = useQuery({
     queryKey: ['scraper-jobs'],
     queryFn: async () => {
@@ -68,16 +71,16 @@ export default function ScraperHistoryPage() {
     <div>
       <Header title="Scraper History" description="All past Google Maps scraping runs" />
 
-      <div className="p-6 space-y-5">
+      <PageBody className="space-y-5">
         {/* Back + New Scrape */}
         <div className="flex items-center justify-between">
           <Button variant="ghost" asChild className="text-gray-600 gap-2">
-            <Link href="/dashboard/scraper">
+            <Link href={`${basePath}/scraper`}>
               <ArrowLeft className="h-4 w-4" /> Back to Scraper
             </Link>
           </Button>
           <Button asChild className="bg-[#0077b6] hover:bg-[#005f8f] text-white gap-2">
-            <Link href="/dashboard/scraper">
+            <Link href={`${basePath}/scraper`}>
               <Search className="h-4 w-4" /> New Scrape
             </Link>
           </Button>
@@ -104,7 +107,7 @@ export default function ScraperHistoryPage() {
             <p className="text-lg font-medium">No scraper runs yet</p>
             <p className="text-sm mb-4">Start a scrape to find leads on Google Maps</p>
             <Button asChild className="bg-[#0077b6] hover:bg-[#005f8f] text-white">
-              <Link href="/dashboard/scraper">Start Scraping</Link>
+              <Link href={`${basePath}/scraper`}>Start Scraping</Link>
             </Button>
           </div>
         )}
@@ -227,7 +230,7 @@ export default function ScraperHistoryPage() {
             </Card>
           </>
         )}
-      </div>
+      </PageBody>
     </div>
   );
 }

@@ -38,17 +38,46 @@ import {
   PieChart,
   Share2,
   Newspaper,
+  Phone,
+  PenLine,
+  Search,
+  History,
+  Trash2,
 } from "lucide-react";
-import { supabase } from "../lib/supabase";
+import OutreachTab from "./OutreachTab";
+import NewsletterTab from "./NewsletterTab";
+import { supabase, supabaseProjectUrl } from "../lib/supabase";
 import { useRouter } from "next/navigation";
 import CampaignSetup from "./CampaignSetup";
 import SocialDash from "./SocialDash";
 import CustomSelect from "./CustomSelect";
 import VoiceExplorerModal from "./VoiceExplorerModal";
 import "./globals.css";
+import { DEFAULT_WEBSITE_URL } from "@/lib/legacy-brand";
 
 // ─── CONSTANTS ───────────────────────────────────────────────
 const API_URL = "/api/trigger-n8n";
+
+const DEFAULT_BRAND_CONFIG = {
+  productsAndServices:
+    "Tenant Reports (background checks & applicant reports), Smart Tenant Subscription (AI-powered reliability scoring), Rent Promise & Protection Package, Online landlord dashboard, Background Screening, Credit Reports",
+  valueProposition:
+    "Reduce risk and ensure reliable rental income — affordable AI-powered tenant screening with comprehensive background & credit reports, real-time application tracking, and rent protection guarantees",
+  brandVoice:
+    "Trustworthy, Professional, Clear, Landlord-focused, Solution-oriented, Confidence-building",
+  positioning:
+    "Affordable AI-powered tenant screening platform for Canadian landlords — streamlining tenant selection with transparent pricing and comprehensive risk reduction tools",
+  competitors:
+    "SingleKey, Naborly, Certn, Landlord Credit Bureau, TenantCheck",
+  painPoints:
+    "Unreliable tenant payment history, risk of missed rent, time-consuming manual screening, difficulty verifying applicant reliability, rental income uncertainty, fear of bad tenant selection",
+  icpMetaAds:
+    "Canadian landlords and property managers aged 28-60, owning 1-10 rental units, interested in property management, real estate investing, landlord rights, rental income protection, tenant screening",
+  icpNewsletter:
+    "Canadian landlords actively screening tenants or comparing screening services — need trust-building content about AI-driven reliability scoring, background checks, credit reports, and rent protection packages",
+  icpOutreach:
+    "Landlords, property managers, and real estate investors in Canada — small-to-mid portfolio owners managing residential rentals, seeking affordable tenant screening solutions",
+};
 
 const TABS = [
   { id: "profile", label: "Brand", icon: User },
@@ -60,20 +89,71 @@ const TABS = [
   { id: "live_campaigns", label: "Running Campaign", icon: TrendingUp },
   { id: "reports", label: "Reports", icon: PieChart },
   { id: "social-dash", label: "Social-Dash", icon: Share2 },
-  { id: "newsletter", label: "Newsletter", icon: Newspaper, externalLink: "https://newsletter-weld-rho.vercel.app/newsletter/generate" },
-  { id: "outreach", label: "Outreach", icon: Send, externalLink: "https://outreach-seven-phi.vercel.app" },
 ];
+
+const VOICE_AGENT_ENABLED = false;
+
+const VOICE_TABS = VOICE_AGENT_ENABLED
+  ? [{ id: "voice-dashboard", label: "Dashboard", icon: LayoutDashboard }]
+  : [];
+
+const NEWSLETTER_TABS = [
+  { id: "newsletter-dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { id: "newsletter-generate", label: "Generate Newsletter", icon: PenLine },
+  { id: "newsletter-campaign", label: "Create Campaign", icon: Megaphone },
+  { id: "newsletter-history", label: "History", icon: History },
+  { id: "newsletter-services", label: "Manage Services", icon: Settings2 },
+];
+
+const VOICE_NEWSLETTER_IDS = new Set([
+  ...VOICE_TABS.map((t) => t.id),
+  ...NEWSLETTER_TABS.map((t) => t.id),
+]);
 
 const META_ADS_IDS = new Set(["overview", "create", "approval", "campaigns", "live_campaigns", "reports"]);
 
+const OUTREACH_TABS = [
+  { id: "outreach-dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { id: "outreach-campaigns", label: "Email Messages", icon: Mail },
+  { id: "outreach-analytics", label: "Outreach Analytics", icon: BarChart3 },
+  { id: "outreach-scraper", label: "Lead Scraper", icon: Search },
+  { id: "outreach-scraper-history", label: "Scraper History", icon: History },
+  { id: "outreach-cleanup", label: "Reset Lead Status", icon: Trash2 },
+];
+
+const OUTREACH_IDS = new Set(OUTREACH_TABS.map((t) => t.id));
+
+const DEFAULT_RESEARCH_KEYWORDS = [
+  "tenant screening",
+  "tenant background check",
+  "landlord tenant screening",
+  "rental applicant screening",
+  "tenant credit check",
+  "tenant verification",
+  "rent guarantee insurance",
+  "landlord screening platform",
+];
+
+const RESEARCH_KEYWORDS_KEY = "tenant_research_keywords_v2";
+
+const isLegacyResearchKeywords = (keywords: unknown) =>
+  !Array.isArray(keywords) ||
+  keywords.length === 0 ||
+  keywords.some((kw) =>
+    /dental|hair transplant|medical tourism|hollywood smile|zirconium|fue hair|affordable dental/i.test(String(kw))
+  );
+
+const restoreResearchKeywords = (parsed: unknown) =>
+  isLegacyResearchKeywords(parsed) ? DEFAULT_RESEARCH_KEYWORDS : parsed;
+
 const TOPICS = [
-  "Advanced Orthopedics",
-  "Cosmetic Dentistry",
-  "Ophthalmic Surgery",
-  "Preventative Cardiology",
-  "Pediatric Wellness",
-  "Clinical Excellence",
-  "Patient Care Protocols",
+  "Tenant Screening",
+  "Background Checks",
+  "Credit Reports",
+  "Rent Protection",
+  "Landlord Dashboard",
+  "Rental Application Tracking",
+  "AI Tenant Scoring",
 ];
 
 const LOCATION_SUGGESTIONS = [
@@ -97,7 +177,7 @@ const LOCATION_SUGGESTIONS = [
  */
 const normalizeSupabaseUrl = (url) => {
   if (!url || typeof url !== "string") return url;
-  const currentUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+  const currentUrl = supabaseProjectUrl;
   if (!currentUrl) return url;
 
   // If it's a Supabase storage URL
@@ -123,6 +203,162 @@ const normalizeSupabaseUrl = (url) => {
   return url;
 };
 
+/** Supabase may store Approved as boolean or "true"/"false" strings. */
+function isAdApproved(approved: unknown): boolean {
+  return approved === true || approved === "true";
+}
+
+function getStorageFileName(url: unknown): string {
+  if (!url || typeof url !== "string") return "";
+  if (url.includes("/storage/v1/object/")) {
+    const pathPart = url.split("/object/")[1]?.replace(/^(public\/|authenticated\/)/, "") || "";
+    const segments = pathPart.split("/");
+    if (segments.length >= 2) return segments.slice(1).join("/").split("?")[0];
+  }
+  return url.split("/").pop()?.split("?")[0] || "";
+}
+
+function getMarketInsightValue(table, ...labels) {
+  if (!table?.length) return "";
+  const lower = labels.map((l) => l.toLowerCase());
+  const row = table.find((r) =>
+    lower.some((l) => (r?.field || "").toLowerCase().includes(l))
+  );
+  return row?.value || "";
+}
+
+function getAnalysisInsightValue(analysis, ...labels) {
+  const fromTable = getMarketInsightValue(analysis?.market_insights_table, ...labels);
+  if (fromTable) return fromTable;
+  const mi = analysis?.market_insights;
+  if (mi && typeof mi === "object" && !Array.isArray(mi)) {
+    for (const label of labels) {
+      const key = Object.keys(mi).find((k) =>
+        k.toLowerCase().includes(label.toLowerCase())
+      );
+      if (key && mi[key]) return String(mi[key]);
+    }
+  }
+  return "";
+}
+
+function extractReadyScript(analysis, index = 0) {
+  const scripts = analysis?.ready_ad_scripts || [];
+  if (!scripts.length) return null;
+  const item = scripts[index] ?? scripts[0];
+  if (typeof item === "string") return item;
+  return (
+    item?.script ||
+    item?.idea ||
+    item?.storyboard ||
+    item?.text ||
+    item?.narrative ||
+    null
+  );
+}
+
+function buildStoryboardFromAnalysis(analysis, itemIndex = 0) {
+  const ready = extractReadyScript(analysis, itemIndex);
+  if (ready) return ready;
+
+  const hooks = analysis?.hooks_table || [];
+  const gaps = analysis?.gaps_table || analysis?.gap_opportunities || [];
+  const angle = getAnalysisInsightValue(analysis, "angle");
+  const framework = getAnalysisInsightValue(analysis, "framework");
+  const cta = getAnalysisInsightValue(analysis, "cta");
+  const format = getAnalysisInsightValue(analysis, "format");
+
+  const priorityOrder = { high: 0, medium: 1, low: 2 };
+  const sortedGaps = [...gaps].sort(
+    (a, b) =>
+      (priorityOrder[a?.priority?.toLowerCase()] ?? 9) -
+      (priorityOrder[b?.priority?.toLowerCase()] ?? 9)
+  );
+  const gap = sortedGaps[itemIndex] || sortedGaps[0];
+  const hook = hooks[itemIndex] || hooks[0];
+
+  const parts = [];
+  if (gap?.opportunity) parts.push(gap.opportunity);
+  else if (gap?.gap) parts.push(`Address the gap: ${gap.gap}`);
+
+  if (hook?.example || hook?.pattern) {
+    parts.push(
+      `\n\nHook (${hook.pattern || "proven pattern"}): "${hook.example || hook.pattern}"`
+    );
+  }
+
+  const context = [
+    angle && `Angle: ${angle}`,
+    framework && `Framework: ${framework}`,
+    cta && `CTA: ${cta}`,
+    format && `Format: ${format}`,
+  ].filter(Boolean);
+  if (context.length) parts.push(`\n\n${context.join(" | ")}`);
+
+  if (!parts.length && analysis?.executive_summary) {
+    return analysis.executive_summary.slice(0, 600);
+  }
+
+  return parts.join("").trim();
+}
+
+function inferAdTypeFromAnalysis(analysis) {
+  const format = getAnalysisInsightValue(analysis, "format").toLowerCase();
+  if (
+    format.includes("image") ||
+    format.includes("carousel") ||
+    format.includes("static")
+  ) {
+    return "image";
+  }
+  return "video";
+}
+
+function buildCreateTabConfigFromAnalysis(analysis, prevConfig) {
+  const scripts = analysis?.ready_ad_scripts || [];
+  const adType = inferAdTypeFromAnalysis(analysis);
+  const itemCount = Math.max(
+    1,
+    Math.min(5, scripts.length > 1 ? scripts.length : 1)
+  );
+
+  const newItems = [];
+  for (let i = 0; i < itemCount; i++) {
+    const idea = buildStoryboardFromAnalysis(analysis, i);
+    const existing = prevConfig.items[i];
+    const id = existing?.id || Date.now() + i;
+
+    if (adType === "video") {
+      newItems.push({
+        id,
+        type: "video",
+        duration: existing?.duration || "28 seconds",
+        audioStyle: existing?.audioStyle || "Background Music",
+        videoStyle: existing?.videoStyle || "Bold & Colorful",
+        language: existing?.language || "English",
+        character: existing?.character || "male",
+        voiceId: existing?.voiceId || "rTOopItG6FIkKMIVxsl5",
+        idea,
+      });
+    } else {
+      newItems.push({
+        id,
+        type: "image",
+        imageStyle: existing?.imageStyle || "Bold & Colorful",
+        idea,
+      });
+    }
+  }
+
+  const vCount = newItems.filter((x) => x.type === "video").length;
+  const iCount = newItems.filter((x) => x.type === "image").length;
+  return {
+    totalAds: newItems.length,
+    videoCount: vCount,
+    imageCount: iCount,
+    items: newItems,
+  };
+}
 
 
 // ─── PERSISTENT LOCAL STORAGE HOOK ──────────────────────────
@@ -167,10 +403,13 @@ function useLocalStorage(key, defaultValue, onRestore = null) {
 // ─── MAIN DASHBOARD ──────────────────────────────────────────
 export default function Dashboard() {
   const router = useRouter();
-  const [tab, setTab] = useLocalStorage("toga_active_tab", "overview");
+  const [tab, setTab] = useLocalStorage("app_active_tab", "overview");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useLocalStorage("toga_sidebar_collapsed", false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useLocalStorage("app_sidebar_collapsed", false);
   const [metaAdsOpen, setMetaAdsOpen] = useState(false);
+  const [outreachOpen, setOutreachOpen] = useState(false);
+  const [voiceOpen, setVoiceOpen] = useState(false);
+  const [newsletterOpen, setNewsletterOpen] = useState(false);
   const [selectedTopic, setSelectedTopic] = useState(TOPICS[1]);
   const [user, setUser] = useState(null);
   const [isAuthenticating, setIsAuthenticating] = useState(true);
@@ -178,36 +417,64 @@ export default function Dashboard() {
   // Auto-open Meta Ads group when navigating to one of its tabs
   useEffect(() => { if (META_ADS_IDS.has(tab)) setMetaAdsOpen(true); }, [tab]);
 
+  // Auto-open Outreach group when navigating to one of its tabs
+  useEffect(() => { if (OUTREACH_IDS.has(tab)) setOutreachOpen(true); }, [tab]);
+
+  // Auto-open Voice Agent / Newsletter groups
+  useEffect(() => {
+    if (VOICE_TABS.some((t) => t.id === tab)) setVoiceOpen(true);
+    if (NEWSLETTER_TABS.some((t) => t.id === tab)) setNewsletterOpen(true);
+  }, [tab]);
+
+  // Migrate legacy tab ids from localStorage
+  useEffect(() => { if (tab === "outreach") setTab("outreach-dashboard"); }, [tab, setTab]);
+  useEffect(() => { if (tab === "newsletter") setTab("newsletter-generate"); }, [tab, setTab]);
+  useEffect(() => {
+    if (!VOICE_AGENT_ENABLED && tab === "voice-dashboard") setTab("overview");
+  }, [tab, setTab]);
+
 
   // Analysis state — status and data persist across refresh
-  const [analysisStatus, setAnalysisStatus] = useLocalStorage("toga_analysis_status", "idle");
+  const [analysisStatus, setAnalysisStatus] = useLocalStorage("app_analysis_status", "idle");
   // idle | generating | done | error
-  const [analysisData, setAnalysisData] = useLocalStorage("toga_analysis_data", null);
+  const [analysisData, setAnalysisData] = useLocalStorage("app_analysis_data", null);
   const [analysisProgress, setAnalysisProgress] = useState(0);
 
   const [analysisError, setAnalysisError] = useState("");
-  const [pendingAnalysisTopic, setPendingAnalysisTopic] = useLocalStorage("toga_pending_analysis_topic", null);
+  const [pendingAnalysisTopic, setPendingAnalysisTopic] = useLocalStorage("app_pending_analysis_topic", null);
   const pendingTopicRef = useRef<string | null>(null); // ref so realtime callback always sees latest value
   useEffect(() => { pendingTopicRef.current = pendingAnalysisTopic; }, [pendingAnalysisTopic]);
 
   // Custom keywords research form states
-  const [researchKeywords, setResearchKeywords] = useLocalStorage("toga_research_keywords", [
-    "dental implants turkey",
-    "dental tourism turkey",
-    "hair transplant turkey",
-    "medical tourism turkey",
-    "hollywood smile turkey",
-    "zirconium crowns turkey",
-    "fue hair transplant",
-    "affordable dental treatment abroad"
-  ]);
+  const [researchKeywords, setResearchKeywords] = useLocalStorage(
+    RESEARCH_KEYWORDS_KEY,
+    DEFAULT_RESEARCH_KEYWORDS,
+    restoreResearchKeywords
+  );
+
+  // Drop superseded localStorage keys from legacy defaults
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    Object.keys(localStorage).forEach((key) => {
+      if (key.startsWith("toga_")) {
+        const migrated = "app_" + key.slice(5);
+        if (localStorage.getItem(migrated) === null) {
+          const val = localStorage.getItem(key);
+          if (val !== null) localStorage.setItem(migrated, val);
+        }
+        localStorage.removeItem(key);
+      }
+    });
+    window.localStorage.removeItem("toga_research_keywords");
+    window.localStorage.removeItem("tenant_research_keywords");
+  }, []);
   const [keywordInput, setKeywordInput] = useState("");
-  const [researchCountries, setResearchCountries] = useLocalStorage("toga_research_countries", ["CA", "US"]);
+  const [researchCountries, setResearchCountries] = useLocalStorage("app_research_countries", ["CA", "US"]);
   const [locationSearchInput, setLocationSearchInput] = useState("");
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
-  const [researchMaxAds, setResearchMaxAds] = useLocalStorage("toga_research_max_ads", 100);
-  const [researchOnlyActive, setResearchOnlyActive] = useLocalStorage("toga_research_only_active", true);
-  const [researchSort, setResearchSort] = useLocalStorage("toga_research_sort", "Impressions High → Low");
+  const [researchMaxAds, setResearchMaxAds] = useLocalStorage("app_research_max_ads", 100);
+  const [researchOnlyActive, setResearchOnlyActive] = useLocalStorage("app_research_only_active", true);
+  const [researchSort, setResearchSort] = useLocalStorage("app_research_sort", "Impressions High → Low");
 
   // Sync first keyword to selectedTopic for compatibility with other tabs
   useEffect(() => {
@@ -219,15 +486,15 @@ export default function Dashboard() {
 
   // Ad creation
   // "generating" = in-flight browser fetch; a refresh kills that request so always restore as "idle"
-  const [adStatus, setAdStatus] = useLocalStorage("toga_ad_status", "idle",
+  const [adStatus, setAdStatus] = useLocalStorage("app_ad_status", "idle",
     (v) => (v === "generating" ? "idle" : v));
   // idle | generating | waiting | done | error
-  const [adData, setAdData] = useLocalStorage("toga_ad_data", null);
+  const [adData, setAdData] = useLocalStorage("app_ad_data", null);
 
   // Approval & launch
   const [approved, setApproved] = useState(false);
-  const [budget, setBudget] = useLocalStorage("toga_budget", 50);
-  const [duration, setDuration] = useLocalStorage("toga_duration", 7);
+  const [budget, setBudget] = useLocalStorage("app_budget", 50);
+  const [duration, setDuration] = useLocalStorage("app_duration", 7);
   const [launchStatus, setLaunchStatus] = useState("idle");
   // idle | launching | live | error
 
@@ -281,17 +548,7 @@ export default function Dashboard() {
   const [errorNotificationTime, setErrorNotificationTime] = useState<string | null>(null);
 
   // ── Profile Form Data (Supabase Integration) ──
-  const [profileData, setProfileData] = useState<any>({
-    productsAndServices: "",
-    valueProposition: "",
-    brandVoice: "",
-    positioning: "",
-    competitors: "",
-    painPoints: "",
-    icpMetaAds: "",
-    icpNewsletter: "",
-    icpOutreach: ""
-  });
+  const [profileData, setProfileData] = useState<any>({ ...DEFAULT_BRAND_CONFIG });
   const [profileId, setProfileId] = useState<string>("d33fb700-9a07-4478-9ff1-6f636f2f3625");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -304,15 +561,15 @@ export default function Dashboard() {
       if (data) {
         setProfileId(data.id);
         setProfileData({
-          productsAndServices: data.products_services || "",
-          valueProposition: data.value_proposition || "",
-          brandVoice: data.brand_voice || "",
-          positioning: data.positioning || "",
-          competitors: data.competitors || "",
-          painPoints: data.pain_points || "",
-          icpMetaAds: data.icp_meta_ads || "",
-          icpNewsletter: data.icp_newsletter || "",
-          icpOutreach: data.icp_outreach || ""
+          productsAndServices: data.products_services || DEFAULT_BRAND_CONFIG.productsAndServices,
+          valueProposition: data.value_proposition || DEFAULT_BRAND_CONFIG.valueProposition,
+          brandVoice: data.brand_voice || DEFAULT_BRAND_CONFIG.brandVoice,
+          positioning: data.positioning || DEFAULT_BRAND_CONFIG.positioning,
+          competitors: data.competitors || DEFAULT_BRAND_CONFIG.competitors,
+          painPoints: data.pain_points || DEFAULT_BRAND_CONFIG.painPoints,
+          icpMetaAds: data.icp_meta_ads || DEFAULT_BRAND_CONFIG.icpMetaAds,
+          icpNewsletter: data.icp_newsletter || DEFAULT_BRAND_CONFIG.icpNewsletter,
+          icpOutreach: data.icp_outreach || DEFAULT_BRAND_CONFIG.icpOutreach,
         });
       }
     };
@@ -379,12 +636,12 @@ export default function Dashboard() {
         }
 
         // Only show if this exact error message has not been dismissed before
-        const lastDismissedMsg = localStorage.getItem("toga_last_dismissed_error_msg") || "";
+        const lastDismissedMsg = localStorage.getItem("app_last_dismissed_error_msg") || "";
         if (errMsg !== lastDismissedMsg) {
           setErrorNotification(errMsg);
           setErrorNotificationTime(errMsg); // reuse state field to carry the key for dismiss
           // If a video generation is in progress, stop the stuck progress bar
-          if (localStorage.getItem("toga_video_gen_start")) {
+          if (localStorage.getItem("app_video_gen_start")) {
             stopVideoGenProgress(false);
           }
         } else {
@@ -410,7 +667,7 @@ export default function Dashboard() {
 
   const dismissError = useCallback(async (msg: string) => {
     if (!msg) return;
-    localStorage.setItem("toga_last_dismissed_error_msg", msg.trim());
+    localStorage.setItem("app_last_dismissed_error_msg", msg.trim());
     try {
       await supabase
         .from("Error Alerts")
@@ -451,11 +708,13 @@ export default function Dashboard() {
   // Stores { "1": { text: "...", format: "Video", Approved: bool }, ... }
   const [allApprovedAds, setAllApprovedAds] = useState([]);
   const [approvingId, setApprovingId] = useState(null);
+  const [removingId, setRemovingId] = useState(null);
+  const [missingMediaKeys, setMissingMediaKeys] = useState<Set<string>>(() => new Set());
   const [selectedAdForDetails, setSelectedAdForDetails] = useState(null);
-  const [workflowStatus, setWorkflowStatus] = useLocalStorage("toga_workflow_status", "");
+  const [workflowStatus, setWorkflowStatus] = useLocalStorage("app_workflow_status", "");
   // If no active video generation (no start timestamp), stale isStatusPolling=true should reset
-  const [isStatusPolling, setIsStatusPolling] = useLocalStorage("toga_is_status_polling", false,
-    (v) => (v === true && typeof window !== "undefined" && !localStorage.getItem("toga_video_gen_start") ? false : v));
+  const [isStatusPolling, setIsStatusPolling] = useLocalStorage("app_is_status_polling", false,
+    (v) => (v === true && typeof window !== "undefined" && !localStorage.getItem("app_video_gen_start") ? false : v));
   const [isEditingAd, setIsEditingAd] = useState(false);
   const [editingAdData, setEditingAdData] = useState<any>({});
   const [isSavingAd, setIsSavingAd] = useState(false);
@@ -483,12 +742,12 @@ export default function Dashboard() {
   const videoGenPollRef = useRef<any>(null);
   const [promptsAccepted, setPromptsAccepted] = useState<boolean>(() => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("toga_prompts_accepted") === "true";
+      return localStorage.getItem("app_prompts_accepted") === "true";
     }
     return false;
   });
-  const [selectedMetaCampaign, setSelectedMetaCampaign] = useLocalStorage("toga_selected_meta_campaign", null);
-  const [launchAdCandidate, setLaunchAdCandidate] = useLocalStorage("toga_launch_ad_candidate", null);
+  const [selectedMetaCampaign, setSelectedMetaCampaign] = useLocalStorage("app_selected_meta_campaign", null);
+  const [launchAdCandidate, setLaunchAdCandidate] = useLocalStorage("app_launch_ad_candidate", null);
 
   // Custom Media Upload
   const [customUploadLoading, setCustomUploadLoading] = useState(false);
@@ -541,9 +800,9 @@ export default function Dashboard() {
     setGeneratedIdeas({});
     setWebhookError("");
     if (typeof window !== "undefined") {
-      localStorage.removeItem("toga_prompts_accepted");
-      localStorage.removeItem("toga_ad_status");
-      localStorage.removeItem("toga_ad_data");
+      localStorage.removeItem("app_prompts_accepted");
+      localStorage.removeItem("app_ad_status");
+      localStorage.removeItem("app_ad_data");
     }
   }
 
@@ -556,42 +815,29 @@ export default function Dashboard() {
   const fetchAdTableLinks = useCallback(async () => {
     setAdVideosLoading(true);
 
-    // 1. Fetch from Storage (Global Lookup)
-    // We create a map of filename -> storage info to verify existence and fix bucket mismatches
+    // Fetch via server API (service role) — anon key cannot read your_name_table or list storage
+    let dbData = [];
     const storageLookup = new Map();
     try {
-      const buckets = ["AD1", "AD2", "AD3", "AD4", "AD5"];
-      for (const bucket of buckets) {
-        const { data: files } = await supabase.storage.from(bucket).list('', { limit: 100 });
-        if (files && files.length > 0) {
-          files.forEach(file => {
-            if (file.name === ".emptyFolderPlaceholder") return;
-            // Map filename to the first bucket we find it in (or prioritize later buckets if needed)
-            storageLookup.set(file.name, {
-              bucket,
-              time: file.created_at,
-              publicUrl: `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${bucket}/${file.name}`
-            });
-          });
-        }
+      const res = await fetch("/api/ads");
+      const payload = await res.json();
+      if (!res.ok || payload.error) {
+        console.error("Database fetch error:", payload.error || res.statusText);
+      } else {
+        dbData = payload.rows || [];
+        Object.entries(payload.storageLookup || {}).forEach(([name, info]) => {
+          storageLookup.set(name, info);
+        });
       }
     } catch (e) {
-      console.warn("Storage sync failed:", e);
-    }
-
-    // 2. Fetch from Database
-    const { data: dbData, error: dbError } = await supabase
-      .from("your_name_table")
-      .select("id, text, time, format, Approved, \"json data\"")
-      .order("time", { ascending: false });
-
-    if (dbError && dbError.code !== "PGRST116") {
-      console.error("Database fetch error:", dbError);
+      console.warn("Ads fetch failed:", e);
     }
 
     const latest = {};
     const approvedList = [];
     const validPending = [];
+    const hasStorageIndex = storageLookup.size > 0;
+    let hiddenMissingMedia = 0;
 
 
     // Process DB data
@@ -599,15 +845,20 @@ export default function Dashboard() {
       const normalizedText = normalizeSupabaseUrl(row.text);
       if (!normalizedText) return;
 
-      const fileName = normalizedText.split("/").pop();
-      const storageInfo = storageLookup.get(fileName);
+      const fileName = getStorageFileName(normalizedText);
+      const storageInfo = fileName ? storageLookup.get(fileName) : undefined;
+
+      // Skip rows whose file was deleted from Supabase storage
+      if (hasStorageIndex && fileName && !storageInfo) {
+        hiddenMissingMedia += 1;
+        return;
+      }
 
       // We prioritize the database record. If storageLookup found it, we use the storage URL.
-      // If storageLookup is empty (e.g. due to list permissions), we still show the ad using the normalized URL.
       const finalUrl = storageInfo ? storageInfo.publicUrl : normalizedText;
       const entry = { ...row, originalText: row.text, text: finalUrl };
 
-      if (row.Approved && row.Approved !== "false") {
+      if (isAdApproved(row.Approved)) {
         approvedList.push(entry);
       } else {
         validPending.push(entry);
@@ -639,7 +890,14 @@ export default function Dashboard() {
 
     setAdTableLinks(latest);
     setAllApprovedAds(approvedList);
+    setMissingMediaKeys(new Set());
 
+    if (hiddenMissingMedia > 0) {
+      addSbToast(
+        `${hiddenMissingMedia} ad${hiddenMissingMedia === 1 ? "" : "s"} hidden — media no longer in Supabase storage.`,
+        "info"
+      );
+    }
 
     setAdVideosLoading(false);
     setAdVideosRefreshKey(Date.now());
@@ -834,12 +1092,12 @@ export default function Dashboard() {
   // On mount: if analysisStatus is "generating" but no sessionStorage flag,
   // it means the page was refreshed mid-analysis — reset to idle so user can re-trigger
   useEffect(() => {
-    const isActiveSession = sessionStorage.getItem("toga_analysis_active");
+    const isActiveSession = sessionStorage.getItem("app_analysis_active");
     if (!isActiveSession) {
       // No active fetch in this session — clear any stale generating state
       setAnalysisStatus("idle");
       setAnalysisProgress(0);
-      window.localStorage.removeItem("toga_analysis_start");
+      window.localStorage.removeItem("app_analysis_start");
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -877,8 +1135,8 @@ export default function Dashboard() {
               setAnalysisData({ ...newReport, id: payload.new.id });
               setAnalysisStatus("done");
               setAnalysisProgress(100);
-              window.localStorage.removeItem("toga_analysis_start");
-              sessionStorage.removeItem("toga_analysis_active");
+              window.localStorage.removeItem("app_analysis_start");
+              sessionStorage.removeItem("app_analysis_active");
               setPendingAnalysisTopic(null);
               addSbToast("Analysis completed and loaded!", "success");
             }
@@ -900,7 +1158,7 @@ export default function Dashboard() {
 
   // ── Resume progress bar if page was refreshed mid-generation ──
   useEffect(() => {
-    const stored = window.localStorage.getItem("toga_video_gen_start");
+    const stored = window.localStorage.getItem("app_video_gen_start");
     if (!stored) return;
     const start = Number(stored);
     const elapsed = Date.now() - start;
@@ -914,7 +1172,7 @@ export default function Dashboard() {
         if (e2 >= VIDEO_GEN_DURATION) clearInterval(videoGenTimerRef.current);
       }, 2000);
     } else {
-      window.localStorage.removeItem("toga_video_gen_start");
+      window.localStorage.removeItem("app_video_gen_start");
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -949,8 +1207,8 @@ export default function Dashboard() {
   useEffect(() => {
     // Check local session (Bypassing Supabase Auth)
     const checkLocalSession = () => {
-      const isLoggedIn = localStorage.getItem("toga_auth_session") === "true";
-      const userEmail = localStorage.getItem("toga_user_email") || "togahealthai@gmail.com";
+      const isLoggedIn = localStorage.getItem("app_auth_session") === "true";
+      const userEmail = localStorage.getItem("app_user_email") || process.env.NEXT_PUBLIC_ADMIN_EMAIL || "admin@tenantreport.ai";
 
       if (isLoggedIn) {
         setUser({ email: userEmail });
@@ -965,7 +1223,7 @@ export default function Dashboard() {
 
     // Listen for storage changes (e.g. logout in another tab)
     const handleStorageChange = (e) => {
-      if (e.key === "toga_auth_session" && e.newValue !== "true") {
+      if (e.key === "app_auth_session" && e.newValue !== "true") {
         setUser(null);
         router.push("/login");
       }
@@ -977,8 +1235,8 @@ export default function Dashboard() {
 
   const handleSignOut = async () => {
     try {
-      localStorage.removeItem("toga_auth_session");
-      localStorage.removeItem("toga_user_email");
+      localStorage.removeItem("app_auth_session");
+      localStorage.removeItem("app_user_email");
       addSbToast("Signed out successfully");
       router.push("/login");
     } catch (e) {
@@ -1042,7 +1300,7 @@ export default function Dashboard() {
       return;
     }
 
-    const startRaw = window.localStorage.getItem("toga_analysis_start");
+    const startRaw = window.localStorage.getItem("app_analysis_start");
     const startTime = startRaw ? Number(startRaw) : null;
     const MAX_DURATION = 300_000; // 5 min max (proxy maxDuration)
 
@@ -1050,7 +1308,7 @@ export default function Dashboard() {
     if (!startTime || (Date.now() - startTime) > 360_000) {
       setAnalysisStatus("idle");
       setAnalysisProgress(0);
-      window.localStorage.removeItem("toga_analysis_start");
+      window.localStorage.removeItem("app_analysis_start");
       return;
     }
 
@@ -1209,41 +1467,94 @@ export default function Dashboard() {
     if (!row) return;
     setApprovingId(row.id + "_" + row.time);
 
-    let error;
-    if (row.isVirtual) {
-      // This is a virtual entry from Storage Sync. We need to create a real record in the database.
-      const { error: insError } = await supabase
-        .from("your_name_table")
-        .insert([{
+    try {
+      const res = await fetch("/api/ads/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: row.originalText || row.text,
+          approved: true,
           id: row.id,
-          text: row.text,
           time: row.time,
           format: row.format,
-          Approved: "true"
-        }]);
-      error = insError;
-    } else {
-      // RLS is now disabled, so we can use the client directly
-      const { error: updError } = await supabase
-        .from("your_name_table")
-        .update({ Approved: "true" })
-        .eq("text", row.originalText || row.text);
-      error = updError;
-    }
-
-    if (error) {
-      console.error("Approval error:", error);
-      addSbToast(`Approval failed: ${error.message || 'Unknown error'}`, "error");
-    } else {
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Approval failed");
+      }
+      if (data.rowsAffected === 0) {
+        throw new Error("No matching ad record found to approve");
+      }
       addSbToast("Ad approved successfully!");
       await fetchAdTableLinks();
+    } catch (error) {
+      console.error("Approval error:", error);
+      addSbToast(`Approval failed: ${error.message || "Unknown error"}`, "error");
     }
-
-
 
     setApprovingId(null);
   }
 
+  async function handleRemoveApprovedAd(ad) {
+    if (!ad || !confirm("Remove this creative from the approval queue?")) return;
+    setRemovingId(ad.id + "_" + ad.time);
+    try {
+      const res = await fetch("/api/ads", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: ad.id,
+          time: ad.time,
+          text: ad.originalText || ad.text,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Remove failed");
+      }
+      addSbToast("Creative removed from approval queue.");
+      await fetchAdTableLinks();
+    } catch (error) {
+      console.error("Remove error:", error);
+      addSbToast(`Remove failed: ${error.message || "Unknown error"}`, "error");
+    }
+    setRemovingId(null);
+  }
+
+  async function handleDeleteStaleAd(ad) {
+    if (!ad) return;
+    if (!confirm("This media is missing from Supabase storage. Delete the database entry?")) return;
+    const adKey = ad.id + "_" + ad.time;
+    setRemovingId(adKey);
+    try {
+      const res = await fetch("/api/ads", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: ad.id,
+          time: ad.time,
+          text: ad.originalText || ad.text,
+          deleteRow: true,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Delete failed");
+      }
+      setMissingMediaKeys((prev) => {
+        const next = new Set(prev);
+        next.delete(adKey);
+        return next;
+      });
+      addSbToast("Stale ad entry removed.");
+      await fetchAdTableLinks();
+    } catch (error) {
+      console.error("Delete stale ad error:", error);
+      addSbToast(`Delete failed: ${error.message || "Unknown error"}`, "error");
+    }
+    setRemovingId(null);
+  }
 
   async function handleSaveEdits(ad) {
     if (!ad) return;
@@ -1382,7 +1693,7 @@ export default function Dashboard() {
 
   function startVideoGenProgress() {
     const start = Date.now();
-    window.localStorage.setItem("toga_video_gen_start", String(start));
+    window.localStorage.setItem("app_video_gen_start", String(start));
     setVideoGenerating(true);
     setVideoGenProgress(0);
     clearInterval(videoGenTimerRef.current);
@@ -1402,7 +1713,7 @@ export default function Dashboard() {
   function stopVideoGenProgress(success = true) {
     clearInterval(videoGenTimerRef.current);
     clearInterval(videoGenPollRef.current);
-    window.localStorage.removeItem("toga_video_gen_start");
+    window.localStorage.removeItem("app_video_gen_start");
     if (success) {
       setVideoGenProgress(100);
       setTimeout(() => { setVideoGenerating(false); setVideoGenProgress(0); }, 1500);
@@ -2070,8 +2381,13 @@ export default function Dashboard() {
     // Read keywords directly from localStorage to avoid stale closure after async delay
     let kwSnapshot: string[] = researchKeywords;
     try {
-      const stored = window.localStorage.getItem("toga_research_keywords");
-      if (stored) { const parsed = JSON.parse(stored); if (Array.isArray(parsed) && parsed.length > 0) kwSnapshot = parsed; }
+      const stored = window.localStorage.getItem(RESEARCH_KEYWORDS_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0 && !isLegacyResearchKeywords(parsed)) {
+          kwSnapshot = parsed;
+        }
+      }
     } catch {}
 
     if (kwSnapshot.length === 0) {
@@ -2082,8 +2398,8 @@ export default function Dashboard() {
     setAnalysisData(null);
     setAnalysisError("");
     setAnalysisProgress(0);
-    window.localStorage.setItem("toga_analysis_start", String(Date.now()));
-    sessionStorage.setItem("toga_analysis_active", "1"); // marks this session as the one that fired
+    window.localStorage.setItem("app_analysis_start", String(Date.now()));
+    sessionStorage.setItem("app_analysis_active", "1"); // marks this session as the one that fired
     setAnalysisStatus("generating");
     setPendingAnalysisTopic(selectedTopic);
     await new Promise((r) => setTimeout(r, 100));
@@ -2091,7 +2407,7 @@ export default function Dashboard() {
     try {
       const result = await callWebhook({
         action: "competitor_analysis",
-        topic: kwSnapshot[0] || selectedTopic || "Dental Implants Turkey",
+        topic: kwSnapshot[0] || selectedTopic || "Tenant Screening",
         keywords: kwSnapshot,
         countries: researchCountries,
         max_ads: Number(researchMaxAds) || 100,
@@ -2104,15 +2420,15 @@ export default function Dashboard() {
         setAnalysisData(result);
         setAnalysisStatus("done");
         setAnalysisProgress(100);
-        window.localStorage.removeItem("toga_analysis_start");
-        sessionStorage.removeItem("toga_analysis_active");
+        window.localStorage.removeItem("app_analysis_start");
+        sessionStorage.removeItem("app_analysis_active");
         setPendingAnalysisTopic(null);
         addSbToast("Analysis complete!", "success");
       } else if (result?.error && !result?.isTimeout) {
         setAnalysisStatus("error");
         setAnalysisProgress(0);
-        window.localStorage.removeItem("toga_analysis_start");
-        sessionStorage.removeItem("toga_analysis_active");
+        window.localStorage.removeItem("app_analysis_start");
+        sessionStorage.removeItem("app_analysis_active");
         setAnalysisError(result.error);
         addSbToast(`Analysis failed: ${result.error}`, "error");
       }
@@ -2136,8 +2452,8 @@ export default function Dashboard() {
               setAnalysisData({ ...parsed, id: match.id });
               setAnalysisStatus("done");
               setAnalysisProgress(100);
-              window.localStorage.removeItem("toga_analysis_start");
-              sessionStorage.removeItem("toga_analysis_active");
+              window.localStorage.removeItem("app_analysis_start");
+              sessionStorage.removeItem("app_analysis_active");
               setPendingAnalysisTopic(null);
               addSbToast("Analysis complete!", "success");
             }
@@ -2149,8 +2465,8 @@ export default function Dashboard() {
       console.error("[Analysis] Unexpected error:", err);
       setAnalysisStatus("error");
       setAnalysisProgress(0);
-      window.localStorage.removeItem("toga_analysis_start");
-      sessionStorage.removeItem("toga_analysis_active");
+      window.localStorage.removeItem("app_analysis_start");
+      sessionStorage.removeItem("app_analysis_active");
       setAnalysisError(err.message || "Unexpected error");
       addSbToast(`Analysis error: ${err.message || "Unknown"}`, "error");
     }
@@ -2358,8 +2674,8 @@ export default function Dashboard() {
       {/* ── MOBILE TOP BAR ── */}
       <div className="mobile-topbar" style={{ display: "none", position: "fixed", top: 0, left: 0, right: 0, zIndex: 400, background: "var(--card-bg)", borderBottom: "1px solid var(--border)", padding: "10px 16px", alignItems: "center", justifyContent: "space-between", boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <img src="/toga-health-logo.png" alt="Toga" style={{ width: 30, height: 30, borderRadius: 8, objectFit: "contain" }} />
-          <span style={{ fontSize: 15, fontWeight: 800, color: "var(--text)" }}>Toga Health AI</span>
+          <img src="/tenant-report-logo.png" alt="Tenant Report AI" style={{ width: 30, height: 30, borderRadius: 8, objectFit: "contain" }} />
+          <span style={{ fontSize: 15, fontWeight: 800, color: "var(--text)" }}>Tenant Report AI</span>
         </div>
         <button
           onClick={() => setMobileMenuOpen(o => !o)}
@@ -2404,14 +2720,14 @@ export default function Dashboard() {
         <div style={{ display: "flex", alignItems: "center", justifyContent: sidebarCollapsed ? "center" : "space-between", gap: 8, paddingBottom: 14, borderBottom: "1px solid var(--border-light)", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, overflow: "hidden" }}>
             <img
-              src="/toga-health-logo.png"
-              alt="Toga Health AI"
+              src="/tenant-report-logo.png"
+              alt="Tenant Report AI"
               style={{ width: 36, height: 36, borderRadius: "var(--radius-md)", objectFit: "contain", background: "#fff", flexShrink: 0, boxShadow: "0 2px 8px rgba(0,0,0,0.10)", cursor: "pointer" }}
               onClick={() => setSidebarCollapsed((v: boolean) => !v)}
             />
             {!sidebarCollapsed && (
               <div style={{ fontSize: 16, fontWeight: 800, letterSpacing: "-0.03em", color: "var(--text)", lineHeight: 1.1, whiteSpace: "nowrap", overflow: "hidden" }}>
-                Toga Health AI
+                Tenant Report AI
               </div>
             )}
           </div>
@@ -2438,7 +2754,13 @@ export default function Dashboard() {
         <nav style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
           {(() => {
             const metaAdsActive = META_ADS_IDS.has(tab);
-            const showChildren = metaAdsOpen;
+            const showMetaAdsChildren = metaAdsOpen;
+            const outreachActive = OUTREACH_IDS.has(tab);
+            const showOutreachChildren = outreachOpen;
+            const voiceActive = VOICE_TABS.some((t) => t.id === tab);
+            const showVoiceChildren = voiceOpen;
+            const newsletterActive = NEWSLETTER_TABS.some((t) => t.id === tab);
+            const showNewsletterChildren = newsletterOpen;
 
             const renderTabBtn = (t: any, indent = false) => (
               <div key={t.id} style={{ position: "relative" }} className="sidebar-nav-item">
@@ -2467,6 +2789,7 @@ export default function Dashboard() {
                   }}
                   onClick={() => {
                     if (t.externalLink) { window.open(t.externalLink, "_blank", "noopener,noreferrer"); }
+                    else if ("internalPath" in t && t.internalPath) { router.push(t.internalPath); setMobileMenuOpen(false); }
                     else { setTab(t.id); setMobileMenuOpen(false); }
                   }}
                   onMouseEnter={e => { if (tab !== t.id) e.currentTarget.style.background = "var(--surface-hover)"; }}
@@ -2514,14 +2837,14 @@ export default function Dashboard() {
                       justifyContent: sidebarCollapsed ? "center" : "flex-start",
                       gap: sidebarCollapsed ? 0 : 10,
                       padding: sidebarCollapsed ? "10px 0" : "9px 12px",
-                      borderRadius: showChildren ? "var(--radius-md) var(--radius-md) 0 0" : "var(--radius-md)",
+                      borderRadius: showMetaAdsChildren ? "var(--radius-md) var(--radius-md) 0 0" : "var(--radius-md)",
                       border: "none",
                       fontSize: 13,
                       fontWeight: metaAdsActive ? 700 : 500,
                       textAlign: "left",
                       cursor: "pointer",
-                      background: metaAdsActive ? "var(--primary-light)" : showChildren ? "var(--surface)" : "transparent",
-                      color: metaAdsActive ? "var(--primary-dark)" : showChildren ? "var(--text)" : "var(--text-muted)",
+                      background: metaAdsActive ? "var(--primary-light)" : showMetaAdsChildren ? "var(--surface)" : "transparent",
+                      color: metaAdsActive ? "var(--primary-dark)" : showMetaAdsChildren ? "var(--text)" : "var(--text-muted)",
                       transition: "all 0.18s ease",
                       fontFamily: "inherit",
                       position: "relative",
@@ -2529,7 +2852,7 @@ export default function Dashboard() {
                     }}
                     onClick={() => setMetaAdsOpen(o => !o)}
                     onMouseEnter={e => { if (!metaAdsActive) e.currentTarget.style.background = "var(--surface-hover)"; }}
-                    onMouseLeave={e => { if (!metaAdsActive) e.currentTarget.style.background = showChildren ? "var(--surface)" : "transparent"; }}
+                    onMouseLeave={e => { if (!metaAdsActive) e.currentTarget.style.background = showMetaAdsChildren ? "var(--surface)" : "transparent"; }}
                   >
                     <Megaphone size={15} style={{ flexShrink: 0 }} />
                     {!sidebarCollapsed && (
@@ -2537,7 +2860,7 @@ export default function Dashboard() {
                         <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Meta Ads</span>
                         <span style={{
                           fontSize: 10, color: "var(--text-muted)", flexShrink: 0,
-                          transform: showChildren ? "rotate(180deg)" : "rotate(0deg)",
+                          transform: showMetaAdsChildren ? "rotate(180deg)" : "rotate(0deg)",
                           transition: "transform 0.2s ease",
                         }}>▼</span>
                       </>
@@ -2560,7 +2883,7 @@ export default function Dashboard() {
                   )}
 
                   {/* Children — inline below the group header */}
-                  {showChildren && (
+                  {showMetaAdsChildren && (
                     <div style={{
                       background: "var(--surface)",
                       borderRadius: "0 0 var(--radius-md) var(--radius-md)",
@@ -2573,8 +2896,184 @@ export default function Dashboard() {
                   )}
                 </div>
 
-                {/* Tabs after Meta Ads group */}
-                {TABS.filter(t => ["social-dash", "newsletter", "outreach"].includes(t.id)).map(t => renderTabBtn(t))}
+                {/* Social-Dash */}
+                {TABS.filter(t => t.id === "social-dash").map(t => renderTabBtn(t))}
+
+                {VOICE_AGENT_ENABLED && (
+                  <div style={{ position: "relative" }} className="sidebar-nav-item">
+                    <button
+                      title={sidebarCollapsed ? "Voice Agent" : ""}
+                      style={{
+                        width: "100%",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: sidebarCollapsed ? "center" : "flex-start",
+                        gap: sidebarCollapsed ? 0 : 10,
+                        padding: sidebarCollapsed ? "10px 0" : "9px 12px",
+                        borderRadius: showVoiceChildren ? "var(--radius-md) var(--radius-md) 0 0" : "var(--radius-md)",
+                        border: "none",
+                        fontSize: 13,
+                        fontWeight: voiceActive ? 700 : 500,
+                        textAlign: "left",
+                        cursor: "pointer",
+                        background: voiceActive ? "var(--primary-light)" : showVoiceChildren ? "var(--surface)" : "transparent",
+                        color: voiceActive ? "var(--primary-dark)" : showVoiceChildren ? "var(--text)" : "var(--text-muted)",
+                        transition: "all 0.18s ease",
+                        fontFamily: "inherit",
+                        position: "relative",
+                        overflow: "hidden",
+                      }}
+                      onClick={() => setVoiceOpen(o => !o)}
+                      onMouseEnter={e => { if (!voiceActive) e.currentTarget.style.background = "var(--surface-hover)"; }}
+                      onMouseLeave={e => { if (!voiceActive) e.currentTarget.style.background = showVoiceChildren ? "var(--surface)" : "transparent"; }}
+                    >
+                      <Phone size={15} style={{ flexShrink: 0 }} />
+                      {!sidebarCollapsed && (
+                        <>
+                          <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Voice Agent</span>
+                          <span style={{
+                            fontSize: 10, color: "var(--text-muted)", flexShrink: 0,
+                            transform: showVoiceChildren ? "rotate(180deg)" : "rotate(0deg)",
+                            transition: "transform 0.2s ease",
+                          }}>▼</span>
+                        </>
+                      )}
+                    </button>
+                    {showVoiceChildren && (
+                      <div style={{
+                        background: "var(--surface)",
+                        borderRadius: "0 0 var(--radius-md) var(--radius-md)",
+                        borderTop: "1px solid var(--border-light)",
+                        paddingBottom: 4,
+                        overflow: "hidden",
+                      }}>
+                        {VOICE_TABS.map(t => renderTabBtn(t, true))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Newsletter group */}
+                <div style={{ position: "relative" }} className="sidebar-nav-item">
+                  <button
+                    title={sidebarCollapsed ? "Newsletter" : ""}
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: sidebarCollapsed ? "center" : "flex-start",
+                      gap: sidebarCollapsed ? 0 : 10,
+                      padding: sidebarCollapsed ? "10px 0" : "9px 12px",
+                      borderRadius: showNewsletterChildren ? "var(--radius-md) var(--radius-md) 0 0" : "var(--radius-md)",
+                      border: "none",
+                      fontSize: 13,
+                      fontWeight: newsletterActive ? 700 : 500,
+                      textAlign: "left",
+                      cursor: "pointer",
+                      background: newsletterActive ? "var(--primary-light)" : showNewsletterChildren ? "var(--surface)" : "transparent",
+                      color: newsletterActive ? "var(--primary-dark)" : showNewsletterChildren ? "var(--text)" : "var(--text-muted)",
+                      transition: "all 0.18s ease",
+                      fontFamily: "inherit",
+                      position: "relative",
+                      overflow: "hidden",
+                    }}
+                    onClick={() => setNewsletterOpen(o => !o)}
+                    onMouseEnter={e => { if (!newsletterActive) e.currentTarget.style.background = "var(--surface-hover)"; }}
+                    onMouseLeave={e => { if (!newsletterActive) e.currentTarget.style.background = showNewsletterChildren ? "var(--surface)" : "transparent"; }}
+                  >
+                    <Newspaper size={15} style={{ flexShrink: 0 }} />
+                    {!sidebarCollapsed && (
+                      <>
+                        <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Newsletter</span>
+                        <span style={{
+                          fontSize: 10, color: "var(--text-muted)", flexShrink: 0,
+                          transform: showNewsletterChildren ? "rotate(180deg)" : "rotate(0deg)",
+                          transition: "transform 0.2s ease",
+                        }}>▼</span>
+                      </>
+                    )}
+                  </button>
+                  {showNewsletterChildren && (
+                    <div style={{
+                      background: "var(--surface)",
+                      borderRadius: "0 0 var(--radius-md) var(--radius-md)",
+                      borderTop: "1px solid var(--border-light)",
+                      paddingBottom: 4,
+                      overflow: "hidden",
+                    }}>
+                      {NEWSLETTER_TABS.map(t => renderTabBtn(t, true))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Outreach group */}
+                <div style={{ position: "relative" }} className="sidebar-nav-item">
+                  <button
+                    title={sidebarCollapsed ? "Outreach" : ""}
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: sidebarCollapsed ? "center" : "flex-start",
+                      gap: sidebarCollapsed ? 0 : 10,
+                      padding: sidebarCollapsed ? "10px 0" : "9px 12px",
+                      borderRadius: showOutreachChildren ? "var(--radius-md) var(--radius-md) 0 0" : "var(--radius-md)",
+                      border: "none",
+                      fontSize: 13,
+                      fontWeight: outreachActive ? 700 : 500,
+                      textAlign: "left",
+                      cursor: "pointer",
+                      background: outreachActive ? "var(--primary-light)" : showOutreachChildren ? "var(--surface)" : "transparent",
+                      color: outreachActive ? "var(--primary-dark)" : showOutreachChildren ? "var(--text)" : "var(--text-muted)",
+                      transition: "all 0.18s ease",
+                      fontFamily: "inherit",
+                      position: "relative",
+                      overflow: "hidden",
+                    }}
+                    onClick={() => setOutreachOpen(o => !o)}
+                    onMouseEnter={e => { if (!outreachActive) e.currentTarget.style.background = "var(--surface-hover)"; }}
+                    onMouseLeave={e => { if (!outreachActive) e.currentTarget.style.background = showOutreachChildren ? "var(--surface)" : "transparent"; }}
+                  >
+                    <Send size={15} style={{ flexShrink: 0 }} />
+                    {!sidebarCollapsed && (
+                      <>
+                        <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Outreach</span>
+                        <span style={{
+                          fontSize: 10, color: "var(--text-muted)", flexShrink: 0,
+                          transform: showOutreachChildren ? "rotate(180deg)" : "rotate(0deg)",
+                          transition: "transform 0.2s ease",
+                        }}>▼</span>
+                      </>
+                    )}
+                    {outreachActive && (
+                      <span style={{ position: "absolute", left: 0, top: "20%", width: 3, height: "60%", borderRadius: "0 3px 3px 0", background: "var(--primary)" }} />
+                    )}
+                  </button>
+                  {sidebarCollapsed && (
+                    <span className="sidebar-tooltip" style={{
+                      position: "absolute", left: "calc(100% + 8px)", top: "50%", transform: "translateY(-50%)",
+                      background: "#1e293b", color: "#fff", fontSize: 11, fontWeight: 600,
+                      padding: "4px 10px", borderRadius: 6, whiteSpace: "nowrap",
+                      pointerEvents: "none", zIndex: 9999,
+                      opacity: 0, transition: "opacity 0.15s",
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+                    }}>
+                      Outreach
+                    </span>
+                  )}
+
+                  {showOutreachChildren && (
+                    <div style={{
+                      background: "var(--surface)",
+                      borderRadius: "0 0 var(--radius-md) var(--radius-md)",
+                      borderTop: "1px solid var(--border-light)",
+                      paddingBottom: 4,
+                      overflow: "hidden",
+                    }}>
+                      {OUTREACH_TABS.map(t => renderTabBtn(t, true))}
+                    </div>
+                  )}
+                </div>
               </>
             );
           })()}
@@ -2672,7 +3171,8 @@ export default function Dashboard() {
           <div className="animate-fade-in" style={{ paddingBottom: 40 }}>
             {/* Top Stat Ribbon */}
             <div
-              className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-5"
+              className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4"
+              style={{ marginBottom: 40 }}
             >
               <MetricCard
                 label="Live campaigns"
@@ -3172,7 +3672,7 @@ export default function Dashboard() {
                       </span>
                       <input
                         type="text"
-                        placeholder="Search country (e.g. Turkey)..."
+                        placeholder="Search country (e.g. Canada)..."
                         value={locationSearchInput}
                         onChange={(e) => {
                           setLocationSearchInput(e.target.value);
@@ -3742,7 +4242,13 @@ export default function Dashboard() {
                 {analysisData && (
                   <div>
                     <button
-                      onClick={() => { setTab("create"); setCreateTabConfigOpen(true); }}
+                      onClick={() => {
+                        setCreateTabAdsConfig((prev) =>
+                          buildCreateTabConfigFromAnalysis(analysisData, prev)
+                        );
+                        setTab("create");
+                        setCreateTabConfigOpen(true);
+                      }}
                       disabled={adStatus === "generating" || adStatus === "waiting"}
                       style={{
                         padding: "11px 18px",
@@ -4746,12 +5252,18 @@ export default function Dashboard() {
                     const renderCard = (latestEntry) => {
                       const url = latestEntry?.text || "";
                       const isVideo = (latestEntry?.format || "").toLowerCase() === "video";
+                      const adKey = latestEntry?.id + "_" + latestEntry?.time;
+                      const mediaMissing = missingMediaKeys.has(adKey);
 
                       const id = latestEntry?.id || "Unknown";
                       let label = isVideo ? `Video Ad ${id}` : `Image Ad ${id}`;
 
+                      const markMediaMissing = () => {
+                        setMissingMediaKeys((prev) => new Set(prev).add(adKey));
+                      };
+
                       return (
-                        <Card key={latestEntry?.id + "_" + latestEntry?.time} style={{ padding: 12, height: "100%" }}>
+                        <Card key={adKey} style={{ padding: 12, height: "100%" }}>
                           <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.04em" }}>
                             {label}
                           </div>
@@ -4765,9 +5277,13 @@ export default function Dashboard() {
                             overflow: "hidden",
                             boxShadow: "inset 0 0 40px rgba(0,0,0,0.5)"
                           }}>
-                            {latestEntry?.Approved && latestEntry?.Approved !== "false" ? (
+                            {isAdApproved(latestEntry?.Approved) ? (
                               <div style={{ fontSize: 13, color: "#fff", fontWeight: 700, textAlign: "center", padding: 20 }}>
                                 ✓ Approved
+                              </div>
+                            ) : mediaMissing ? (
+                              <div style={{ fontSize: 12, color: "#fca5a5", fontWeight: 600, textAlign: "center", padding: 20, lineHeight: 1.5 }}>
+                                Media no longer in Supabase storage
                               </div>
                             ) : !url ? (
                               <div style={{ fontSize: 11, color: "var(--text-dim)", textAlign: "center", padding: 10 }}>
@@ -4779,6 +5295,7 @@ export default function Dashboard() {
                                 src={url}
                                 controls
                                 autoPlay={false}
+                                onError={markMediaMissing}
                                 style={{ width: "100%", height: "100%", objectFit: "contain" }}
                               />
                             ) : (
@@ -4786,12 +5303,31 @@ export default function Dashboard() {
                                 key={url}
                                 src={url}
                                 alt={label}
+                                onError={markMediaMissing}
                                 style={{ width: "100%", height: "100%", objectFit: "contain" }}
                               />
                             )}
                           </div>
 
-                          {url && (!latestEntry?.Approved || latestEntry?.Approved === "false") && (
+                          {mediaMissing && (
+                            <div style={{ marginTop: 12 }}>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteStaleAd(latestEntry)}
+                                disabled={removingId === adKey}
+                                style={{
+                                  width: "100%", padding: "8px 0", borderRadius: "var(--radius-md)",
+                                  border: "1px solid #fecaca", background: "#fef2f2", color: "#b91c1c",
+                                  fontSize: 11, fontWeight: 700, cursor: removingId === adKey ? "not-allowed" : "pointer",
+                                  opacity: removingId === adKey ? 0.7 : 1, fontFamily: "inherit",
+                                }}
+                              >
+                                {removingId === adKey ? "Removing..." : "Remove stale entry"}
+                              </button>
+                            </div>
+                          )}
+
+                          {url && !isAdApproved(latestEntry?.Approved) && !mediaMissing && (
                             <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
                               <button
                                 onClick={() => setSelectedAdForDetails(latestEntry)}
@@ -4809,22 +5345,22 @@ export default function Dashboard() {
                               </button>
                               <button
                                 onClick={() => handleApproveAd(latestEntry)}
-                                disabled={latestEntry?.Approved || approvingId === (latestEntry?.id + "_" + latestEntry?.time)}
+                                disabled={isAdApproved(latestEntry?.Approved) || approvingId === (latestEntry?.id + "_" + latestEntry?.time)}
                                 style={{
                                   flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
                                   gap: 6, padding: "8px 0", borderRadius: "var(--radius-md)",
                                   border: "none",
-                                  background: latestEntry?.Approved ? "var(--green-light)" : "var(--primary)",
-                                  color: latestEntry?.Approved ? "var(--green)" : "#fff",
+                                  background: isAdApproved(latestEntry?.Approved) ? "var(--green-light)" : "var(--primary)",
+                                  color: isAdApproved(latestEntry?.Approved) ? "var(--green)" : "#fff",
                                   fontSize: 11, fontWeight: 600,
-                                  cursor: latestEntry?.Approved ? "default" : "pointer",
+                                  cursor: isAdApproved(latestEntry?.Approved) ? "default" : "pointer",
                                   opacity: approvingId === (latestEntry?.id + "_" + latestEntry?.time) ? 0.7 : 1,
                                   transition: "all 0.15s"
                                 }}
                               >
                                 {approvingId === (latestEntry?.id + "_" + latestEntry?.time) ? (
                                   <Spinner size={10} />
-                                ) : latestEntry?.Approved ? (
+                                ) : isAdApproved(latestEntry?.Approved) ? (
                                   "✓ Approved"
                                 ) : (
                                   "✓ Approve"
@@ -4926,10 +5462,9 @@ export default function Dashboard() {
                               const record = await recordRes.json();
                               if (!recordRes.ok || record.error) throw new Error(record.error || "DB insert failed");
 
-                              const newAd = { id: Date.now(), time: record.time, text: urlData.publicUrl, format, Approved: "true" };
-                              setAllApprovedAds(prev => [newAd, ...prev]);
                               await fetchAdTableLinks();
-                              addSbToast("Media uploaded and approved!", "success");
+                              setTab("approval");
+                              addSbToast("Media uploaded and approved! Check the Approval tab.", "success");
                             } catch (err: any) {
                               setCustomUploadError(err.message || "Upload failed");
                               console.error(err);
@@ -5065,6 +5600,16 @@ export default function Dashboard() {
                           onMouseEnter={e => e.currentTarget.style.background = "var(--surface-hover)"}
                           onMouseLeave={e => e.currentTarget.style.background = "var(--surface)"}
                         >↗ Details</button>
+                        <button
+                          onClick={() => handleRemoveApprovedAd(ad)}
+                          disabled={removingId === (ad.id + "_" + ad.time)}
+                          style={{
+                            fontSize: isMobileCard ? 10 : 11, fontWeight: 700, padding: isMobileCard ? "7px 4px" : "9px 10px",
+                            borderRadius: 8, border: "1px solid #fecaca", color: "#b91c1c",
+                            background: "#fef2f2", cursor: removingId === (ad.id + "_" + ad.time) ? "not-allowed" : "pointer",
+                            fontFamily: "inherit", opacity: removingId === (ad.id + "_" + ad.time) ? 0.7 : 1,
+                          }}
+                        >{removingId === (ad.id + "_" + ad.time) ? "Removing..." : "Remove"}</button>
                         <button
                           onClick={() => { setLaunchAdCandidate(ad); setTab("campaigns"); }}
                           style={{
@@ -5800,6 +6345,20 @@ export default function Dashboard() {
       )}
 
       {/* ═══════════════════════════════════════════════════════
+          OUTREACH — Inline embed (no page navigation)
+      ═══════════════════════════════════════════════════════ */}
+      {OUTREACH_IDS.has(tab) && (
+        <OutreachTab activeTab={tab} />
+      )}
+
+      {/* ═══════════════════════════════════════════════════════
+          VOICE AGENT & NEWSLETTER — Inline embed
+      ═══════════════════════════════════════════════════════ */}
+      {VOICE_NEWSLETTER_IDS.has(tab) && (
+        <NewsletterTab activeTab={tab} />
+      )}
+
+      {/* ═══════════════════════════════════════════════════════
           PROFILE SECTION
       ═══════════════════════════════════════════════════════ */}
       {tab === "profile" && (
@@ -5857,12 +6416,12 @@ export default function Dashboard() {
               </div>
             </div>
             {[
-              { key: "productsAndServices", label: "Products & Services", placeholder: "Hair Transplant, Dental Implants, Rhinoplasty", iconEl: <Tag size={16} color="#059669" />, iconBg: "#ECFDF5" },
-              { key: "valueProposition", label: "Value Proposition", placeholder: 'Why choose you — the core unique benefit (e.g., "50% cheaper than Europe, same quality")', iconEl: <Gem size={16} color="#0D9488" />, iconBg: "#F0FDFA" },
-              { key: "brandVoice", label: "Brand Voice", placeholder: "Tone of all content (e.g., Trustworthy, Empathetic, Professional, Action-oriented)", iconEl: <MessageSquare size={16} color="#7C3AED" />, iconBg: "#F5F3FF" },
-              { key: "positioning", label: "Positioning", placeholder: 'Market placement (e.g., "Premium affordable medical tourism for Europeans")', iconEl: <Target size={16} color="#EA580C" />, iconBg: "#FFF7ED" },
-              { key: "competitors", label: "Competitors", placeholder: "Competing clinics/brands to benchmark against", iconEl: <Users size={16} color="#DB2777" />, iconBg: "#FDF2F8" },
-              { key: "painPoints", label: "Pain Points", placeholder: 'Core customer problems your service solves (e.g., "High costs at home", "Hair loss confidence")', iconEl: <AlertTriangle size={16} color="#D97706" />, iconBg: "#FFFBEB" },
+              { key: "productsAndServices", label: "Products & Services", placeholder: "Tenant Reports, Smart Tenant Subscription, Rent Promise & Protection Package, Background Screening, Credit Reports", iconEl: <Tag size={16} color="#059669" />, iconBg: "#ECFDF5" },
+              { key: "valueProposition", label: "Value Proposition", placeholder: 'Why choose you — the core unique benefit (e.g., "Reduce risk and ensure reliable rental income with affordable AI-powered screening")', iconEl: <Gem size={16} color="#0D9488" />, iconBg: "#F0FDFA" },
+              { key: "brandVoice", label: "Brand Voice", placeholder: "Tone of all content (e.g., Trustworthy, Professional, Landlord-focused, Solution-oriented)", iconEl: <MessageSquare size={16} color="#7C3AED" />, iconBg: "#F5F3FF" },
+              { key: "positioning", label: "Positioning", placeholder: 'Market placement (e.g., "Affordable AI-powered tenant screening platform for Canadian landlords")', iconEl: <Target size={16} color="#EA580C" />, iconBg: "#FFF7ED" },
+              { key: "competitors", label: "Competitors", placeholder: "Competing tenant screening services to benchmark against (e.g., SingleKey, Naborly, Certn)", iconEl: <Users size={16} color="#DB2777" />, iconBg: "#FDF2F8" },
+              { key: "painPoints", label: "Pain Points", placeholder: 'Core customer problems your service solves (e.g., "Unreliable tenant payments", "Time-consuming manual screening")', iconEl: <AlertTriangle size={16} color="#D97706" />, iconBg: "#FFFBEB" },
             ].map((f, i, arr) => (
               <div key={f.key} className="profile-field-row" style={{ padding: "14px 20px", borderBottom: i < arr.length - 1 ? "1px solid #F1F5F9" : "none" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
@@ -5895,9 +6454,9 @@ export default function Dashboard() {
               </div>
             </div>
             {[
-              { key: "icpMetaAds", label: "ICP - Meta Ads", placeholder: 'Audience for paid ads — age, gender, interests, behaviors (e.g., "Males 35-55, UK/Canada, interested in hair loss solutions")', iconEl: <LayoutGrid size={16} color="#059669" />, iconBg: "#ECFDF5" },
-              { key: "icpNewsletter", label: "ICP - Newsletter", placeholder: "Subscriber profile — who reads your emails, what stage of journey they're in (e.g., \"Already aware of medical tourism, comparing options, needs trust-building\")", iconEl: <Mail size={16} color="#7C3AED" />, iconBg: "#F5F3FF" },
-              { key: "icpOutreach", label: "ICP - Outreach", placeholder: 'Cold lead profile — job title, business type, location for scraping (e.g., "Clinic owners in UAE, Real Estate agents in Dubai")', iconEl: <Send size={16} color="#2563EB" />, iconBg: "#EFF6FF" },
+              { key: "icpMetaAds", label: "ICP - Meta Ads", placeholder: 'Audience for paid ads — age, gender, interests, behaviors (e.g., "Canadian landlords 28-60, property management, real estate investing, tenant screening")', iconEl: <LayoutGrid size={16} color="#059669" />, iconBg: "#ECFDF5" },
+              { key: "icpNewsletter", label: "ICP - Newsletter", placeholder: "Subscriber profile — who reads your emails, what stage of journey they're in (e.g., \"Landlords comparing screening services, need trust-building on AI reliability scoring\")", iconEl: <Mail size={16} color="#7C3AED" />, iconBg: "#F5F3FF" },
+              { key: "icpOutreach", label: "ICP - Outreach", placeholder: 'Cold lead profile — job title, business type, location for scraping (e.g., "Property managers and landlords in Canada with 1-10 rental units")', iconEl: <Send size={16} color="#2563EB" />, iconBg: "#EFF6FF" },
             ].map((f, i, arr) => (
               <div key={f.key} className="profile-field-row" style={{ padding: "14px 20px", borderBottom: i < arr.length - 1 ? "1px solid #F1F5F9" : "none" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
@@ -6093,8 +6652,8 @@ export default function Dashboard() {
                       {isEditingAd ? (
                         <select value={editingAdData.ctaType} onChange={(e) => {
                           const newCta = e.target.value;
-                          const suggestions: Record<string, string> = { WHATSAPP_MESSAGE: "+10000000000", CONTACT_US: "https://togahh.com/contact", MESSAGE_PAGE: "https://m.me/togahh" };
-                          setEditingAdData({ ...editingAdData, ctaType: newCta, linkData: suggestions[newCta] || "https://togahh.com/" });
+                          const suggestions: Record<string, string> = { WHATSAPP_MESSAGE: "+10000000000", CONTACT_US: `${DEFAULT_WEBSITE_URL}/contact`, MESSAGE_PAGE: `${DEFAULT_WEBSITE_URL}/contact` };
+                          setEditingAdData({ ...editingAdData, ctaType: newCta, linkData: suggestions[newCta] || DEFAULT_WEBSITE_URL });
                         }} style={{ width: "100%", padding: "9px 12px", borderRadius: 9, border: "1.5px solid #2563eb", background: "#fff", fontSize: 13, fontWeight: 600, outline: "none" }}>
                           <option value="WATCH_MORE">Watch More</option>
                           <option value="LEARN_MORE">Learn More</option>
@@ -6168,23 +6727,23 @@ export default function Dashboard() {
                         <button
                           style={{
                             flex: 1, padding: "12px",
-                            background: ad.Approved ? "var(--green-light)" : "var(--primary)",
+                            background: isAdApproved(ad.Approved) ? "var(--green-light)" : "var(--primary)",
                             border: "none",
                             borderRadius: "var(--radius-md)",
-                            color: ad.Approved ? "var(--green)" : "#fff",
+                            color: isAdApproved(ad.Approved) ? "var(--green)" : "#fff",
                             fontWeight: 700, fontSize: 13,
-                            cursor: ad.Approved ? "default" : "pointer",
+                            cursor: isAdApproved(ad.Approved) ? "default" : "pointer",
                             opacity: approvingId === (ad.id + "_" + ad.time) ? 0.7 : 1,
                             transition: "all 0.2s"
                           }}
-                          disabled={ad.Approved === "true" || ad.Approved === true || approvingId === (ad.id + "_" + ad.time)}
+                          disabled={isAdApproved(ad.Approved) || approvingId === (ad.id + "_" + ad.time)}
                           onClick={async () => {
                             await handleApproveAd(ad);
                           }}
                         >
                           {approvingId === (ad.id + "_" + ad.time) ? (
                             <Spinner size={12} />
-                          ) : ad.Approved ? (
+                          ) : isAdApproved(ad.Approved) ? (
                             "✓ Approved"
                           ) : (
                             "✓ Approve Ad"
@@ -6653,7 +7212,7 @@ export default function Dashboard() {
               <button
                 onClick={async () => {
                   if (errorNotification) {
-                    localStorage.setItem("toga_last_dismissed_error_msg", errorNotification.trim());
+                    localStorage.setItem("app_last_dismissed_error_msg", errorNotification.trim());
                   }
                   try {
                     await supabase

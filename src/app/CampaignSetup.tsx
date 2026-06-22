@@ -59,10 +59,10 @@ const DEFAULT_CONFIG: any = {
 };
 
 // ─── PERSISTENCE KEYS ────────────────────────────────────────────────────────
-const STORE_CONFIG   = "toga_campaign_config";
-const STORE_STEP     = "toga_campaign_step";
-const STORE_SEL_AD   = "toga_campaign_sel_ad";
-const STORE_LAST_AD  = "toga_campaign_last_ad_text";
+const STORE_CONFIG   = "app_campaign_config";
+const STORE_STEP     = "app_campaign_step";
+const STORE_SEL_AD   = "app_campaign_sel_ad";
+const STORE_LAST_AD  = "app_campaign_last_ad_text";
 
 const CAMPAIGN_OBJECTIVES = [
   { value: "OUTCOME_AWARENESS", label: "Awareness", icon: "📢" },
@@ -145,6 +145,20 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
   // ── Restore persisted state on mount ──
   useEffect(() => {
     try {
+      const legacyKeys: Record<string, string> = {
+        toga_campaign_config: STORE_CONFIG,
+        toga_campaign_step: STORE_STEP,
+        toga_campaign_sel_ad: STORE_SEL_AD,
+        toga_campaign_last_ad_text: STORE_LAST_AD,
+      };
+      Object.entries(legacyKeys).forEach(([oldKey, newKey]) => {
+        const val = localStorage.getItem(oldKey);
+        if (val !== null && localStorage.getItem(newKey) === null) {
+          localStorage.setItem(newKey, val);
+        }
+        localStorage.removeItem(oldKey);
+      });
+
       const c = localStorage.getItem(STORE_CONFIG);
       const s = localStorage.getItem(STORE_STEP);
       const a = localStorage.getItem(STORE_SEL_AD);

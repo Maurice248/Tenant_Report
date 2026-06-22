@@ -1,8 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { getRequestUserEmail, getRequestUserId } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
 interface N8nCampaignResponse {
@@ -32,9 +31,8 @@ export async function POST(req: NextRequest) {
   const startTime = Date.now();
 
   try {
-    const session = await getServerSession(authOptions);
-    const userId = session?.user?.id ?? "cmo8ubhgi0000difwp4jsua3t";
-    const userEmail = session?.user?.email ?? "admin@togahh.com";
+    const userId = await getRequestUserId();
+    const userEmail = await getRequestUserEmail();
 
 
     const body = await req.json();
@@ -146,8 +144,7 @@ export async function POST(req: NextRequest) {
 
 export async function GET(_req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    const userId = session?.user?.id ?? "cmo8ubhgi0000difwp4jsua3t";
+    const userId = await getRequestUserId();
 
 
     const campaigns = await prisma.campaign.findMany({

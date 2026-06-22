@@ -19,11 +19,10 @@ export type CampaignTone =
   | 'Friendly and encouraging';
 
 export type LeadSheet =
-  | 'Hair Transplant Leads'
-  | 'Dental Treatment Leads'
-  | 'Cosmetic Surgery Leads'
-  | 'IVF Fertility Leads'
-  | 'Eye Treatment Leads'
+  | 'Tenant Screening Leads'
+  | 'Background Check Leads'
+  | 'Landlord Outreach Leads'
+  | 'Property Manager Leads'
   | 'All Services Leads';
 
 export interface User {

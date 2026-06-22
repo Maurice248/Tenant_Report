@@ -37,7 +37,7 @@ export function ScraperForm() {
       niches: '',
       location: '',
       max_results: 100,
-      target_sheet: 'Hair Transplant Leads',
+      target_sheet: 'Tenant Screening Leads',
     },
   });
 
@@ -84,7 +84,7 @@ export function ScraperForm() {
                   <FormLabel>Business Niches</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="e.g. hair clinic, beauty salon, cosmetic surgery"
+                      placeholder="e.g. property management company, landlord association, real estate investor"
                       {...field}
                     />
                   </FormControl>
@@ -104,7 +104,7 @@ export function ScraperForm() {
                   <FormItem>
                     <FormLabel>Location</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g. London, UK" {...field} />
+                      <Input placeholder="e.g. Toronto, Canada" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -146,11 +146,10 @@ export function ScraperForm() {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="Hair Transplant Leads">Hair Transplant Leads</SelectItem>
-                      <SelectItem value="Dental Treatment Leads">Dental Treatment Leads</SelectItem>
-                      <SelectItem value="Cosmetic Surgery Leads">Cosmetic Surgery Leads</SelectItem>
-                      <SelectItem value="IVF Fertility Leads">IVF Fertility Leads</SelectItem>
-                      <SelectItem value="Eye Treatment Leads">Eye Treatment Leads</SelectItem>
+                      <SelectItem value="Tenant Screening Leads">Tenant Screening Leads</SelectItem>
+                      <SelectItem value="Background Check Leads">Background Check Leads</SelectItem>
+                      <SelectItem value="Landlord Outreach Leads">Landlord Outreach Leads</SelectItem>
+                      <SelectItem value="Property Manager Leads">Property Manager Leads</SelectItem>
                       <SelectItem value="All Services Leads">All Services Leads</SelectItem>
                     </SelectContent>
                   </Select>

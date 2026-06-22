@@ -3,7 +3,7 @@
 import { useState, useEffect, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { 
-  Stethoscope, 
+  Building2, 
   Lock, 
   Mail, 
   ArrowRight, 
@@ -65,13 +65,13 @@ export default function LoginPage() {
     setSuccessStatus(null);
 
     const enteredEmail = email.trim().toLowerCase();
-    const adminEmail = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "togahealthai@gmail.com").toLowerCase();
+    const adminEmail = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "admin@tenantreport.ai").toLowerCase();
     const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || "Meta123.com";
 
     // ── Local bypass (works offline, no network needed) ──
     if (enteredEmail === adminEmail && password === adminPassword) {
-      localStorage.setItem("toga_auth_session", "true");
-      localStorage.setItem("toga_user_email", enteredEmail);
+      localStorage.setItem("app_auth_session", "true");
+      localStorage.setItem("app_user_email", enteredEmail);
       setSuccessStatus("Authentication successful. Redirecting...");
       setTimeout(() => router.push("/"), 400);
       setLoading(false);
@@ -100,8 +100,8 @@ export default function LoginPage() {
       }
 
       if (data?.user) {
-        localStorage.setItem("toga_auth_session", "true");
-        localStorage.setItem("toga_user_email", data.user.email || enteredEmail);
+        localStorage.setItem("app_auth_session", "true");
+        localStorage.setItem("app_user_email", data.user.email || enteredEmail);
         setSuccessStatus("Authentication successful. Redirecting...");
         setTimeout(() => router.push("/"), 400);
       }
@@ -119,7 +119,7 @@ export default function LoginPage() {
     setErrorStatus(null);
     setSuccessStatus(null);
 
-    const singleUserEmail = "togahealthai@gmail.com";
+    const singleUserEmail = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "admin@tenantreport.ai").toLowerCase();
     if (forgotEmail.trim().toLowerCase() !== singleUserEmail) {
       setErrorStatus("Access restricted. You can only request reset links for the single authorized administrator email.");
       setLoading(false);
@@ -259,7 +259,7 @@ export default function LoginPage() {
             boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05)",
             border: "1px solid #E2E8F0"
           }}>
-            <Stethoscope size={28} />
+            <Building2 size={28} />
           </div>
           <h1 style={{
             fontSize: "28px",
@@ -268,7 +268,7 @@ export default function LoginPage() {
             marginBottom: "12px",
             letterSpacing: "-0.025em",
             lineHeight: 1.2
-          }}>Togahh AI</h1>
+          }}>Tenant Report AI</h1>
           <div style={{ display: "flex", justifyContent: "center" }}>
             <span style={{
               display: "inline-block",
@@ -281,7 +281,7 @@ export default function LoginPage() {
               color: "#2563EB",
               textTransform: "uppercase",
               letterSpacing: "0.05em"
-            }}>Clinical Platform v2.4</span>
+            }}>Marketing Platform</span>
           </div>
         </div>
 
@@ -501,7 +501,7 @@ export default function LoginPage() {
                     </div>
                     <input
                       type="email"
-                      placeholder="togahealthai@gmail.com"
+                      placeholder="admin@tenantreport.ai"
                       value={forgotEmail}
                       onChange={(e) => setForgotEmail(e.target.value)}
                       style={{
@@ -642,7 +642,7 @@ export default function LoginPage() {
                     </div>
                     <input
                       type="email"
-                      placeholder="togahealthai@gmail.com"
+                      placeholder="admin@tenantreport.ai"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       style={{
@@ -843,7 +843,7 @@ export default function LoginPage() {
         position: "relative",
         zIndex: 10
       }}>
-        <p>© 2026 Togahh AI Marketing Systems. Restricted Administrative Access.</p>
+        <p>© 2026 Tenant Report AI. Restricted Administrative Access.</p>
       </div>
     </div>
   );

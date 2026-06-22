@@ -1,4 +1,5 @@
 import { Header } from '@/components/dashboard/header';
+import { PageBody } from '@/components/outreach/page-body';
 import { CleanupStatus } from '@/components/cleanup/cleanup-status';
 import { CleanupHistory } from '@/components/cleanup/cleanup-history';
 
@@ -9,10 +10,10 @@ export default function CleanupPage() {
         title="Contact Cleanup"
         description="Automatically remove old contacts from Instantly.ai every 10 days"
       />
-      <div className="p-6 space-y-6">
+      <PageBody>
         <CleanupStatus />
         <CleanupHistory />
-      </div>
+      </PageBody>
     </div>
   );
 }

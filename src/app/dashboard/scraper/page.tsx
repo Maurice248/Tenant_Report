@@ -8,6 +8,8 @@ import {
   Users, Mail, XCircle, HelpCircle, Clock, BarChart3,
 } from 'lucide-react';
 import { Header } from '@/components/dashboard/header';
+import { PageBody } from '@/components/outreach/page-body';
+import { useAppSection } from '@/lib/app-section';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -56,11 +58,10 @@ const LOADING_STEPS = [
 ];
 
 const SHEETS = [
-  'Hair Transplant Leads',
-  'Dental Treatment Leads',
-  'Cosmetic Surgery Leads',
-  'IVF Fertility Leads',
-  'Eye Treatment Leads',
+  'Tenant Screening Leads',
+  'Background Check Leads',
+  'Landlord Outreach Leads',
+  'Property Manager Leads',
   'All Services Leads',
 ];
 
@@ -69,6 +70,7 @@ const SHEETS = [
 export default function ScraperPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { basePath, labels } = useAppSection();
 
   const [pageState, setPageState] = useState<PageState>('form');
   const [elapsed, setElapsed] = useState(0);
@@ -145,7 +147,7 @@ export default function ScraperPage() {
       <div>
         <Header
           title="Lead Scraper"
-          description="Scrape Google Maps for business leads via Apify — verified emails only saved to sheet"
+          description={labels.scraperDescription}
         />
 
         {/* Full-screen loading overlay */}
@@ -182,10 +184,10 @@ export default function ScraperPage() {
           </div>
         )}
 
-        <div className="p-6 max-w-2xl mx-auto">
+        <PageBody className="max-w-2xl mx-auto">
           <div className="flex justify-end mb-4">
             <Button variant="outline" asChild className="gap-2 text-sm">
-              <Link href="/dashboard/scraper/history">
+              <Link href={`${basePath}/scraper/history`}>
                 <History className="h-4 w-4" /> View History
               </Link>
             </Button>
@@ -206,7 +208,7 @@ export default function ScraperPage() {
                   <Input
                     value={niches}
                     onChange={(e) => setNiches(e.target.value)}
-                    placeholder="e.g. hair transplant clinic, dental clinic, cosmetic surgery"
+                    placeholder="e.g. property management company, landlord association, real estate investor, rental property manager"
                     disabled={pageState === 'loading'}
                   />
                   <p className="text-xs text-gray-400 mt-1">Comma-separated list of business types to search</p>
@@ -220,7 +222,7 @@ export default function ScraperPage() {
                   <Input
                     value={location}
                     onChange={(e) => setLocation(e.target.value)}
-                    placeholder="e.g. London UK, Toronto Canada, Dubai UAE"
+                    placeholder="e.g. Toronto Canada, Vancouver Canada, Calgary Canada"
                     disabled={pageState === 'loading'}
                   />
                 </div>
@@ -287,7 +289,7 @@ export default function ScraperPage() {
               )}
             </Button>
           </form>
-        </div>
+        </PageBody>
       </div>
     );
   }
@@ -301,7 +303,7 @@ export default function ScraperPage() {
       <div>
         <Header title="Lead Scraper" description="Scraping completed successfully" />
 
-        <div className="p-6 max-w-2xl mx-auto space-y-6">
+        <PageBody className="max-w-2xl mx-auto space-y-6">
           {/* Success header */}
           <div className="flex flex-col items-center text-center py-4">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 mb-3">
@@ -401,12 +403,12 @@ export default function ScraperPage() {
               <Search className="h-4 w-4" /> Scrape Again
             </Button>
             <Button variant="outline" asChild className="gap-2">
-              <Link href="/dashboard/scraper/history">
+              <Link href={`${basePath}/scraper/history`}>
                 <History className="h-4 w-4" /> View History
               </Link>
             </Button>
           </div>
-        </div>
+        </PageBody>
       </div>
     );
   }
@@ -416,7 +418,7 @@ export default function ScraperPage() {
   return (
     <div>
       <Header title="Lead Scraper" description="Something went wrong" />
-      <div className="p-6 max-w-md mx-auto mt-8">
+      <PageBody className="max-w-md mx-auto mt-8">
         <Card className="border-red-200">
           <CardContent className="pt-8 pb-6 text-center space-y-5">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
@@ -434,12 +436,12 @@ export default function ScraperPage() {
                 Try Again
               </Button>
               <Button asChild variant="outline">
-                <Link href="/dashboard/scraper/history">View History</Link>
+                <Link href={`${basePath}/scraper/history`}>View History</Link>
               </Button>
             </div>
           </CardContent>
         </Card>
-      </div>
+      </PageBody>
     </div>
   );
 }

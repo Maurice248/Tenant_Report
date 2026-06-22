@@ -1,3 +1,5 @@
+import { DEFAULT_BRAND_NAME, DEFAULT_WEBSITE_URL } from '@/lib/legacy-brand';
+
 export const maxDuration = 60; // Allow Vercel to run up to 60s for video polling
 
 // ── Helper to parse JSON with fallback ──
@@ -141,7 +143,7 @@ async function uploadMedia(link_data, isVideo, accessToken, adAccountId) {
 // ── STEP 1b: Fetch Page ID ──
 async function fetchPageId(accessToken) {
   let pageId = process.env.META_PAGE_ID;
-  if (!pageId || pageId === "me" || pageId === "YOUR_TOGAHH_PAGE_ID_HERE") {
+  if (!pageId || pageId === "me" || pageId.startsWith("YOUR_")) {
     const pagesRes = await fetch(`https://graph.facebook.com/v21.0/me/accounts?access_token=${accessToken}`);
     const pagesData = await fetchMetaJson(pagesRes);
     if (!pagesData.data || pagesData.data.length === 0) {
@@ -173,7 +175,7 @@ async function getOrCreatePixelId(accessToken, adAccountId) {
     return data.data[0].id;
   }
 
-  console.log("No pixels found. Attempting programmatic creation of Toga Health AI Pixel...");
+  console.log(`No pixels found. Attempting programmatic creation of ${DEFAULT_BRAND_NAME} Pixel...`);
   try {
     const createRes = await fetch(
       `https://graph.facebook.com/v21.0/act_${adAccountId}/adspixels`,
@@ -181,7 +183,7 @@ async function getOrCreatePixelId(accessToken, adAccountId) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: "Toga Health AI Pixel",
+          name: `${DEFAULT_BRAND_NAME} Pixel`,
           access_token: accessToken,
         }),
       }
@@ -401,12 +403,12 @@ export async function POST(request) {
     const ageMin          = ad_set?.age_min            || 18;
     const ageMax          = ad_set?.age_max            || 65;
     const gender          = ad_set?.gender             ?? 0; // 0=all,1=male,2=female
-    const dsaBeneficiary  = ad_set?.dsa_beneficiary   || ad?.facebook_page || "Toga Health";
-    const dsaPayor        = ad_set?.dsa_payor          || ad?.facebook_page || "Toga Health";
+    const dsaBeneficiary  = ad_set?.dsa_beneficiary   || ad?.facebook_page || DEFAULT_BRAND_NAME;
+    const dsaPayor        = ad_set?.dsa_payor          || ad?.facebook_page || DEFAULT_BRAND_NAME;
     const adName          = ad?.name                  || "Ad";
     const headline        = ad?.headline              || "";
     const primaryText     = ad?.primary_text          || "";
-    const websiteUrl      = ad?.website_url           || "https://togahh.com";
+    const websiteUrl      = ad?.website_url           || DEFAULT_WEBSITE_URL;
     const ctaType         = ad?.call_to_action_type   || "LEARN_MORE";
 
     // Clean geo_locations for Meta API

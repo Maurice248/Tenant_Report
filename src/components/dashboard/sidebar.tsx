@@ -4,47 +4,38 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import {
-  LayoutDashboard,
-  Mail,
-  Search,
-  Trash2,
-  BarChart3,
-  Settings,
-  LogOut,
-  History,
-  PlusCircle,
-  Activity,
-  FileText,
-} from 'lucide-react';
-import { signOut } from 'next-auth/react';
-import { Button } from '@/components/ui/button';
-
-const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/dashboard/campaigns', label: 'Campaigns', icon: Mail },
-  { href: '/dashboard/scraper', label: 'Lead Scraper', icon: Search },
-  { href: '/dashboard/scraper/history', label: 'Scraper History', icon: History },
-  { href: '/dashboard/cleanup', label: 'Cleanup', icon: Trash2 },
-  { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart3 },
-];
-
-
+import { ChevronLeft } from 'lucide-react';
+import { useAppSection } from '@/lib/app-section';
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { basePath, homeHref, showLogo, navItems } = useAppSection();
 
   return (
-    <div className="flex h-full w-64 flex-col bg-[#1a1a2e] text-white">
-      {/* Logo removed for integration */}
+    <div className="flex h-full w-64 flex-col bg-[#1a1c2e] text-white transition-all duration-200">
+      {showLogo && (
+        <div className="flex items-center gap-3 border-b border-white/10 px-5 py-5">
+          <div className="relative h-9 w-9 flex-shrink-0 overflow-hidden rounded-lg">
+            <Image
+              src="/tenant-report-logo.png"
+              alt="Tenant Report AI"
+              fill
+              className="object-contain"
+            />
+          </div>
+          <span className="text-lg font-bold tracking-wide">Tenant Report</span>
+        </div>
+      )}
 
-      {/* Navigation */}
       <nav className="flex-1 space-y-1 px-3 py-6">
-        <p className="mb-3 px-3 text-xs font-semibold uppercase tracking-wider text-white/40">
+        <p className="mb-3 px-3 text-[11px] font-semibold uppercase tracking-wider text-white/40">
           Main Menu
         </p>
         {navItems.map(({ href, label, icon: Icon }) => {
-          const isActive = pathname === href || pathname.startsWith(href + '/');
+          const isActive =
+            href === basePath
+              ? pathname === href
+              : pathname === href || pathname.startsWith(href + '/');
           return (
             <Link
               key={href}
@@ -61,10 +52,17 @@ export function Sidebar() {
             </Link>
           );
         })}
-
       </nav>
 
-      {/* Footer removed for integration */}
+      <div className="border-t border-white/10 p-3">
+        <Link
+          href={homeHref}
+          className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-white/70 transition-all hover:bg-white/10 hover:text-white"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          Back to Main Dashboard
+        </Link>
+      </div>
     </div>
   );
 }

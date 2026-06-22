@@ -15,6 +15,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
 import { Header } from '@/components/dashboard/header';
+import { PageBody } from '@/components/outreach/page-body';
+import { useAppSection } from '@/lib/app-section';
 
 const campaignSchema = z.object({
   campaign_name: z.string().min(3, 'Campaign name must be at least 3 characters'),
@@ -87,6 +89,7 @@ function LoadingOverlay({ elapsed }: { elapsed: number }) {
 export default function NewCampaignPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { basePath, labels } = useAppSection();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [isReuse, setIsReuse] = useState(false);
@@ -95,8 +98,8 @@ export default function NewCampaignPage() {
   const form = useForm<CampaignFormData>({
     resolver: zodResolver(campaignSchema),
     defaultValues: {
-      cta_button_text: 'Book Free Consultation',
-      cta_link: 'https://www.togahh.com/en/contact',
+      cta_button_text: 'Start Free Screening',
+      cta_link: 'https://www.tenantreport.ai',
     },
   });
 
@@ -117,8 +120,8 @@ export default function NewCampaignPage() {
         target_region: data.target_region ?? '',
         campaign_goal: data.campaign_goal ?? '',
         campaign_message: data.campaign_message ?? '',
-        cta_button_text: data.cta_button_text ?? 'Book Free Consultation',
-        cta_link: data.cta_link ?? 'https://www.togahh.com/en/contact',
+        cta_button_text: data.cta_button_text ?? 'Start Free Screening',
+        cta_link: data.cta_link ?? 'https://www.tenantreport.ai',
         tone: data.tone ?? '',
         selected_sheet: data.selected_sheet ?? '',
       });
@@ -154,7 +157,7 @@ export default function NewCampaignPage() {
         description: 'AI content generated. Review and approve it to send emails.',
       });
 
-      router.push('/dashboard/campaigns');
+      router.push(`${basePath}/campaigns`);
 
     } catch (error: unknown) {
       setIsSubmitting(false);
@@ -177,11 +180,11 @@ export default function NewCampaignPage() {
           description={isReuse ? 'Pre-filled from previous campaign — edit and create new' : 'AI generates the email content — you review and approve before sending'}
         />
 
-        <div className="p-6 max-w-2xl mx-auto">
+        <PageBody className="max-w-2xl mx-auto">
           <div className="mb-6">
             <Button variant="ghost" onClick={() => router.back()} className="text-gray-600">
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Campaigns
+              Back to {labels.campaignsTitle}
             </Button>
           </div>
 
@@ -209,7 +212,7 @@ export default function NewCampaignPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Campaign Name</label>
                   <Input
                     {...form.register('campaign_name')}
-                    placeholder="e.g. April Hair Transplant Awareness"
+                    placeholder="e.g. April Tenant Screening Awareness"
                     disabled={isSubmitting}
                   />
                   {form.formState.errors.campaign_name && (
@@ -223,12 +226,11 @@ export default function NewCampaignPage() {
                     <Select onValueChange={(v) => form.setValue('service_type', v)} disabled={isSubmitting}>
                       <SelectTrigger><SelectValue placeholder="Select service" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Hair_Transplant">Hair Transplant</SelectItem>
-                        <SelectItem value="Dental_Treatment">Dental Treatment</SelectItem>
-                        <SelectItem value="Cosmetic_Surgery">Cosmetic Surgery</SelectItem>
-                        <SelectItem value="Eye_Treatment">Eye Treatment</SelectItem>
-                        <SelectItem value="IVF_Fertility">IVF Fertility</SelectItem>
-                        <SelectItem value="Thermal_Wellness">Thermal Wellness</SelectItem>
+                        <SelectItem value="Tenant_Reports">Tenant Reports</SelectItem>
+                        <SelectItem value="Smart_Tenant_Subscription">Smart Tenant Subscription</SelectItem>
+                        <SelectItem value="Rent_Protection">Rent Promise &amp; Protection</SelectItem>
+                        <SelectItem value="Background_Screening">Background Screening</SelectItem>
+                        <SelectItem value="Credit_Reports">Credit Reports</SelectItem>
                         <SelectItem value="All_Services">All Services</SelectItem>
                       </SelectContent>
                     </Select>
@@ -242,9 +244,7 @@ export default function NewCampaignPage() {
                     <Select onValueChange={(v) => form.setValue('target_region', v)} disabled={isSubmitting}>
                       <SelectTrigger><SelectValue placeholder="Select region" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Europe">Europe</SelectItem>
-                        <SelectItem value="Middle East">Middle East</SelectItem>
-                        <SelectItem value="Asia">Asia</SelectItem>
+                        <SelectItem value="Canada">Canada</SelectItem>
                         <SelectItem value="North America">North America</SelectItem>
                         <SelectItem value="Global">Global</SelectItem>
                       </SelectContent>
@@ -260,11 +260,10 @@ export default function NewCampaignPage() {
                   <Select onValueChange={(v) => form.setValue('selected_sheet', v)} disabled={isSubmitting}>
                     <SelectTrigger><SelectValue placeholder="Select Google Sheet tab" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Hair Transplant Leads">Hair Transplant Leads</SelectItem>
-                      <SelectItem value="Dental Treatment Leads">Dental Treatment Leads</SelectItem>
-                      <SelectItem value="Cosmetic Surgery Leads">Cosmetic Surgery Leads</SelectItem>
-                      <SelectItem value="IVF Fertility Leads">IVF Fertility Leads</SelectItem>
-                      <SelectItem value="Eye Treatment Leads">Eye Treatment Leads</SelectItem>
+                      <SelectItem value="Tenant Screening Leads">Tenant Screening Leads</SelectItem>
+                      <SelectItem value="Background Check Leads">Background Check Leads</SelectItem>
+                      <SelectItem value="Landlord Outreach Leads">Landlord Outreach Leads</SelectItem>
+                      <SelectItem value="Property Manager Leads">Property Manager Leads</SelectItem>
                       <SelectItem value="All Services Leads">All Services Leads</SelectItem>
                     </SelectContent>
                   </Select>
@@ -287,10 +286,10 @@ export default function NewCampaignPage() {
                   <Select onValueChange={(v) => form.setValue('campaign_goal', v)} disabled={isSubmitting}>
                     <SelectTrigger><SelectValue placeholder="What's the goal?" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Book consultation">Book consultation</SelectItem>
+                      <SelectItem value="Get tenant reports">Get tenant reports</SelectItem>
                       <SelectItem value="Share educational content">Share educational content</SelectItem>
                       <SelectItem value="Announce new service">Announce new service</SelectItem>
-                      <SelectItem value="Patient testimonial spotlight">Patient testimonial spotlight</SelectItem>
+                      <SelectItem value="Landlord success story spotlight">Landlord success story spotlight</SelectItem>
                       <SelectItem value="Seasonal awareness campaign">Seasonal awareness campaign</SelectItem>
                     </SelectContent>
                   </Select>
@@ -340,7 +339,7 @@ export default function NewCampaignPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Button Text</label>
                   <Input
                     {...form.register('cta_button_text')}
-                    placeholder="Book Free Consultation"
+                    placeholder="Start Free Screening"
                     disabled={isSubmitting}
                   />
                   {form.formState.errors.cta_button_text && (
@@ -351,7 +350,7 @@ export default function NewCampaignPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Button Link (optional)</label>
                   <Input
                     {...form.register('cta_link')}
-                    placeholder="https://www.togahh.com/en/contact"
+                    placeholder="https://www.tenantreport.ai"
                     disabled={isSubmitting}
                   />
                   {form.formState.errors.cta_link && (
@@ -374,7 +373,7 @@ export default function NewCampaignPage() {
               )}
             </Button>
           </form>
-        </div>
+        </PageBody>
       </div>
     </>
   );

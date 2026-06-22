@@ -26,7 +26,6 @@ import {
 
 import { Badge, Spinner } from './components';
 import { socialSupabase } from '../lib/socialSupabase';
-import { supabase } from '../lib/supabase';
 import GeneratorModal from './GeneratorModal';
 import RetryModal from './RetryModal';
 import ImagePromptModal from './ImagePromptModal';
@@ -47,6 +46,40 @@ const VOICE_OPTIONS = {
 
 const medicalBlue = "#0284c7";
 const medicalTeal = "#0d9488";
+
+const BRAND_HANDLE = "tenant_report_ai";
+const BRAND_NAME = "Tenant Report AI";
+const BRAND_LOGO = "/tenant-report-logo.png";
+const BRAND_DOMAIN = "tenantreport.ai";
+
+const SAMPLE_SOCIAL_FALLBACK = {
+  instagram:
+    "What Landlords Wish They Knew Before Their Next Tenant Move-In 🏠\n\nChoosing the wrong tenant can cost thousands in missed rent and legal headaches. Tenant Report AI changed how I screen applicants — AI-powered reliability scoring, comprehensive background and credit reports, and rent protection guarantees, all in one affordable platform. No more guesswork. No more sleepless nights wondering if the next applicant will pay on time. Tenant Report AI helped me screen smarter, reduce risk, and protect my rental income with confidence. Visit Tenant Report AI to learn more\n\n.\n.\n.\n#TenantScreening #LandlordLife #PropertyManagement #RentalIncome #CanadianLandlords #TenantReportAI #BackgroundCheck #RentProtection #RealEstateInvesting",
+  facebook:
+    "What Landlords Wish They Knew Before Their Next Tenant Move-In 🏠\n\nChoosing the wrong tenant can cost thousands in missed rent and legal headaches. Tenant Report AI changed how I screen applicants — AI-powered reliability scoring, comprehensive background and credit reports, and rent protection guarantees, all in one affordable platform. No more guesswork. No more sleepless nights wondering if the next applicant will pay on time. Tenant Report AI helped me screen smarter, reduce risk, and protect my rental income with confidence. Visit Tenant Report AI to learn more\n\n#TenantScreening #LandlordLife #PropertyManagement #RentalIncome #CanadianLandlords #TenantReportAI #BackgroundCheck #RentProtection #RealEstateInvesting",
+  tiktok:
+    "What Landlords Wish They Knew Before Their Next Tenant Move-In 🏠\n\n#TenantScreening #LandlordTips #RentalProperty",
+  linkedin:
+    "What Landlords Wish They Knew Before Their Next Tenant Move-In 🏠\n\nChoosing the wrong tenant can cost thousands in missed rent and legal headaches. Tenant Report AI changed how I screen applicants — AI-powered reliability scoring, comprehensive background and credit reports, and rent protection guarantees, all in one affordable platform. Tenant Report AI helped me screen smarter, reduce risk, and protect my rental income with confidence.\n\n#TenantScreening #LandlordLife #PropertyManagement #CanadianLandlords #TenantReportAI #BackgroundCheck #RentProtection",
+  twitter:
+    "What Landlords Wish They Knew Before Their Next Tenant Move-In 🏠\n\nStop guessing on applicants — Tenant Report AI screens smarter! #TenantScreening #CanadianLandlords",
+};
+
+const SAMPLE_VIDEO_FALLBACK = {
+  title: "Screen Tenants Smarter with Tenant Report AI 🏠",
+  caption:
+    "Stop risking missed rent — screen applicants with AI-powered reliability scoring, background checks, and rent protection. #TenantScreening #LandlordTips #TenantReportAI",
+  description:
+    "Welcome to Tenant Report AI! Discover affordable AI-powered tenant screening with background checks, credit reports, and rent protection for Canadian landlords.",
+};
+
+const LANDLORD_HASHTAGS = [
+  "#TenantReportAI",
+  "#TenantScreening",
+  "#LandlordTips",
+  "#RentalIncome",
+  "#CanadianLandlords",
+];
 
 function parseDescriptions(rawDescriptions: any) {
   try {
@@ -148,7 +181,7 @@ export default function SocialDash() {
     duration: string | number;
   }>({
     character: "male",
-    category: "Hair Transplant",
+    category: "Tenant Screening",
     description: "",
     videoStyle: "Highly Realistic 4k, real life",
     language: "English",
@@ -203,7 +236,7 @@ export default function SocialDash() {
   useEffect(() => {
     const fetchImageData = async () => {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await socialSupabase
           .from('Images')
           .select('image_link, Descriptions')
           .eq('id', 1)
@@ -253,7 +286,7 @@ export default function SocialDash() {
       fetchVideoData();
     }, 8000);
 
-    const channel = supabase
+    const channel = socialSupabase
       .channel('images-all-cols')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'Images', filter: 'id=eq.1' }, (payload: any) => {
         if (payload.new?.image_link) {
@@ -269,7 +302,7 @@ export default function SocialDash() {
       })
       .subscribe();
 
-    const videoChannel = supabase
+    const videoChannel = socialSupabase
       .channel('videos-all-cols')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'videos', filter: 'id=eq.1' }, (payload: any) => {
         console.log('[Videos channel update] payload:', payload);
@@ -283,8 +316,8 @@ export default function SocialDash() {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
-      supabase.removeChannel(videoChannel);
+      socialSupabase.removeChannel(channel);
+      socialSupabase.removeChannel(videoChannel);
       clearInterval(videoPollInterval);
     };
   }, []);
@@ -402,7 +435,7 @@ export default function SocialDash() {
   const handleRefreshImagePreview = async () => {
     setIsRefreshingImage(true);
     try {
-      const { data } = await supabase
+      const { data } = await socialSupabase
         .from('Images')
         .select('image_link, Descriptions')
         .eq('id', 1)
@@ -519,27 +552,27 @@ export default function SocialDash() {
 
         const instaText = platforms.instagram?.content || 
                           platforms.instagram?.caption || 
-                          "What Nobody Tells You About DHI Hair Transplants 🇹🇷\n\nWaiting for hair restoration in Canada felt endless and costly. Discovering the DHI hair transplant with TOGA Health in Turkey changed everything — a no-shave, minimally invasive method that offers precision and faster recovery. Unlike traditional transplants, DHI uses direct implantation for a natural look without long downtime. Now, I can enjoy fuller hair without hiding behind scars or shaved areas. TOGA Health helped me skip the wait and regain confidence with cutting-edge care tailored just for me. Visit TOGA Health to learn more about transforming your life\n\n.\n.\n.\n#HairTransplant #HairRestoration #HairTransplantTurkey #MedicalTourismTurkey #IstanbulHealthcare #CanadianPatients #ConfidenceRestored #LifeTransformation #NewBeginnings #SelfCareJourney #TransformationStory #TOGAHealth #MedicalTourism #AffordableHealthcare";
+                          SAMPLE_SOCIAL_FALLBACK.instagram;
 
         const fbText = platforms.facebook?.content || 
                        platforms.facebook?.caption || 
-                       "What Nobody Tells You About DHI Hair Transplants 🇹🇷\n\nWaiting for hair restoration in Canada felt endless and costly. Discovering the DHI hair transplant with TOGA Health in Turkey changed everything — a no-shave, minimally invasive method that offers precision and faster recovery. Unlike traditional transplants, DHI uses direct implantation for a natural look without long downtime. Now, I can enjoy fuller hair without hiding behind scars or shaved areas. TOGA Health helped me skip the wait and regain confidence with cutting-edge care tailored just for me. Visit TOGA Health to learn more about transforming your life\n\n#HairTransplant #HairRestoration #HairTransplantTurkey #MedicalTourismTurkey #IstanbulHealthcare #CanadianPatients #ConfidenceRestored #LifeTransformation #NewBeginnings #SelfCareJourney #TransformationStory #TOGAHealth #MedicalTourism #AffordableHealthcare";
+                       SAMPLE_SOCIAL_FALLBACK.facebook;
 
         const ttText = payload?.raw?.caption ||
                        payload?.Descriptions?.caption ||
                        platforms.tiktok?.caption || 
                        platforms.tiktok?.content || 
                        platforms.tiktok?.description || 
-                       "What Nobody Tells You About DHI Hair Transplants 🇹🇷\n\n#HairTransplant #HairRestoration #HairTransplantTurkey";
+                       SAMPLE_SOCIAL_FALLBACK.tiktok;
 
         const twText = platforms.twitter?.content || 
                        platforms.twitter?.caption || 
                        platforms.twitter?.description || 
-                       "What Nobody Tells You About DHI Hair Transplants 🇹🇷\n\nWaiting for hair restoration in Canada felt endless. Discovering DHI with TOGA Health changed everything! #HairTransplant #Turkey";
+                       SAMPLE_SOCIAL_FALLBACK.twitter;
 
         const liText = platforms.linkedin?.content || 
                        platforms.linkedin?.caption || 
-                       "What Nobody Tells You About DHI Hair Transplants 🇹🇷\n\nWaiting for hair restoration in Canada felt endless and costly. Discovering the DHI hair transplant with TOGA Health in Turkey changed everything — a no-shave, minimally invasive method that offers precision and faster recovery. Unlike traditional transplants, DHI uses direct implantation for a natural look without long downtime. Now, I can enjoy fuller hair without hiding behind scars or shaved areas. TOGA Health helped me skip the wait and regain confidence with cutting-edge care tailored just for me. Visit TOGA Health to learn more about transforming your life\n\n#HairTransplant #HairRestoration #HairTransplantTurkey #MedicalTourismTurkey #IstanbulHealthcare #CanadianPatients #ConfidenceRestored";
+                       SAMPLE_SOCIAL_FALLBACK.linkedin;
 
         setGeneratedSocialImage(imageUrl);
         setSocialDescriptions({
@@ -561,20 +594,14 @@ export default function SocialDash() {
       setGenerationType(null);
       setIsImageGenerating(false);
       
-      setSocialDescriptions({
-        instagram: "What Nobody Tells You About DHI Hair Transplants 🇹🇷\n\nWaiting for hair restoration in Canada felt endless and costly. Discovering the DHI hair transplant with TOGA Health in Turkey changed everything — a no-shave, minimally invasive method that offers precision and faster recovery. Unlike traditional transplants, DHI uses direct implantation for a natural look without long downtime. Now, I can enjoy fuller hair without hiding behind scars or shaved areas. TOGA Health helped me skip the wait and regain confidence with cutting-edge care tailored just for me. Visit TOGA Health to learn more about transforming your life\n\n.\n.\n.\n#HairTransplant #HairRestoration #HairTransplantTurkey #MedicalTourismTurkey #IstanbulHealthcare #CanadianPatients #ConfidenceRestored #LifeTransformation #NewBeginnings #SelfCareJourney #TransformationStory #TOGAHealth #MedicalTourism #AffordableHealthcare",
-        facebook: "What Nobody Tells You About DHI Hair Transplants 🇹🇷\n\nWaiting for hair restoration in Canada felt endless and costly. Discovering the DHI hair transplant with TOGA Health in Turkey changed everything — a no-shave, minimally invasive method that offers precision and faster recovery. Unlike traditional transplants, DHI uses direct implantation for a natural look without long downtime. Now, I can enjoy fuller hair without hiding behind scars or shaved areas. TOGA Health helped me skip the wait and regain confidence with cutting-edge care tailored just for me. Visit TOGA Health to learn more about transforming your life\n\n#HairTransplant #HairRestoration #HairTransplantTurkey #MedicalTourismTurkey #IstanbulHealthcare #CanadianPatients #ConfidenceRestored #LifeTransformation #NewBeginnings #SelfCareJourney #TransformationStory #TOGAHealth #MedicalTourism #AffordableHealthcare",
-        tiktok: "What Nobody Tells You About DHI Hair Transplants 🇹🇷\n\n#HairTransplant #HairRestoration #HairTransplantTurkey",
-        linkedin: "What Nobody Tells You About DHI Hair Transplants 🇹🇷\n\nWaiting for hair restoration in Canada felt endless and costly. Discovering the DHI hair transplant with TOGA Health in Turkey changed everything — a no-shave, minimally invasive method that offers precision and faster recovery. Unlike traditional transplants, DHI uses direct implantation for a natural look without long downtime. Now, I can enjoy fuller hair without hiding behind scars or shaved areas. TOGA Health helped me skip the wait and regain confidence with cutting-edge care tailored just for me. Visit TOGA Health to learn more about transforming your life\n\n#HairTransplant #HairRestoration #HairTransplantTurkey #MedicalTourismTurkey #IstanbulHealthcare #CanadianPatients #ConfidenceRestored",
-        twitter: "What Nobody Tells You About DHI Hair Transplants 🇹🇷\n\nWaiting for hair restoration in Canada felt endless. Discovering DHI with TOGA Health changed everything! #HairTransplant #Turkey"
-      });
+      setSocialDescriptions({ ...SAMPLE_SOCIAL_FALLBACK });
     }
   };
 
   const handleSocialPost = async () => {
     setIsImagePosting(true);
     try {
-      const webhookUrl = "https://n8n.srv1208919.hstgr.cloud/webhook/5636fbef-db11-419b-b7cf-92bff14c25b7";
+      const webhookUrl = "https://n8n.srv1374096.hstgr.cloud/webhook-test/5636fbef-db11-419b-b7cf-92bff14c25b7";
       await triggerWebhook(
         webhookUrl,
         "post_social",
@@ -797,7 +824,7 @@ export default function SocialDash() {
     localStorage.setItem('sd_generation_start', Date.now().toString());
     setStatus("Generating your social video preview...");
 
-    const webhookUrl = "https://n8n.srv1208919.hstgr.cloud/webhook/c44e7bac-b0db-43a7-96d3-8b2a3f483885";
+    const webhookUrl = "https://n8n.srv1374096.hstgr.cloud/webhook-test/c44e7bac-b0db-43a7-96d3-8b2a3f483885";
     console.log("[UI] Confirming prompts to:", webhookUrl);
 
     let result: any = null;
@@ -972,7 +999,7 @@ export default function SocialDash() {
       overflow: 'hidden',
       border: '1px solid #e2e8f0'
     }}>
-      <img src="/toga-health-logo.png" alt="Toga Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+      <img src={BRAND_LOGO} alt={BRAND_NAME} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
     </div>
   );
 
@@ -992,8 +1019,8 @@ export default function SocialDash() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {renderAvatar()}
             <div>
-              <p style={{ fontSize: '11px', fontWeight: 700, margin: 0 }}>toga_health_ai</p>
-              <p style={{ fontSize: '9px', color: '#64748b', margin: 0 }}>AI Medical Center · Istanbul, Turkey</p>
+              <p style={{ fontSize: '11px', fontWeight: 700, margin: 0 }}>{BRAND_HANDLE}</p>
+              <p style={{ fontSize: '9px', color: '#64748b', margin: 0 }}>AI Tenant Screening · Canada</p>
             </div>
           </div>
           <span style={{ fontSize: '14px', fontWeight: 800, color: '#64748b', cursor: 'pointer' }}>•••</span>
@@ -1001,11 +1028,13 @@ export default function SocialDash() {
 
         {/* Media Block */}
         <div style={{ background: '#000000', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', aspectRatio: imageRatio === '16:9' ? '16/9' : '9/16', borderTop: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9' }}>
-          <img
-            src={generatedSocialImage || ""}
-            alt="Instagram Mockup"
-            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-          />
+          {generatedSocialImage ? (
+            <img
+              src={generatedSocialImage}
+              alt="Instagram Mockup"
+              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+            />
+          ) : null}
         </div>
 
         {/* Action icons bar */}
@@ -1023,7 +1052,7 @@ export default function SocialDash() {
 
         {/* Description text */}
         <div style={{ padding: '0 12px', fontSize: '11px', lineHeight: '1.5', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
-          <span style={{ fontWeight: 700, marginRight: '6px' }}>toga_health_ai</span>
+          <span style={{ fontWeight: 700, marginRight: '6px' }}>{BRAND_HANDLE}</span>
           {formattedText}
         </div>
       </div>
@@ -1046,7 +1075,7 @@ export default function SocialDash() {
           {renderAvatar()}
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <p style={{ fontSize: '12px', fontWeight: 700, margin: 0 }}>Toga Health AI</p>
+              <p style={{ fontSize: '12px', fontWeight: 700, margin: 0 }}>{BRAND_NAME}</p>
               <span style={{ color: '#1877f2', fontSize: '10px' }}>✔️</span>
             </div>
             <p style={{ fontSize: '9px', color: '#65676b', margin: 0 }}>Sponsored · 🌍</p>
@@ -1061,15 +1090,17 @@ export default function SocialDash() {
         {/* Media Block */}
         <div style={{ background: '#f0f2f5', border: '1px solid #e4e6eb', borderRadius: '8px', overflow: 'hidden' }}>
           <div style={{ width: '100%', aspectRatio: imageRatio === '16:9' ? '16/9' : '9/16', background: '#000000' }}>
-            <img
-              src={generatedSocialImage || ""}
-              alt="Facebook Mockup"
-              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-            />
+            {generatedSocialImage ? (
+              <img
+                src={generatedSocialImage}
+                alt="Facebook Mockup"
+                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+              />
+            ) : null}
           </div>
           <div style={{ padding: '10px', background: '#f0f2f5', borderTop: '1px solid #e4e6eb' }}>
-            <p style={{ fontSize: '9px', color: '#65676b', textTransform: 'uppercase', margin: 0 }}>togahealth.ai</p>
-            <p style={{ fontSize: '12px', fontWeight: 700, margin: '4px 0 0 0', color: '#050505' }}>Skip the Canadian Medical Wait times</p>
+            <p style={{ fontSize: '9px', color: '#65676b', textTransform: 'uppercase', margin: 0 }}>{BRAND_DOMAIN}</p>
+            <p style={{ fontSize: '12px', fontWeight: 700, margin: '4px 0 0 0', color: '#050505' }}>Affordable AI-Powered Tenant Screening for Canadian Landlords</p>
           </div>
         </div>
 
@@ -1104,8 +1135,8 @@ export default function SocialDash() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
           {renderAvatar()}
           <div>
-            <p style={{ fontSize: '11px', fontWeight: 700, margin: 0, color: '#000000' }}>Toga Health AI</p>
-            <p style={{ fontSize: '9px', color: '#64748b', margin: 0 }}>Innovative Patient Operations Hub · 10,240 followers</p>
+            <p style={{ fontSize: '11px', fontWeight: 700, margin: 0, color: '#000000' }}>{BRAND_NAME}</p>
+            <p style={{ fontSize: '9px', color: '#64748b', margin: 0 }}>AI-Powered Tenant Screening Platform · 10,240 followers</p>
             <p style={{ fontSize: '9px', color: '#64748b', margin: 0 }}>1h · 🌍</p>
           </div>
         </div>
@@ -1117,11 +1148,13 @@ export default function SocialDash() {
 
         {/* Media card */}
         <div style={{ border: '1px solid #e2e8f0', borderRadius: '4px', overflow: 'hidden', background: '#000000', aspectRatio: imageRatio === '16:9' ? '16/9' : '9/16' }}>
-          <img
-            src={generatedSocialImage || ""}
-            alt="LinkedIn Mockup"
-            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-          />
+          {generatedSocialImage ? (
+            <img
+              src={generatedSocialImage}
+              alt="LinkedIn Mockup"
+              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+            />
+          ) : null}
         </div>
 
         {/* Likes Count */}
@@ -1148,11 +1181,13 @@ export default function SocialDash() {
         
         {/* Background Image full fit */}
         <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 1 }}>
-          <img
-            src={generatedSocialImage || ""}
-            alt="TikTok Mockup"
-            style={{ width: '100%', height: '100%', objectFit: 'contain', opacity: 0.85 }}
-          />
+          {generatedSocialImage ? (
+            <img
+              src={generatedSocialImage}
+              alt="TikTok Mockup"
+              style={{ width: '100%', height: '100%', objectFit: 'contain', opacity: 0.85 }}
+            />
+          ) : null}
           {/* Subtle bottom gradient cover */}
           <div style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', height: '140px', background: 'linear-gradient(to top, rgba(0,0,0,0.9), transparent)' }} />
         </div>
@@ -1165,11 +1200,11 @@ export default function SocialDash() {
           
           {/* User & Caption Info */}
           <div style={{ flex: 1, paddingRight: '20px', color: '#ffffff', textShadow: '0 1px 4px rgba(0,0,0,0.8)', textAlign: 'left' }}>
-            <p style={{ fontSize: '11px', fontWeight: 700, margin: '0 0 4px 0' }}>@toga_health_ai</p>
+            <p style={{ fontSize: '11px', fontWeight: 700, margin: '0 0 4px 0' }}>@{BRAND_HANDLE}</p>
             <p style={{ fontSize: '9px', lineHeight: '1.4', margin: 0, maxHeight: '60px', overflowY: 'auto', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
               {text}
             </p>
-            <p style={{ fontSize: '8px', color: '#d4d4d8', marginTop: '4px' }}>🎵 original sound - Toga Health AI</p>
+            <p style={{ fontSize: '8px', color: '#d4d4d8', marginTop: '4px' }}>🎵 original sound - {BRAND_NAME}</p>
           </div>
 
           {/* Right Floating Actions */}
@@ -1177,7 +1212,7 @@ export default function SocialDash() {
             {/* Avatar with Pink Plus */}
             <div style={{ position: 'relative', width: '28px', height: '28px' }}>
               <div style={{ width: '100%', height: '100%', borderRadius: '50%', border: '1.5px solid #ffffff', overflow: 'hidden', background: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <img src="/toga-health-logo.png" alt="Toga" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                <img src={BRAND_LOGO} alt={BRAND_NAME} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
               </div>
               <div style={{ position: 'absolute', bottom: '-4px', left: '50%', transform: 'translateX(-50%)', background: '#ff0050', color: '#ffffff', borderRadius: '50%', width: '10px', height: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '6px', fontWeight: 800 }}>+</div>
             </div>
@@ -1228,8 +1263,8 @@ export default function SocialDash() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {renderAvatar()}
             <div>
-              <p style={{ fontSize: '11px', fontWeight: 800, margin: 0, color: '#0f172a' }}>Toga Health AI</p>
-              <p style={{ fontSize: '9px', color: '#64748b', margin: 0 }}>@toga_health_ai · 1h</p>
+              <p style={{ fontSize: '11px', fontWeight: 800, margin: 0, color: '#0f172a' }}>{BRAND_NAME}</p>
+              <p style={{ fontSize: '9px', color: '#64748b', margin: 0 }}>@{BRAND_HANDLE} · 1h</p>
             </div>
           </div>
           <svg viewBox="0 0 24 24" width="16" height="16" fill="#000000">
@@ -1350,7 +1385,7 @@ export default function SocialDash() {
       border: '1px solid #e2e8f0',
       flexShrink: 0
     }}>
-      <img src="/toga-health-logo.png" alt="Toga Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+      <img src={BRAND_LOGO} alt={BRAND_NAME} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
     </div>
   );
 
@@ -1369,8 +1404,8 @@ export default function SocialDash() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {renderVideoAvatar()}
             <div>
-              <p style={{ fontSize: '10px', fontWeight: 700, margin: 0, color: '#262626' }}>toga_health_ai</p>
-              <p style={{ fontSize: '8px', color: '#8e8e8e', margin: 0 }}>Istanbul, Turkey</p>
+              <p style={{ fontSize: '10px', fontWeight: 700, margin: 0, color: '#262626' }}>{BRAND_HANDLE}</p>
+              <p style={{ fontSize: '8px', color: '#8e8e8e', margin: 0 }}>Canada</p>
             </div>
           </div>
           <span style={{ fontSize: '12px', color: '#262626', fontWeight: 700, cursor: 'pointer' }}>•••</span>
@@ -1395,7 +1430,7 @@ export default function SocialDash() {
         <div style={{ padding: '0 10px 12px 10px', flex: 1 }}>
           <p style={{ fontSize: '9px', margin: '0 0 2px 0', color: '#262626', fontWeight: 700 }}>4,812 views</p>
           <p style={{ fontSize: '9px', lineHeight: '1.4', margin: 0, color: '#262626', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
-            <span style={{ fontWeight: 700, marginRight: '4px' }}>toga_health_ai</span>
+            <span style={{ fontWeight: 700, marginRight: '4px' }}>{BRAND_HANDLE}</span>
             {formattedText}
           </p>
         </div>
@@ -1412,7 +1447,7 @@ export default function SocialDash() {
             {renderVideoAvatar()}
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-                <p style={{ fontSize: '10px', fontWeight: 700, margin: 0, color: '#050505' }}>Toga Health AI</p>
+                <p style={{ fontSize: '10px', fontWeight: 700, margin: 0, color: '#050505' }}>{BRAND_NAME}</p>
                 <span style={{ color: '#1877f2', fontSize: '9px' }}>✓</span>
               </div>
               <p style={{ fontSize: '8px', color: '#65676b', margin: 0 }}>Sponsored · 🌐</p>
@@ -1451,8 +1486,8 @@ export default function SocialDash() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {renderVideoAvatar()}
             <div>
-              <p style={{ fontSize: '10px', fontWeight: 700, margin: 0, color: '#000000' }}>Toga Health AI</p>
-              <p style={{ fontSize: '7px', color: '#00000099', margin: '1px 0 0 0' }}>AI-Powered Healthcare Solutions</p>
+              <p style={{ fontSize: '10px', fontWeight: 700, margin: 0, color: '#000000' }}>{BRAND_NAME}</p>
+              <p style={{ fontSize: '7px', color: '#00000099', margin: '1px 0 0 0' }}>AI-Powered Tenant Screening for Landlords</p>
               <p style={{ fontSize: '7px', color: '#00000099', margin: 0 }}>1d · Edited · 🌐</p>
             </div>
           </div>
@@ -1500,18 +1535,18 @@ export default function SocialDash() {
           
           {/* User Details & Caption Overlay */}
           <div style={{ flex: 1, paddingRight: '20px', color: '#ffffff', textShadow: '0 1px 4px rgba(0,0,0,0.8)', textAlign: 'left' }}>
-            <p style={{ fontSize: '11px', fontWeight: 700, margin: '0 0 4px 0' }}>@toga_health_ai</p>
+            <p style={{ fontSize: '11px', fontWeight: 700, margin: '0 0 4px 0' }}>@{BRAND_HANDLE}</p>
             <p style={{ fontSize: '9px', lineHeight: '1.4', margin: 0, maxHeight: '60px', overflowY: 'auto', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
               {text}
             </p>
-            <p style={{ fontSize: '8px', color: '#d4d4d8', marginTop: '4px' }}>🎵 original sound - Toga Health AI</p>
+            <p style={{ fontSize: '8px', color: '#d4d4d8', marginTop: '4px' }}>🎵 original sound - {BRAND_NAME}</p>
           </div>
 
           {/* Right Floating Actions */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
             <div style={{ position: 'relative', width: '28px', height: '28px' }}>
               <div style={{ width: '100%', height: '100%', borderRadius: '50%', border: '1.5px solid #ffffff', overflow: 'hidden', background: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <img src="/toga-health-logo.png" alt="Toga" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                <img src={BRAND_LOGO} alt={BRAND_NAME} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
               </div>
               <div style={{ position: 'absolute', bottom: '-4px', left: '50%', transform: 'translateX(-50%)', background: '#ff0050', color: '#ffffff', borderRadius: '50%', width: '10px', height: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '6px', fontWeight: 800 }}>+</div>
             </div>
@@ -1552,7 +1587,7 @@ export default function SocialDash() {
         {/* Video metadata */}
         <div style={{ padding: '10px 12px 12px 12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <h3 style={{ fontSize: '11px', fontWeight: 700, margin: 0, color: '#0f172a', lineHeight: '1.4' }}>
-            {titleText || "Transforming Lives with Toga Health AI"}
+            {titleText || SAMPLE_VIDEO_FALLBACK.title}
           </h3>
           <p style={{ fontSize: '7.5px', color: '#64748b', margin: 0 }}>4.2K views · 2 hours ago</p>
 
@@ -1561,7 +1596,7 @@ export default function SocialDash() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               {renderVideoAvatar()}
               <div>
-                <p style={{ fontSize: '9px', fontWeight: 700, margin: 0, color: '#0f172a' }}>Toga Health AI</p>
+                <p style={{ fontSize: '9px', fontWeight: 700, margin: 0, color: '#0f172a' }}>{BRAND_NAME}</p>
                 <p style={{ fontSize: '7.5px', color: '#64748b', margin: 0 }}>12.4K subscribers</p>
               </div>
             </div>
@@ -1574,7 +1609,7 @@ export default function SocialDash() {
           <div style={{ background: '#f8fafc', borderRadius: '8px', padding: '8px 10px' }}>
             <p style={{ fontSize: '8px', color: '#334155', fontWeight: 700, margin: '0 0 4px 0' }}>Description</p>
             <p style={{ fontSize: '8px', lineHeight: '1.4', margin: 0, color: '#475569', wordBreak: 'break-word', whiteSpace: 'pre-wrap', maxHeight: '100px', overflowY: 'auto' }}>
-              {descriptionText || "Welcome to Toga Health! Discover cutting-edge DHI hair transplant techniques and cosmetic dentistry in Istanbul, Turkey."}
+              {descriptionText || SAMPLE_VIDEO_FALLBACK.description}
             </p>
           </div>
         </div>
@@ -1597,8 +1632,8 @@ export default function SocialDash() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {renderVideoAvatar()}
             <div>
-              <p style={{ fontSize: '10px', fontWeight: 800, margin: 0, color: '#0f172a' }}>Toga Health AI</p>
-              <p style={{ fontSize: '8px', color: '#64748b', margin: 0 }}>@toga_health_ai · 1h</p>
+              <p style={{ fontSize: '10px', fontWeight: 800, margin: 0, color: '#0f172a' }}>{BRAND_NAME}</p>
+              <p style={{ fontSize: '8px', color: '#64748b', margin: 0 }}>@{BRAND_HANDLE} · 1h</p>
             </div>
           </div>
           <svg viewBox="0 0 24 24" width="14" height="14" fill="#000000">
@@ -1629,7 +1664,7 @@ export default function SocialDash() {
   };
 
   const handlePostVideo = () => {
-    const webhookUrl = "https://n8n.srv1208919.hstgr.cloud/webhook/9f2515c1-b4fc-4dc9-9f39-8e766aee0dc6";
+    const webhookUrl = "https://n8n.srv1374096.hstgr.cloud/webhook-test/9f2515c1-b4fc-4dc9-9f39-8e766aee0dc6";
     triggerWebhook(
       webhookUrl,
       "post",
@@ -1722,7 +1757,7 @@ export default function SocialDash() {
                     value={videoFormData.category}
                     onChange={(e) => setVideoFormData(prev => ({ ...prev, category: e.target.value }))}
                     style={{ padding: '11px 14px', fontSize: '13px', border: '1.5px solid #e2e8f0', borderRadius: '10px', background: '#f8fafc', color: '#0f172a', outline: 'none', width: '100%', boxSizing: 'border-box' }}
-                    placeholder="e.g. Hair Transplant"
+                    placeholder="e.g. Tenant Screening"
                   />
                 </div>
 
@@ -1898,7 +1933,7 @@ export default function SocialDash() {
                   name="description"
                   value={videoFormData.description}
                   onChange={(e) => setVideoFormData(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="Tell your patient story or describe the blog post content..."
+                  placeholder="Tell your landlord story or describe the tenant screening content..."
                   style={{
                     height: '80px',
                     minHeight: '70px',
@@ -2218,17 +2253,17 @@ export default function SocialDash() {
                     }
                   }
                   const socialFallback = (socialDescriptions as any)[activeVideoPlatform === 'youtube' ? 'instagram' : activeVideoPlatform];
-                  return socialFallback || "From Hiding My Smile to Loving It 💙 #DentalTransformation #SmileMakeover #TOGAHealth";
+                  return socialFallback || SAMPLE_VIDEO_FALLBACK.caption;
                 };
 
                 const getActiveVideoTitle = () => {
                   if (videoMetadata) {
                     const meta = videoMetadata[activeVideoPlatform];
                     if (meta) {
-                      return (meta as any).title || "From Hiding My Smile to Loving It 💙";
+                      return (meta as any).title || SAMPLE_VIDEO_FALLBACK.title;
                     }
                   }
-                  return "From Hiding My Smile to Loving It 💙";
+                  return SAMPLE_VIDEO_FALLBACK.title;
                 };
 
                 return (
@@ -2394,7 +2429,7 @@ export default function SocialDash() {
                                   facebook: { content: socialDescriptions.facebook },
                                   linkedin: { content: socialDescriptions.linkedin },
                                   tiktok: { caption: socialDescriptions.tiktok },
-                                  youtube: { title: "From Hiding My Smile to Loving It 💙", description: socialDescriptions.instagram },
+                                  youtube: { title: SAMPLE_VIDEO_FALLBACK.title, description: socialDescriptions.instagram },
                                   twitter: { content: socialDescriptions.twitter }
                                 };
                                 const updatedPlatformData = { ...currentMetadata.youtube, title: val };
@@ -2433,7 +2468,7 @@ export default function SocialDash() {
                                 facebook: { content: socialDescriptions.facebook },
                                 linkedin: { content: socialDescriptions.linkedin },
                                 tiktok: { caption: socialDescriptions.tiktok },
-                                youtube: { title: "From Hiding My Smile to Loving It 💙", description: socialDescriptions.instagram },
+                                youtube: { title: SAMPLE_VIDEO_FALLBACK.title, description: socialDescriptions.instagram },
                                 twitter: { content: socialDescriptions.twitter }
                               };
                               const updatedPlatformData = { ...currentMetadata[activeVideoPlatform] };
@@ -2524,7 +2559,7 @@ export default function SocialDash() {
                   <textarea 
                     value={imagePrompt}
                     onChange={(e) => setImagePrompt(e.target.value)}
-                    placeholder="e.g. Modern dental clinic interior, professional lighting, warm patient care atmosphere, highly detailed..."
+                    placeholder="e.g. Landlord reviewing tenant application on laptop, professional home office, warm natural lighting, highly detailed..."
                     style={{ 
                       height: '65px', 
                       minHeight: '50px', 
@@ -2833,11 +2868,11 @@ export default function SocialDash() {
                       placeholder={`Draft your perfect ${activePlatform} post here...`}
                     />
 
-                    {/* Clickable Medical Hashtag Palette */}
+                    {/* Clickable Landlord Hashtag Palette */}
                     <div style={{ marginTop: '12px' }}>
-                      <p style={{ fontSize: '10px', color: '#64748b', fontWeight: 600, marginBottom: '6px', margin: '0 0 6px 0' }}>⚕️ Tap to Append Healthcare Hashtags</p>
+                      <p style={{ fontSize: '10px', color: '#64748b', fontWeight: 600, marginBottom: '6px', margin: '0 0 6px 0' }}>🏠 Tap to Append Landlord Hashtags</p>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                        {['#TOGAHealth', '#HairTransplantTurkey', '#DHITransplant', '#MedicalTourism', '#ConfidenceRestored'].map((tag) => (
+                        {LANDLORD_HASHTAGS.map((tag) => (
                           <button
                             key={tag}
                             onClick={() => {

@@ -1,0 +1,122 @@
+export const dynamic = 'force-dynamic';
+
+import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import { shouldShowInApprovalQueue } from '@/lib/legacy-brand';
+import { prisma } from '@/lib/prisma';
+
+function getServiceClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
+
+export async function GET() {
+  try {
+    const supabase = getServiceClient();
+    const projectUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/rest\/v1\/?$/, '');
+
+    const storageLookup: Record<string, { bucket: string; time: string; publicUrl: string }> = {};
+    const buckets = ['AD1', 'AD2', 'AD3', 'AD4', 'AD5'];
+
+    for (const bucket of buckets) {
+      const { data: files } = await supabase.storage.from(bucket).list('', { limit: 100 });
+      if (!files?.length) continue;
+      for (const file of files) {
+        if (file.name === '.emptyFolderPlaceholder') continue;
+        storageLookup[file.name] = {
+          bucket,
+          time: file.created_at,
+          publicUrl: `${projectUrl}/storage/v1/object/public/${bucket}/${file.name}`,
+        };
+      }
+    }
+
+    const { data: rows, error } = await supabase
+      .from('your_name_table')
+      .select('id, text, time, format, Approved, "json data"')
+      .order('time', { ascending: false });
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    const filteredRows = (rows || []).filter((row) => shouldShowInApprovalQueue(row));
+
+    return NextResponse.json({ rows: filteredRows, storageLookup });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || 'Failed to fetch ads' }, { status: 500 });
+  }
+}
+
+/** Unapprove or delete an ad from the approval queue. */
+export async function DELETE(req: Request) {
+  try {
+    const { id, time, text, deleteRow } = await req.json();
+
+    if (!id && !text) {
+      return NextResponse.json({ error: 'id or text is required' }, { status: 400 });
+    }
+
+    if (deleteRow) {
+      const supabase = getServiceClient();
+      let query = supabase.from('your_name_table').delete();
+      if (id && time) query = query.eq('id', id).eq('time', time);
+      else if (text) query = query.eq('text', text);
+      else if (id) query = query.eq('id', id);
+
+      const { error } = await query;
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ success: true });
+    }
+
+    const approvedValue = 'false';
+    let result = 0;
+
+    if (text) {
+      result = await prisma.$executeRawUnsafe(
+        `UPDATE "your_name_table" SET "Approved" = $1 WHERE "text" = $2`,
+        approvedValue,
+        text
+      );
+    }
+    if (result === 0 && id && time) {
+      result = await prisma.$executeRawUnsafe(
+        `UPDATE "your_name_table" SET "Approved" = $1 WHERE "id"::text = $2 AND "time" = $3::timestamptz`,
+        approvedValue,
+        String(id),
+        time
+      );
+    }
+    if (result === 0 && id) {
+      result = await prisma.$executeRawUnsafe(
+        `UPDATE "your_name_table" SET "Approved" = $1 WHERE "id"::text = $2`,
+        approvedValue,
+        String(id)
+      );
+    }
+
+    return NextResponse.json({ success: true, rowsAffected: result });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || 'Failed to remove ad' }, { status: 500 });
+  }
+}
+
+/** Bulk cleanup — unapprove all approved videos. */
+export async function POST(req: Request) {
+  try {
+    const { action } = await req.json();
+    if (action !== 'unapprove-videos') {
+      return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
+    }
+
+    const result = await prisma.$executeRawUnsafe(
+      `UPDATE "your_name_table" SET "Approved" = 'false'
+       WHERE "Approved" IS NOT NULL AND "Approved"::text NOT IN ('false', 'False', '0')
+       AND LOWER(COALESCE("format", '')) = 'video'`
+    );
+
+    return NextResponse.json({ success: true, rowsAffected: Number(result) });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || 'Failed to unapprove videos' }, { status: 500 });
+  }
+}

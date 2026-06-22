@@ -4,21 +4,28 @@ import { createClient } from '@supabase/supabase-js';
 // Trigger deployment build: Force route execution dynamic behavior
 export const dynamic = 'force-dynamic';
 
+function normalizeSupabaseProjectUrl(url: string): string {
+  return url.replace(/\/rest\/v1\/?$/, '').replace(/\/$/, '');
+}
+
 export async function GET() {
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-    // Use service_role key to bypass RLS policies
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+    const supabaseUrl = normalizeSupabaseProjectUrl(
+      process.env.NEXT_PUBLIC_SOCIAL_DASH_SUPABASE_URL || ''
+    );
+    const supabaseKey =
+      process.env.SUPABASE_SOCIAL_DASH_SERVICE_ROLE_KEY ||
+      process.env.NEXT_PUBLIC_SOCIAL_DASH_SUPABASE_ANON_KEY ||
+      '';
 
     if (!supabaseUrl || !supabaseKey) {
-      console.error('[API video-metadata] Supabase URL or Key is missing.');
+      console.error('[API video-metadata] Social Dash Supabase URL or Key is missing.');
       return NextResponse.json(
-        { error: 'Supabase configuration is missing on server.' },
+        { error: 'Social Dash Supabase configuration is missing on server.' },
         { status: 500 }
       );
     }
 
-    // Initialize server-side admin client
     const supabaseAdmin = createClient(supabaseUrl, supabaseKey, {
       auth: {
         persistSession: false,
@@ -26,7 +33,7 @@ export async function GET() {
       },
     });
 
-    console.log('[API video-metadata] Fetching video row (id=1) from Supabase...');
+    console.log('[API video-metadata] Fetching video row (id=1) from Social Dash Supabase...');
     const { data, error } = await supabaseAdmin
       .from('videos')
       .select('video_link, metadata')
@@ -53,11 +60,9 @@ export async function GET() {
       video_link: data.video_link || null,
       metadata: data.metadata || null,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'An unexpected error occurred';
     console.error('[API video-metadata] Unexpected error:', err);
-    return NextResponse.json(
-      { error: err.message || 'An unexpected error occurred' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

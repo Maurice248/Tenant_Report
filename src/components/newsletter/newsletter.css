@@ -1,0 +1,548 @@
+/* =========================================
+   Newsletter Module — Scoped Styles
+   All selectors are prefixed with .nl-root
+   to avoid leaking into other dashboard sections.
+   ========================================= */
+
+/* ---- Root wrapper ---- */
+.nl-root {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding-bottom: 48px;
+  animation: nlFadeIn 0.3s ease-out forwards;
+}
+
+@keyframes nlFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ---- Card base (also defines the previously-undefined .section-card) ---- */
+.nl-root .section-card,
+.nl-card {
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid #f1f5f9;
+  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.05);
+}
+
+/* ---- Two-column grid layout (shared across sub-tabs) ---- */
+.nl-grid {
+  display: grid;
+  gap: 24px;
+  align-items: start;
+}
+
+.nl-grid-2 {
+  grid-template-columns: 340px 1fr;
+}
+
+@media (max-width: 1024px) {
+  .nl-grid-2 { grid-template-columns: 1fr; }
+}
+
+/* ---- Card panels (left / right) ---- */
+.nl-panel {
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid #f1f5f9;
+  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+}
+
+.nl-panel-body {
+  padding: 28px 32px;
+}
+
+.nl-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+  border-bottom: 1px solid #f1f5f9;
+  background: #fafafa;
+}
+
+.nl-panel-title {
+  font-size: 15px;
+  font-weight: 900;
+  color: #111827;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0;
+}
+
+.nl-count-badge {
+  background: #4f46e5;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 3px 10px;
+  border-radius: 6px;
+}
+
+/* ---- Section labels inside forms ---- */
+.nl-root .nl-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 800;
+  color: #374151;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 8px;
+  padding-left: 2px;
+}
+
+/* ---- Inputs and textareas ---- */
+.nl-root .nl-input,
+.nl-root .nl-textarea,
+.nl-root .nl-select {
+  width: 100%;
+  border: 2px solid #f1f5f9;
+  border-radius: 12px;
+  font-size: 14px;
+  color: #111827;
+  background: #f9fafb;
+  padding: 12px 16px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  outline: none;
+}
+
+.nl-root .nl-input:focus,
+.nl-root .nl-textarea:focus,
+.nl-root .nl-select:focus {
+  border-color: #6366f1;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.08);
+}
+
+.nl-root .nl-textarea {
+  resize: none;
+  min-height: 110px;
+}
+
+/* ---- Primary action button ---- */
+.nl-root .nl-btn-primary {
+  width: 100%;
+  padding: 14px 20px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.nl-root .nl-btn-primary:not(:disabled) {
+  background: #4f46e5;
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(79, 70, 229, 0.25);
+}
+
+.nl-root .nl-btn-primary:not(:disabled):hover {
+  background: #4338ca;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(79, 70, 229, 0.35);
+}
+
+.nl-root .nl-btn-primary:not(:disabled):active {
+  transform: translateY(0) scale(0.98);
+}
+
+.nl-root .nl-btn-primary:disabled {
+  background: #f3f4f6;
+  color: #9ca3af;
+  cursor: not-allowed;
+}
+
+/* ---- Secondary / ghost button ---- */
+.nl-root .nl-btn-ghost {
+  padding: 12px 20px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  border: 2px solid #f1f5f9;
+  background: #ffffff;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.nl-root .nl-btn-ghost:hover {
+  background: #f9fafb;
+  color: #111827;
+  border-color: #e5e7eb;
+}
+
+/* ---- Service selection buttons (Generate tab) ---- */
+.nl-root .nl-service-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 2px solid transparent;
+  text-align: left;
+}
+
+.nl-root .nl-service-btn.selected {
+  border-color: #6366f1;
+  background: #eef2ff;
+  color: #3730a3;
+  box-shadow: 0 2px 12px rgba(99, 102, 241, 0.15);
+}
+
+.nl-root .nl-service-btn:not(.selected) {
+  background: #f9fafb;
+  color: #6b7280;
+}
+
+.nl-root .nl-service-btn:not(.selected):hover {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.nl-radio-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.nl-radio-dot.active {
+  background: #4f46e5;
+  box-shadow: 0 0 10px rgba(79, 70, 229, 0.5);
+}
+
+.nl-radio-dot.inactive {
+  background: #d1d5db;
+}
+
+.nl-check-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #4f46e5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.4);
+}
+
+/* ---- Output panel (Generate tab right side) ---- */
+.nl-output-panel {
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid #f1f5f9;
+  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+  min-height: 560px;
+  display: flex;
+  flex-direction: column;
+}
+
+.nl-output-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 22px;
+  border-bottom: 1px solid #f1f5f9;
+  background: #ffffff;
+}
+
+.nl-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.nl-output-body {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.nl-output-actions {
+  padding: 18px 22px;
+  border-top: 1px solid #f1f5f9;
+}
+
+/* ---- Action buttons at bottom of output panel ---- */
+.nl-root .nl-action-row {
+  display: flex;
+  gap: 12px;
+}
+
+.nl-root .nl-btn-send {
+  flex: 1;
+  padding: 14px 20px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #ffffff;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.nl-root .nl-btn-send:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+}
+
+.nl-root .nl-btn-revise {
+  flex: 1;
+  padding: 14px 20px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #6b7280;
+  background: #ffffff;
+  border: 2px solid #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+}
+
+.nl-root .nl-btn-revise:hover {
+  background: #f9fafb;
+  color: #111827;
+  border-color: #e5e7eb;
+}
+
+/* ---- Success / error alert boxes ---- */
+.nl-root .nl-alert-success {
+  border: 3px solid #16a34a;
+  background: #f0fdf4;
+  padding: 20px 24px;
+  margin-top: 16px;
+}
+
+.nl-root .nl-alert-error {
+  border: 3px solid #dc2626;
+  background: #fef2f2;
+  padding: 20px 24px;
+  margin-top: 16px;
+}
+
+/* ---- Manage Services items ---- */
+.nl-root .nl-svc-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-radius: 12px;
+  border: 1px solid #f1f5f9;
+  background: #ffffff;
+  transition: all 0.15s ease;
+}
+
+.nl-root .nl-svc-item:hover {
+  border-color: #e0e7ff;
+  box-shadow: 0 2px 10px rgba(99, 102, 241, 0.08);
+}
+
+.nl-root .nl-svc-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.nl-root .nl-svc-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4f46e5;
+  box-shadow: 0 0 8px rgba(79, 70, 229, 0.4);
+  flex-shrink: 0;
+}
+
+.nl-root .nl-svc-delete {
+  padding: 8px;
+  border-radius: 8px;
+  color: #9ca3af;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+}
+
+.nl-root .nl-svc-delete:hover {
+  color: #dc2626;
+  background: #fef2f2;
+}
+
+/* ---- History filter tabs ---- */
+.nl-root .nl-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 16px;
+  padding: 4px;
+  background: #f9fafb;
+  border: 1px solid #f1f5f9;
+  border-radius: 12px;
+  width: fit-content;
+}
+
+.nl-root .nl-filter-btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: none;
+  background: transparent;
+}
+
+.nl-root .nl-filter-btn.active {
+  background: #ffffff;
+  color: #4f46e5;
+  box-shadow: 0 1px 6px rgba(99, 102, 241, 0.12);
+}
+
+.nl-root .nl-filter-btn:not(.active) {
+  color: #9ca3af;
+}
+
+.nl-root .nl-filter-btn:not(.active):hover {
+  color: #374151;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+/* ---- History items ---- */
+.nl-root .nl-history-item {
+  background: #ffffff;
+  border: 1px solid #f1f5f9;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.04);
+  transition: box-shadow 0.15s ease;
+}
+
+.nl-root .nl-history-item:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+.nl-root .nl-history-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 24px;
+}
+
+.nl-root .nl-history-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: #eef2ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #4f46e5;
+  flex-shrink: 0;
+}
+
+.nl-root .nl-history-topic {
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.nl-root .nl-history-meta {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.nl-root .nl-history-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.nl-root .nl-btn-view {
+  padding: 8px 20px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: none;
+}
+
+.nl-root .nl-btn-view.open {
+  background: #111827;
+  color: #ffffff;
+}
+
+.nl-root .nl-btn-view:not(.open) {
+  background: #4f46e5;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.2);
+}
+
+.nl-root .nl-btn-view:not(.open):hover {
+  background: #4338ca;
+}
+
+.nl-root .nl-btn-delete {
+  padding: 8px;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #f87171;
+  border: 1px solid #fee2e2;
+  cursor: pointer;
+  display: flex;
+  transition: all 0.15s ease;
+}
+
+.nl-root .nl-btn-delete:hover {
+  background: #ef4444;
+  color: #ffffff;
+  border-color: #ef4444;
+}
+
+.nl-root .nl-history-expanded {
+  border-top: 1px solid #f1f5f9;
+  background: #fafafa;
+  padding: 20px;
+}

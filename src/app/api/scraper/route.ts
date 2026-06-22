@@ -1,8 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { getRequestUserId } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
 interface N8nScraperResponse {
@@ -32,8 +31,7 @@ export async function POST(req: NextRequest) {
   const startTime = Date.now();
 
   try {
-    const session = await getServerSession(authOptions);
-    const userId = session?.user?.id ?? "cmo8ubhgi0000difwp4jsua3t";
+    const userId = await getRequestUserId();
 
 
     const body = await req.json();

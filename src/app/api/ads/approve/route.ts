@@ -4,25 +4,37 @@ import { NextResponse } from "next/server";
 export async function POST(req) {
   try {
     const { text, approved, id, time, format } = await req.json();
-    
-    if (!text) {
-      return NextResponse.json({ success: false, error: "Text URL is required" }, { status: 400 });
+
+    if (!text && !id) {
+      return NextResponse.json({ success: false, error: "Text URL or id is required" }, { status: 400 });
     }
 
     const approvedValue = approved ? "true" : "false";
 
-    // Try to update first
-    let result = await prisma.$executeRawUnsafe(
-      `UPDATE "your_name_table" SET "Approved" = $1 WHERE "text" = $2`,
-      approvedValue,
-      text
-    );
+    let result = 0;
 
-    // If no rows updated, it might be a new entry (manual upload)
+    if (text) {
+      result = await prisma.$executeRawUnsafe(
+        `UPDATE "your_name_table" SET "Approved" = $1 WHERE "text" = $2`,
+        approvedValue,
+        text
+      );
+    }
+
+    // Fallback: match by id when text URL differs (e.g. old Supabase hostname in DB)
     if (result === 0 && id) {
       result = await prisma.$executeRawUnsafe(
-        `INSERT INTO "your_name_table" ("id", "text", "time", "format", "Approved") VALUES ($1, $2, $3, $4, $5)`,
-        parseInt(id) || 4,
+        `UPDATE "your_name_table" SET "Approved" = $1 WHERE "id"::text = $2`,
+        approvedValue,
+        String(id)
+      );
+    }
+
+    // Virtual / manual upload — no existing row
+    if (result === 0 && id && text) {
+      result = await prisma.$executeRawUnsafe(
+        `INSERT INTO "your_name_table" ("id", "text", "time", "format", "Approved") VALUES ($1::text, $2, $3, $4, $5)`,
+        String(id),
         text,
         time || new Date().toISOString(),
         format || "Image",
