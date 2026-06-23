@@ -2,35 +2,62 @@ import { DEFAULT_BRAND_NAME, DEFAULT_WEBSITE_URL } from '@/lib/legacy-brand';
 
 export const maxDuration = 60; // Allow Vercel to run up to 60s for video polling
 
+const META_FRIENDLY_SUBCODES: Record<number, string> = {
+  4834002: "Budget conflict: You cannot use Campaign Budget Optimization (CBO) and Ad Set budget sharing at the same time. Go to Campaign Setup → disable one of them.",
+  1487390: "Your ad account has a spend limit reached. Go to Meta Ads Manager → Billing → raise or remove your account spend limit.",
+  1885252: "The video is still processing on Meta's servers. Wait a minute and try launching again.",
+  1487297: "Your Meta ad account has been disabled. Check Meta Ads Manager → Account Quality for details.",
+  2446164: "Ad creative was rejected by Meta's policy review. Edit the ad text or image and try again.",
+  1487851: "Invalid targeting: the selected location or audience is too small. Broaden your targeting and try again.",
+  1885183: "Your Meta Developer App is in Development mode. Switch it to Live at developers.facebook.com, regenerate META_ACCESS_TOKEN, and retry.",
+  100:     "Invalid parameter sent to Meta. Check your Campaign Setup fields (objective, budget, targeting) and try again.",
+};
+
+function formatMetaError(parsed: { error?: { message?: string; code?: number; error_subcode?: number; error_user_title?: string; error_user_msg?: string } }) {
+  const subcode = parsed.error?.error_subcode;
+  const friendly = subcode && META_FRIENDLY_SUBCODES[subcode];
+  if (friendly) return friendly;
+  const userTitle = parsed.error?.error_user_title;
+  const userMsg   = parsed.error?.error_user_msg;
+  const metaMsg   = userTitle ? `${userTitle}: ${userMsg || ""}` : (parsed.error?.message || "Unknown Meta API error");
+  return `Meta: ${metaMsg} (code ${parsed.error?.code || "?"}${subcode ? `, subcode ${subcode}` : ""})`;
+}
+
+function throwIfMetaError(parsed: unknown, context: string) {
+  const body = parsed as { error?: { message?: string } };
+  if (body?.error?.message) {
+    console.error(`[meta/launch] ${context} — Meta error:`, JSON.stringify(body.error));
+    throw new Error(formatMetaError(body));
+  }
+}
+
+function assertMetaId(parsed: unknown, stepLabel: string): string {
+  throwIfMetaError(parsed, stepLabel);
+  const id = (parsed as { id?: string })?.id;
+  if (!id) {
+    console.error(`[meta/launch] ${stepLabel} — unexpected response (no id):`, JSON.stringify(parsed));
+    throw new Error(
+      `Failed to ${stepLabel}: Meta returned no ID. Check the server terminal for the full response body.`
+    );
+  }
+  return id;
+}
+
 // ── Helper to parse JSON with fallback ──
-async function fetchMetaJson(res) {
+async function fetchMetaJson(res: Response) {
   const text = await res.text();
-  let parsed;
+  let parsed: unknown;
   try {
     parsed = JSON.parse(text);
-  } catch (err) {
+  } catch {
     throw new Error(`Meta API returned non-JSON. Status: ${res.status}. Body: ${text.slice(0, 200)}...`);
   }
+  // Meta sometimes returns error objects with HTTP 200 — check the body, not just status
+  throwIfMetaError(parsed, `HTTP ${res.status}`);
   if (!res.ok) {
-    const subcode = parsed.error?.error_subcode;
-    const FRIENDLY: Record<number, string> = {
-      4834002: "Budget conflict: You cannot use Campaign Budget Optimization (CBO) and Ad Set budget sharing at the same time. Go to Campaign Setup → disable one of them.",
-      1487390: "Your ad account has a spend limit reached. Go to Meta Ads Manager → Billing → raise or remove your account spend limit.",
-      1885252: "The video is still processing on Meta's servers. Wait a minute and try launching again.",
-      1487297: "Your Meta ad account has been disabled. Check Meta Ads Manager → Account Quality for details.",
-      2446164: "Ad creative was rejected by Meta's policy review. Edit the ad text or image and try again.",
-      1487851: "Invalid targeting: the selected location or audience is too small. Broaden your targeting and try again.",
-      100:     "Invalid parameter sent to Meta. Check your Campaign Setup fields (objective, budget, targeting) and try again.",
-    };
-    const friendly = subcode && FRIENDLY[subcode];
-    if (friendly) throw new Error(friendly);
-    // Use Meta's own user-facing title/message when available — they're in the user's language but describe the real issue
-    const userTitle = parsed.error?.error_user_title;
-    const userMsg   = parsed.error?.error_user_msg;
-    const metaMsg   = userTitle ? `${userTitle}: ${userMsg || ""}` : (parsed.error?.message || "Unknown Meta API error");
-    throw new Error(`Meta: ${metaMsg} (code ${parsed.error?.code || "?"}${subcode ? `, subcode ${subcode}` : ""})`);
+    throw new Error(formatMetaError(parsed as Parameters<typeof formatMetaError>[0]));
   }
-  return parsed;
+  return parsed as Record<string, unknown>;
 }
 
 // ── STEP 1: Upload media to Meta ──
@@ -51,7 +78,7 @@ async function uploadMedia(link_data, isVideo, accessToken, adAccountId) {
     const uploadData = await fetchMetaJson(uploadRes);
     const videoId = uploadData.id;
 
-    if (!videoId) throw new Error("Failed to upload video to Meta: No ID returned.");
+    if (!videoId) assertMetaId(uploadData, "upload video to Meta");
 
     // Poll until video is ready
     let isReady = false;
@@ -231,8 +258,7 @@ async function createCampaign(existingCampaignId, adAccountId, accessToken, camp
     }
   );
   const campaignData = await fetchMetaJson(campaignRes);
-  if (!campaignData.id) throw new Error("Failed to create campaign: No ID returned.");
-  return campaignData.id;
+  return assertMetaId(campaignData, "create campaign");
 }
 
 // ── STEP 3: Ad Set ──
@@ -265,8 +291,7 @@ async function createAdSet(adAccountId, accessToken, adSetName, campaignId, isCb
     }
   );
   const adSetData = await fetchMetaJson(adSetRes);
-  if (!adSetData.id) throw new Error("Failed to create ad set: No ID returned.");
-  return adSetData.id;
+  return assertMetaId(adSetData, "create ad set");
 }
 
 // ── STEP 4: Ad Creative ──
@@ -316,8 +341,7 @@ async function createAdCreative(adAccountId, accessToken, isVideo, pageId, media
     }
   );
   const creativeData = await fetchMetaJson(creativeRes);
-  if (!creativeData.id) throw new Error("Failed to create ad creative: No ID returned.");
-  return creativeData.id;
+  return assertMetaId(creativeData, "create ad creative");
 }
 
 // ── STEP 5: Ad ──
@@ -343,8 +367,7 @@ async function createAd(adAccountId, accessToken, adName, adSetId, creativeId, t
     }
   );
   const adFinalData = await fetchMetaJson(adRes);
-  if (!adFinalData.id) throw new Error("Failed to create ad: No ID returned.");
-  return adFinalData.id;
+  return assertMetaId(adFinalData, "create ad");
 }
 
 export async function POST(request) {
