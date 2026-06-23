@@ -601,7 +601,7 @@ export default function SocialDash() {
   const handleSocialPost = async () => {
     setIsImagePosting(true);
     try {
-      const webhookUrl = "https://n8n.srv1374096.hstgr.cloud/webhook-test/5636fbef-db11-419b-b7cf-92bff14c25b7";
+      const webhookUrl = "https://n8n.srv1374096.hstgr.cloud/webhook/5636fbef-db11-419b-b7cf-92bff14c25b7";
       await triggerWebhook(
         webhookUrl,
         "post_social",
@@ -1664,7 +1664,7 @@ export default function SocialDash() {
   };
 
   const handlePostVideo = () => {
-    const webhookUrl = "https://n8n.srv1374096.hstgr.cloud/webhook-test/9f2515c1-b4fc-4dc9-9f39-8e766aee0dc6";
+    const webhookUrl = "https://n8n.srv1374096.hstgr.cloud/webhook/9f2515c1-b4fc-4dc9-9f39-8e766aee0dc6";
     triggerWebhook(
       webhookUrl,
       "post",

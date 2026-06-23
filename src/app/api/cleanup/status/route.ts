@@ -1,27 +1,23 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { getRequestUserId } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { addDays } from 'date-fns';
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const userId = await getRequestUserId();
 
     const [logs, aggregate] = await Promise.all([
       prisma.cleanupLog.findMany({
-        where: { execution: { userId: session.user.id } },
+        where: { execution: { userId } },
         include: { execution: { select: { status: true, createdAt: true } } },
         orderBy: { cleanupDate: 'desc' },
         take: 20,
       }),
       prisma.cleanupLog.aggregate({
-        where: { execution: { userId: session.user.id } },
+        where: { execution: { userId } },
         _sum: { deletedCount: true },
         _count: true,
       }),
