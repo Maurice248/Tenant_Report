@@ -2,7 +2,7 @@
 const LEGACY_BRAND_PATTERN =
   /toga\s*health|togahealth|togahh|toga\s*clinic|health\.togahh|m\.me\/togahh/i;
 
-export function isLegacyTogaContent(...parts: (string | null | undefined | object)[]): boolean {
+export function isLegacyTogaContent(...parts: unknown[]): boolean {
   const combined = parts
     .map((p) => {
       if (p == null) return "";
