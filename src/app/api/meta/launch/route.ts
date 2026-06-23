@@ -57,7 +57,7 @@ async function fetchMetaJson(res: Response) {
   if (!res.ok) {
     throw new Error(formatMetaError(parsed as Parameters<typeof formatMetaError>[0]));
   }
-  return parsed as Record<string, unknown>;
+  return parsed as Record<string, any>;
 }
 
 // ── STEP 1: Upload media to Meta ──
