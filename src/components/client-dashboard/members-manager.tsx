@@ -70,7 +70,7 @@ export function MembersManager({ currentUserId }: MembersManagerProps) {
   const [success, setSuccess] = useState<string | null>(null);
 
   const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<'CLIENT' | 'COMPANY_ADMIN'>('CLIENT');
+  const [inviteRole, setInviteRole] = useState<'COMPANY_MEMBER' | 'COMPANY_ADMIN'>('COMPANY_MEMBER');
   const [creatingInvite, setCreatingInvite] = useState(false);
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -262,13 +262,13 @@ export function MembersManager({ currentUserId }: MembersManagerProps) {
                 <Label>Role</Label>
                 <Select
                   value={inviteRole}
-                  onValueChange={(v) => setInviteRole(v as 'CLIENT' | 'COMPANY_ADMIN')}
+                  onValueChange={(v) => setInviteRole(v as 'COMPANY_MEMBER' | 'COMPANY_ADMIN')}
                 >
                   <SelectTrigger className="w-full sm:w-[140px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="CLIENT">Member</SelectItem>
+                    <SelectItem value="COMPANY_MEMBER">Member</SelectItem>
                     <SelectItem value="COMPANY_ADMIN">Admin</SelectItem>
                   </SelectContent>
                 </Select>
@@ -382,7 +382,7 @@ export function MembersManager({ currentUserId }: MembersManagerProps) {
                         <Badge variant="outline">{roleLabel(member.role)}</Badge>
                       ) : (
                         <Select
-                          value={member.role}
+                          value={member.role === 'COMPANY_ADMIN' ? 'COMPANY_ADMIN' : 'COMPANY_MEMBER'}
                           onValueChange={(v) => handleRoleChange(member.id, v)}
                           disabled={actionId === member.id}
                         >
@@ -390,7 +390,7 @@ export function MembersManager({ currentUserId }: MembersManagerProps) {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="CLIENT">Member</SelectItem>
+                            <SelectItem value="COMPANY_MEMBER">Member</SelectItem>
                             <SelectItem value="COMPANY_ADMIN">Admin</SelectItem>
                           </SelectContent>
                         </Select>

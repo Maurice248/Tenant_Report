@@ -32,7 +32,7 @@ model CompanyInvite {
   company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   email       String
   tokenHash   String    @unique
-  role        String    @default("CLIENT")
+  role        String    @default("COMPANY_MEMBER")
   invitedById String
   expiresAt   DateTime
   acceptedAt  DateTime?
@@ -116,7 +116,7 @@ model User {
   emailVerified DateTime?
   name          String?
   password      String
-  role          String    @default("CLIENT")
+  role          String    @default("COMPANY_MEMBER")
   companyId     String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt

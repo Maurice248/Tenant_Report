@@ -41,12 +41,22 @@ export async function getRequestUser(): Promise<RequestUser | null> {
 }
 
 export const COMPANY_ADMIN_ROLE = 'COMPANY_ADMIN';
-export const CLIENT_ROLE = 'CLIENT';
+export const COMPANY_MEMBER_ROLE = 'COMPANY_MEMBER';
+/** @deprecated Legacy member role — normalized to COMPANY_MEMBER */
+export const LEGACY_CLIENT_ROLE = 'CLIENT';
 /** Legacy platform seed role — treated as company admin for backward compatibility. */
 export const LEGACY_ADMIN_ROLE = 'ADMIN';
 
 export function isCompanyAdminRole(role: string | undefined | null): boolean {
   return role === COMPANY_ADMIN_ROLE || role === LEGACY_ADMIN_ROLE;
+}
+
+export function isCompanyMemberRole(role: string | undefined | null): boolean {
+  return role === COMPANY_MEMBER_ROLE || role === LEGACY_CLIENT_ROLE;
+}
+
+export function normalizeMemberRole(role: string): string {
+  return role === LEGACY_CLIENT_ROLE ? COMPANY_MEMBER_ROLE : role;
 }
 
 /** Returns the request user if they are a company admin, otherwise null. */
@@ -59,6 +69,7 @@ export async function requireCompanyAdmin(): Promise<RequestUser | null> {
 }
 
 export const authOptions: NextAuthOptions = {
+  secret: process.env.NEXTAUTH_SECRET,
   session: {
     strategy: 'jwt',
     maxAge: 30 * 24 * 60 * 60, // 30 days

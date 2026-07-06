@@ -1,7 +1,7 @@
 import dns from 'node:dns';
 import { request as httpsRequest } from 'node:https';
 import { getRequestN8nConfig, getN8nWebhook } from '@/lib/company-integrations';
-import { requireApiUserId } from '@/lib/api-auth';
+import { requireApiCompanyId } from '@/lib/api-auth';
 import { NextResponse } from 'next/server';
 
 // Max 300s on Vercel Hobby plan
@@ -53,8 +53,8 @@ function fetchIPv4(urlStr: string, body: string): Promise<{ status: number; text
 
 export async function POST(request: Request) {
   try {
-    const auth = await requireApiUserId();
-    if (auth instanceof NextResponse) return auth;
+    const companyId = await requireApiCompanyId();
+    if (companyId instanceof NextResponse) return companyId;
 
     const body = await request.json();
     const { action } = body;
@@ -79,7 +79,7 @@ export async function POST(request: Request) {
 
     console.log(`[trigger-n8n] ${action} → ${url}`);
 
-    const bodyStr = JSON.stringify(body);
+    const bodyStr = JSON.stringify({ ...body, company_id: companyId });
     let result: { status: number; text: string };
 
     try {

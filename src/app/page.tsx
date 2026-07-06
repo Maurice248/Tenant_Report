@@ -62,6 +62,7 @@ import { HideNextDevIndicator } from "@/components/HideNextDevIndicator";
 import { useN8nWebhooks, n8nUrl } from "@/hooks/use-n8n-webhooks";
 import "./globals.css";
 import { DEFAULT_WEBSITE_URL } from "@/lib/legacy-brand";
+import { reportBelongsToCompany } from "@/lib/reports-query";
 import {
   BRAND_ICP_FIELDS,
   BRAND_STRATEGY_FIELDS,
@@ -494,6 +495,7 @@ export default function Dashboard() {
   const [analysisError, setAnalysisError] = useState("");
   const [pendingAnalysisTopic, setPendingAnalysisTopic] = useLocalStorage("app_pending_analysis_topic", null);
   const pendingTopicRef = useRef<string | null>(null); // ref so realtime callback always sees latest value
+  const companySlugRef = useRef<string | null>(null);
   useEffect(() => { pendingTopicRef.current = pendingAnalysisTopic; }, [pendingAnalysisTopic]);
 
   // Custom keywords research form states
@@ -606,8 +608,12 @@ export default function Dashboard() {
   const [brandSnapshots, setBrandSnapshots] = useState<any[]>([]);
   const [brandSnapshotsModalOpen, setBrandSnapshotsModalOpen] = useState(false);
   const [loadingBrandSnapshots, setLoadingBrandSnapshots] = useState(false);
+  const [brandSnapshotsLoaded, setBrandSnapshotsLoaded] = useState(false);
   const [expandedBrandSnapshotId, setExpandedBrandSnapshotId] = useState<string | null>(null);
-  const [activeBrandSnapshot, setActiveBrandSnapshot] = useLocalStorage("app_active_brand_snapshot", null);
+  const [activeBrandSnapshot, setActiveBrandSnapshot] = useLocalStorage(
+    tenantStorageKey(companyId, "app_active_brand_snapshot"),
+    null
+  );
   const [templateNameModalOpen, setTemplateNameModalOpen] = useState(false);
   const [templateNameInput, setTemplateNameInput] = useState("");
   const [pendingSnapshotPayload, setPendingSnapshotPayload] = useState<any>(null);
@@ -615,6 +621,7 @@ export default function Dashboard() {
   const [deletingSnapshotId, setDeletingSnapshotId] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!companyId) return;
     const fetchProfile = async () => {
       const res = await fetch("/api/brand-config");
       if (!res.ok) return;
@@ -628,7 +635,7 @@ export default function Dashboard() {
       }
     };
     fetchProfile();
-  }, []);
+  }, [companyId]);
 
   // ── Poll for global n8n errors directly from Supabase (RLS disabled) ──
   // Strategy: track the DISMISSED ERROR MESSAGE (not timestamp).
@@ -852,6 +859,27 @@ export default function Dashboard() {
     setTimeout(() => setSbToasts((prev) => prev.filter((t) => t.id !== id)), 3000);
   }, []);
 
+  const fetchReports = useCallback(async () => {
+    if (!companyId) {
+      setSbRows([]);
+      setSbLoading(false);
+      return;
+    }
+
+    setSbLoading(true);
+    try {
+      const res = await fetch("/api/reports");
+      if (!res.ok) throw new Error("Failed to fetch reports");
+      const data = await res.json();
+      companySlugRef.current = data.companySlug ?? null;
+      setSbRows(Array.isArray(data.rows) ? data.rows : []);
+    } catch {
+      addSbToast("Failed to fetch reports", "error");
+    } finally {
+      setSbLoading(false);
+    }
+  }, [companyId, addSbToast]);
+
   const fetchBrandSnapshots = useCallback(async () => {
     setLoadingBrandSnapshots(true);
     try {
@@ -863,8 +891,14 @@ export default function Dashboard() {
       addSbToast("Could not load saved brand templates", "error");
     } finally {
       setLoadingBrandSnapshots(false);
+      setBrandSnapshotsLoaded(true);
     }
   }, [addSbToast]);
+
+  useEffect(() => {
+    setBrandSnapshotsLoaded(false);
+    setBrandSnapshots([]);
+  }, [companyId]);
 
   const getBrandConfigForAnalysis = useCallback(() => {
     if (activeBrandSnapshot?.id && activeBrandSnapshot.id !== "current" && activeBrandSnapshot.data) {
@@ -983,18 +1017,27 @@ export default function Dashboard() {
     if (brandSnapshotsModalOpen || tab === "profile") fetchBrandSnapshots();
   }, [brandSnapshotsModalOpen, tab, fetchBrandSnapshots]);
 
-  // Restore full template data when only id/label persisted in localStorage
+  // Restore full template data when only id/label persisted in localStorage;
+  // clear stale references from another company or deleted templates.
   useEffect(() => {
-    if (!activeBrandSnapshot?.id || activeBrandSnapshot.id === "current" || activeBrandSnapshot.data) return;
+    if (!activeBrandSnapshot?.id || activeBrandSnapshot.id === "current") return;
+    if (loadingBrandSnapshots || !brandSnapshotsLoaded) return;
+
     const snapshot = brandSnapshots.find((s: any) => s.id === activeBrandSnapshot.id);
-    if (!snapshot) return;
+    if (!snapshot) {
+      setActiveBrandSnapshot(null);
+      return;
+    }
+
+    if (activeBrandSnapshot.data) return;
+
     setActiveBrandSnapshot({
       ...activeBrandSnapshot,
       label: snapshot.label || activeBrandSnapshot.label,
       created_at: snapshot.created_at,
       data: snapshotToProfile(snapshot),
     });
-  }, [activeBrandSnapshot, brandSnapshots, setActiveBrandSnapshot]);
+  }, [activeBrandSnapshot, brandSnapshots, brandSnapshotsLoaded, loadingBrandSnapshots, setActiveBrandSnapshot]);
 
   const isActiveSavedTemplate =
     Boolean(activeBrandSnapshot?.id && activeBrandSnapshot.id !== "current" && activeBrandSnapshot.data);
@@ -1437,33 +1480,24 @@ export default function Dashboard() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    async function fetchReports() {
-      const { data, error } = await supabase
-        .from("reports_json")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (error) {
-        console.error("Supabase error:", error);
-        addSbToast("Failed to fetch reports", "error");
-      }
-      setSbRows(data || []);
-      setSbLoading(false);
-    }
+    if (!companyId) return;
+
     fetchReports();
     fetchAdTableLinks();
 
-    // Realtime: auto-fetch new/updated/deleted rows
+    // Realtime: refresh tenant-scoped reports when n8n writes to Supabase
     const channel = supabase
-      .channel("reports_json_realtime")
+      .channel(`reports_json_realtime_${companyId}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "reports_json" },
         (payload) => {
+          const row = payload.eventType === "DELETE" ? payload.old : payload.new;
+          if (!reportBelongsToCompany(row, companyId, companySlugRef.current)) return;
+
           if (payload.eventType === "INSERT") {
-            setSbRows((prev) => [payload.new, ...prev]);
             addSbToast("New report received!");
 
-            // Link to active analysis if topic matches — use ref to avoid stale closure bug
             const newReport = parseSbReport(payload.new);
             const currentTopic = pendingTopicRef.current;
             if (currentTopic && newReport.topic === currentTopic) {
@@ -1475,13 +1509,9 @@ export default function Dashboard() {
               setPendingAnalysisTopic(null);
               addSbToast("Analysis completed and loaded!", "success");
             }
-          } else if (payload.eventType === "UPDATE") {
-            setSbRows((prev) =>
-              prev.map((r) => (r.id === payload.new.id ? payload.new : r))
-            );
-          } else if (payload.eventType === "DELETE") {
-            setSbRows((prev) => prev.filter((r) => r.id !== payload.old.id));
           }
+
+          fetchReports();
         }
       )
       .subscribe();
@@ -1489,7 +1519,7 @@ export default function Dashboard() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [addSbToast]);
+  }, [companyId, fetchReports, fetchAdTableLinks, addSbToast]);
 
   // ── Resume progress bar if page was refreshed mid-generation ──
   useEffect(() => {
@@ -2682,12 +2712,10 @@ export default function Dashboard() {
         const topic = kwSnapshot[0] || selectedTopic || "";
         const pollInterval = setInterval(async () => {
           try {
-            const { data } = await supabase
-              .from("reports_json")
-              .select("*")
-              .order("created_at", { ascending: false })
-              .limit(5);
-            const match = data?.find((row: any) => {
+            const res = await fetch("/api/reports");
+            if (!res.ok) return;
+            const { rows } = await res.json();
+            const match = (Array.isArray(rows) ? rows : []).find((row: any) => {
               const r = parseSbReport(row);
               return r.topic === topic;
             });
