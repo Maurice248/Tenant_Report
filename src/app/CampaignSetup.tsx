@@ -122,7 +122,10 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
   const [selectedApprovedAd, setSelectedApprovedAd] = useState<any>(null);
   const [hydrated, setHydrated] = useState(false);
   const lastAppliedAdRef = useRef<string | null>(null);
+  const prevSelectedIdRef = useRef<string | null | undefined>(undefined);
   const [stepErrors, setStepErrors] = useState<string[]>([]);
+  const [adSets, setAdSets] = useState<any[]>([]);
+  const [adSetsLoading, setAdSetsLoading] = useState(false);
 
   const setField = (section: string, key: string, value: any) => {
     setConfig((prev: any) => ({ ...prev, [section]: { ...prev[section], [key]: value } }));
@@ -141,6 +144,45 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
   }, []);
 
   useEffect(() => { fetchCampaigns(); }, [fetchCampaigns]);
+
+  // Fetch ad sets when an existing campaign is selected
+  useEffect(() => {
+    if (!selectedId) {
+      setAdSets([]);
+      return;
+    }
+    let cancelled = false;
+    setAdSetsLoading(true);
+    fetch(`/api/meta/campaign-details?campaignId=${selectedId}`)
+      .then(res => res.json())
+      .then(data => { if (!cancelled) setAdSets(data.adSets || []); })
+      .catch(() => { if (!cancelled) setAdSets([]); })
+      .finally(() => { if (!cancelled) setAdSetsLoading(false); });
+    return () => { cancelled = true; };
+  }, [selectedId]);
+
+  // Reset ad set selection when user picks a different campaign
+  useEffect(() => {
+    if (prevSelectedIdRef.current === undefined) {
+      prevSelectedIdRef.current = selectedId;
+      return;
+    }
+    if (prevSelectedIdRef.current !== selectedId && selectedId) {
+      setConfig((prev: any) => ({
+        ...prev,
+        ad_set: { ...prev.ad_set, existing_id: undefined, name: "" },
+      }));
+    }
+    prevSelectedIdRef.current = selectedId;
+  }, [selectedId]);
+
+  const setAdSetSelection = (name: string, existingId?: string) => {
+    setConfig((prev: any) => ({
+      ...prev,
+      ad_set: { ...prev.ad_set, name, existing_id: existingId || undefined },
+    }));
+    setHasLaunchedThisSegment(false);
+  };
 
   // ── Restore persisted state on mount ──
   useEffect(() => {
@@ -292,12 +334,15 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
     }
     if (s === 2) {
       if (!config.ad_set?.name?.trim()) errs.push("Ad Set Name is required.");
-      const geo = config.ad_set?.geo_locations;
-      const hasGeo = (geo?.countries?.length > 0) || (geo?.cities?.length > 0) || (geo?.regions?.length > 0);
-      if (!hasGeo) errs.push("At least one Target Location is required.");
-      const budget = config.ad_set?.budget_type === "DAILY" ? config.ad_set?.daily_budget : config.ad_set?.lifetime_budget;
-      if (!budget || Number(budget) <= 0) errs.push("Budget amount must be greater than 0.");
-      if (!config.ad_set?.start_time) errs.push("Start Date is required.");
+      const usingExistingAdSet = !!config.ad_set?.existing_id;
+      if (!usingExistingAdSet) {
+        const geo = config.ad_set?.geo_locations;
+        const hasGeo = (geo?.countries?.length > 0) || (geo?.cities?.length > 0) || (geo?.regions?.length > 0);
+        if (!hasGeo) errs.push("At least one Target Location is required.");
+        const budget = config.ad_set?.budget_type === "DAILY" ? config.ad_set?.daily_budget : config.ad_set?.lifetime_budget;
+        if (!budget || Number(budget) <= 0) errs.push("Budget amount must be greater than 0.");
+        if (!config.ad_set?.start_time) errs.push("Start Date is required.");
+      }
     }
     if (s === 3) {
       if (!config.ad?.name?.trim()) errs.push("Ad Name is required.");
@@ -465,7 +510,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
                 <div style={{ padding: 16, background: "#eff6ff", borderRadius: 10, border: "1px solid #bfdbfe" }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: "#1d4ed8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Appending to</div>
                   <div style={{ fontSize: 15, fontWeight: 800, color: "#0f172a" }}>{selectedCampaign?.name || selectedId}</div>
-                  <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>A new Ad Set will be added to this campaign.</div>
+                  <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>Select an existing ad set or create a new one in step 2.</div>
                 </div>
               </div>
             ) : (
@@ -531,8 +576,23 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
             <SectionHeader title="Targeting" sub="Define your audience and locations." />
             <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
               <Label label="Ad Set Name">
-                <input value={config.ad_set?.name || ""} onChange={e => setField("ad_set", "name", e.target.value)} style={inputSt} />
+                {selectedId ? (
+                  <AdSetNameInput
+                    adSets={adSets}
+                    loading={adSetsLoading}
+                    name={config.ad_set?.name || ""}
+                    existingId={config.ad_set?.existing_id}
+                    onChange={setAdSetSelection}
+                  />
+                ) : (
+                  <input value={config.ad_set?.name || ""} onChange={e => setField("ad_set", "name", e.target.value)} style={inputSt} />
+                )}
               </Label>
+              {config.ad_set?.existing_id && (
+                <div style={{ padding: "10px 14px", background: "#eff6ff", borderRadius: 9, border: "1px solid #bfdbfe", fontSize: 12, color: "#1d4ed8", fontWeight: 500 }}>
+                  Using existing ad set — budget and targeting on Meta will be kept as-is. Only the new ad creative will be added.
+                </div>
+              )}
               <Label label="Target Locations">
                 <LocationSearch geoLocations={config.ad_set?.geo_locations} onChange={v => setField("ad_set", "geo_locations", v)} />
               </Label>
@@ -828,7 +888,11 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
                   {selectedId ? `Inject to: ${selectedCampaign?.name}` : "Launch Campaign on Meta"}
                 </div>
                 <div style={{ fontSize: 13, color: "#64748b", marginBottom: 16, lineHeight: 1.6 }}>
-                  {selectedId ? "New Ad Sets will be added to the selected campaign." : "Deploy your campaign, targeting, and ad creative directly to Meta Ads Manager."}
+                  {selectedId
+                    ? (config.ad_set?.existing_id
+                      ? `Ad will be added to ad set "${config.ad_set?.name}" in ${selectedCampaign?.name}.`
+                      : "Add ads to an existing ad set or create a new one in the selected campaign.")
+                    : "Deploy your campaign, targeting, and ad creative directly to Meta Ads Manager."}
                 </div>
 
                 {launching ? (
@@ -1029,6 +1093,114 @@ function PlacementsSection({ config, setField }: { config: any; setField: (s: st
               );
             })}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Ad Set Name Input (combobox when appending to existing campaign) ───────────
+interface AdSetNameInputProps {
+  adSets: any[];
+  loading: boolean;
+  name: string;
+  existingId?: string;
+  onChange: (name: string, existingId?: string) => void;
+}
+
+function AdSetNameInput({ adSets, loading, name, existingId, onChange }: AdSetNameInputProps) {
+  const [inputValue, setInputValue] = useState(name);
+  const [showDropdown, setShowDropdown] = useState(false);
+
+  useEffect(() => { setInputValue(name); }, [name]);
+
+  const query = inputValue.trim().toLowerCase();
+  const filtered = query
+    ? adSets.filter(a => a.name.toLowerCase().includes(query))
+    : adSets;
+  const showCreateNew = query && !adSets.some(a => a.name.toLowerCase() === query);
+
+  const handleInputChange = (v: string) => {
+    setInputValue(v);
+    const match = adSets.find(a => a.name.toLowerCase() === v.trim().toLowerCase());
+    onChange(v, match?.id);
+  };
+
+  const handleSelect = (adSet: any) => {
+    setInputValue(adSet.name);
+    onChange(adSet.name, adSet.id);
+    setShowDropdown(false);
+  };
+
+  const handleCreateNew = () => {
+    onChange(inputValue.trim(), undefined);
+    setShowDropdown(false);
+  };
+
+  return (
+    <div style={{ position: "relative" }}>
+      <div style={{ position: "relative" }}>
+        <input
+          value={inputValue}
+          onChange={e => handleInputChange(e.target.value)}
+          onFocus={() => setShowDropdown(true)}
+          onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
+          placeholder="Select existing ad set or type a new name..."
+          style={{
+            ...inputSt,
+            paddingRight: loading ? 36 : 12,
+            borderColor: existingId ? "#93c5fd" : inputSt.border as string,
+            background: existingId ? "#eff6ff" : "#fff",
+          }}
+        />
+        {loading && (
+          <div style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)" }}>
+            <Spinner size={14} />
+          </div>
+        )}
+      </div>
+      {existingId && (
+        <div style={{ fontSize: 11, color: "#2563eb", marginTop: 4, fontWeight: 600 }}>
+          Existing ad set selected
+        </div>
+      )}
+      {showDropdown && (filtered.length > 0 || showCreateNew) && (
+        <div style={{
+          position: "absolute", top: "100%", left: 0, right: 0, marginTop: 4, zIndex: 50,
+          background: "#fff", borderRadius: 10, border: "1.5px solid #e2e8f0",
+          boxShadow: "0 8px 24px rgba(0,0,0,0.1)", maxHeight: 220, overflowY: "auto",
+        }}>
+          {filtered.map(adSet => (
+            <div
+              key={adSet.id}
+              onMouseDown={() => handleSelect(adSet)}
+              style={{
+                padding: "10px 14px", cursor: "pointer", fontSize: 13, fontWeight: 500,
+                color: adSet.id === existingId ? "#1d4ed8" : "#0f172a",
+                background: adSet.id === existingId ? "#eff6ff" : "transparent",
+                borderBottom: "1px solid #f1f5f9",
+              }}
+            >
+              <div>{adSet.name}</div>
+              <div style={{ fontSize: 10, color: "#94a3b8", fontFamily: "monospace", marginTop: 2 }}>{adSet.status} · ID: {adSet.id}</div>
+            </div>
+          ))}
+          {showCreateNew && (
+            <div
+              onMouseDown={handleCreateNew}
+              style={{
+                padding: "10px 14px", cursor: "pointer", fontSize: 13, fontWeight: 600,
+                color: "#2563eb", background: "#f8fafc",
+              }}
+            >
+              + Create new ad set: &ldquo;{inputValue.trim()}&rdquo;
+            </div>
+          )}
+          {!loading && adSets.length === 0 && !showCreateNew && (
+            <div style={{ padding: "12px 14px", fontSize: 12, color: "#94a3b8" }}>
+              No ad sets found — type a name to create one.
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -1,9 +1,6 @@
 'use client';
 
-const VOICE_AGENT_ENABLED = false;
-
 const TAB_PATHS: Record<string, string> = {
-  ...(VOICE_AGENT_ENABLED ? { 'voice-dashboard': '/voice/dashboard' } : {}),
   'newsletter-dashboard': '/newsletter/dashboard',
   'newsletter-generate': '/newsletter/generate',
   'newsletter-campaign': '/newsletter/campaign',
@@ -27,7 +24,7 @@ export default function NewsletterTab({ activeTab }: { activeTab: string }) {
       <iframe
         key={src}
         src={src}
-        title="Newsletter & Voice Agent"
+        title="Newsletter"
         style={{
           width: '100%',
           height: '100%',

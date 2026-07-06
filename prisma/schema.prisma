@@ -8,6 +8,108 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+model Company {
+  id                    String    @id @default(cuid())
+  name                  String
+  slug                  String    @unique
+  logoUrl               String?
+  onboardingCompletedAt DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  users         User[]
+  invites       CompanyInvite[]
+  integration   CompanyIntegration?
+  brandConfig   CompanyBrandConfig?
+  executions    WorkflowExecution[]
+
+  @@map("companies")
+}
+
+model CompanyInvite {
+  id          String    @id @default(cuid())
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  email       String
+  tokenHash   String    @unique
+  role        String    @default("CLIENT")
+  invitedById String
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([companyId])
+  @@index([email])
+  @@map("company_invites")
+}
+
+model CompanyIntegration {
+  id        String   @id @default(cuid())
+  companyId String   @unique
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  metaAccessTokenEnc      String?
+  metaAdAccountId         String?
+  metaPageId              String?
+  elevenLabsApiKeyEnc     String?
+  wordpressSiteUrl        String?
+  wordpressUsername       String?
+  wordpressAppPasswordEnc String?
+  n8nApiKeyEnc            String?
+  n8nApiBaseUrl           String?
+  n8nBlogWorkflowId       String?
+  n8nBlogWorkflowName     String?
+  n8nWebhooksJson         Json      @default("{}")
+  apiTokenSecretsEnc      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("company_integrations")
+}
+
+model CompanyBrandConfig {
+  id               String   @id @default(cuid())
+  companyId        String   @unique
+  company          Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  productsServices String   @default("") @map("products_services")
+  valueProposition String   @default("") @map("value_proposition")
+  brandVoice       String   @default("") @map("brand_voice")
+  positioning      String   @default("") @map("positioning")
+  competitors      String   @default("") @map("competitors")
+  painPoints       String   @default("") @map("pain_points")
+  icpMetaAds       String   @default("") @map("icp_meta_ads")
+  icpNewsletter    String   @default("") @map("icp_newsletter")
+  icpOutreach      String   @default("") @map("icp_outreach")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  snapshots CompanyBrandSnapshot[]
+
+  @@map("company_brand_configs")
+}
+
+model CompanyBrandSnapshot {
+  id               String             @id @default(cuid())
+  brandConfigId    String             @map("brand_config_id")
+  brandConfig      CompanyBrandConfig @relation(fields: [brandConfigId], references: [id], onDelete: Cascade)
+  productsServices String             @default("") @map("products_services")
+  valueProposition String             @default("") @map("value_proposition")
+  brandVoice       String             @default("") @map("brand_voice")
+  positioning      String             @default("") @map("positioning")
+  competitors      String             @default("") @map("competitors")
+  painPoints       String             @default("") @map("pain_points")
+  icpMetaAds       String             @default("") @map("icp_meta_ads")
+  icpNewsletter    String             @default("") @map("icp_newsletter")
+  icpOutreach      String             @default("") @map("icp_outreach")
+  contentHash      String             @map("content_hash")
+  label            String?
+  createdAt        DateTime           @default(now()) @map("created_at")
+
+  @@index([brandConfigId])
+  @@map("company_brand_snapshots")
+}
+
 model User {
   id            String    @id @default(cuid())
   email         String    @unique
@@ -15,13 +117,16 @@ model User {
   name          String?
   password      String
   role          String    @default("CLIENT")
+  companyId     String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
+  company    Company?            @relation(fields: [companyId], references: [id])
   executions WorkflowExecution[]
   sessions   Session[]
 
   @@index([email])
+  @@index([companyId])
   @@map("users")
 }
 
@@ -40,6 +145,7 @@ model Session {
 model WorkflowExecution {
   id             String    @id @default(cuid())
   userId         String
+  companyId      String?
   workflowType   String
   workflowName   String?
   status         String    @default("PENDING")
@@ -53,11 +159,13 @@ model WorkflowExecution {
   createdAt      DateTime  @default(now())
 
   user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company    Company?    @relation(fields: [companyId], references: [id], onDelete: SetNull)
   campaign   Campaign?
   scraperJob ScraperJob?
   cleanupLog CleanupLog?
 
   @@index([userId])
+  @@index([companyId])
   @@index([workflowType])
   @@index([status])
   @@index([createdAt(sort: Desc)])

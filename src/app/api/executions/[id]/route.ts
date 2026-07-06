@@ -20,14 +20,17 @@ export async function DELETE(
 
     const execution = await prisma.workflowExecution.findUnique({
       where: { id },
-      select: { userId: true },
+      select: { userId: true, companyId: true },
     });
 
     if (!execution) {
       return NextResponse.json({ error: 'Execution not found' }, { status: 404 });
     }
 
-    if (execution.userId !== session.user.id) {
+    const companyId = session.user.companyId ?? null;
+    const inScope =
+      (companyId && execution.companyId === companyId) || execution.userId === session.user.id;
+    if (!inScope) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

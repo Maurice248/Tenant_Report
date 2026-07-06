@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { getRequestUserId } from '@/lib/auth';
 
 function getServiceClient() {
   return createClient(
@@ -12,6 +13,11 @@ function getServiceClient() {
 
 export async function POST(req: NextRequest) {
   try {
+    const userId = await getRequestUserId();
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { fileName, contentType } = await req.json();
     if (!fileName) return NextResponse.json({ error: 'fileName required' }, { status: 400 });
 

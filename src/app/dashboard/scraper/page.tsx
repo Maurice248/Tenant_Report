@@ -3,9 +3,10 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
+import { format } from 'date-fns';
 import {
-  Search, Loader2, CheckCircle, ExternalLink, History,
-  Users, Mail, XCircle, HelpCircle, Clock, BarChart3,
+  Search, Loader2, CheckCircle, History,
+  XCircle, Clock, Database, Mail,
 } from 'lucide-react';
 import { Header } from '@/components/dashboard/header';
 import { PageBody } from '@/components/outreach/page-body';
@@ -20,26 +21,87 @@ import { useToast } from '@/components/ui/use-toast';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface ScraperSummary {
-  niches: string;
-  location: string;
-  total_scraped: number;
-  verified_leads: number;
-  invalid_leads: number;
-  unknown_leads: number;
-  success_rate: string;
+interface SupabaseInfo {
+  totalLeadsRequested: number;
+  totalLeadsScraped: number;
+  saveStatus: string;
 }
 
-interface SheetInfo {
-  sheet_tab: string;
-  sheet_url: string;
-  leads_added: number;
+interface EmailVerificationStats {
+  verified: number;
+  catchAll: number;
+  invalid: number;
+  unknown: number;
+  bounceRiskRemoved: number;
 }
 
 interface ScraperResult {
-  summary: ScraperSummary;
-  sheetInfo: SheetInfo;
+  status: string;
+  timestamp?: string;
   executionTime?: number;
+  destination: string;
+  location: string;
+  niches: string;
+  supabaseInfo: SupabaseInfo;
+  emailVerification?: EmailVerificationStats;
+}
+
+function formatStatusLabel(value: string) {
+  return value.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function formatTimestamp(iso?: string) {
+  if (!iso) return '—';
+  try {
+    return format(new Date(iso), 'MMM dd, yyyy · h:mm a');
+  } catch {
+    return iso;
+  }
+}
+
+function normalizeClientResult(
+  data: Record<string, unknown>,
+  fallback: { niches: string; location: string; targetSheet: string }
+): ScraperResult {
+  const supabaseRaw = (data.supabaseInfo ?? data.supabase_info) as Record<string, unknown> | undefined;
+  const emailStatsRaw = (data.emailVerification ?? data.email_verification_stats ?? data.emailVerificationStats) as Record<string, unknown> | undefined;
+  const rawSummary = (data.summary ?? data.scraper_summary) as Record<string, unknown> | undefined;
+
+  const totalLeadsScraped = Number(
+    supabaseRaw?.total_leads_scraped ?? supabaseRaw?.totalLeadsScraped ??
+    rawSummary?.total_scraped ?? rawSummary?.totalScraped ?? 0
+  ) || 0;
+
+  const supabaseInfo: SupabaseInfo = {
+    totalLeadsRequested: Number(
+      supabaseRaw?.total_leads_requested ?? supabaseRaw?.totalLeadsRequested ?? 0
+    ) || 0,
+    totalLeadsScraped,
+    saveStatus: String(
+      supabaseRaw?.save_status ?? supabaseRaw?.saveStatus ?? 'unknown'
+    ),
+  };
+
+  const emailVerification: EmailVerificationStats | undefined = emailStatsRaw
+    ? {
+        verified: Number(emailStatsRaw.verified ?? 0) || 0,
+        catchAll: Number(emailStatsRaw.catch_all ?? emailStatsRaw.catchAll ?? 0) || 0,
+        invalid: Number(emailStatsRaw.invalid ?? 0) || 0,
+        unknown: Number(emailStatsRaw.unknown ?? 0) || 0,
+        bounceRiskRemoved: Number(emailStatsRaw.bounce_risk_removed ?? emailStatsRaw.bounceRiskRemoved ?? 0) || 0,
+      }
+    : undefined;
+
+  return {
+    status: String(data.status ?? 'success'),
+    timestamp: data.timestamp ? String(data.timestamp) : undefined,
+    executionTime: Number(data.executionTime ?? data.execution_time_seconds) || undefined,
+    destination: String(data.destination ?? fallback.targetSheet),
+    location: String(rawSummary?.location ?? fallback.location),
+    niches: String(rawSummary?.niches ?? fallback.niches),
+    supabaseInfo,
+    emailVerification,
+  };
 }
 
 type PageState = 'form' | 'loading' | 'success' | 'error';
@@ -59,10 +121,11 @@ const LOADING_STEPS = [
 
 const SHEETS = [
   'Tenant Screening Leads',
-  'Background Check Leads',
-  'Landlord Outreach Leads',
-  'Property Manager Leads',
-  'All Services Leads',
+  'Smart Tenant Subscription Leads',
+  'Rent Promise & Protection Leads',
+  'Background Screening Leads',
+  'Property Management Leads',
+  'All Service Leads',
 ];
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
@@ -128,10 +191,20 @@ export default function ScraperPage() {
         throw new Error(data.error || 'Scraper failed');
       }
 
-      setResult(data);
+      const normalized = normalizeClientResult(
+        typeof data === 'object' && data !== null ? data : {},
+        {
+        niches: niches.trim(),
+        location: location.trim(),
+        targetSheet,
+      });
+      setResult(normalized);
       setPageState('success');
       queryClient.invalidateQueries({ queryKey: ['scraper-jobs'] });
-      toast({ title: '✅ Scraping complete!', description: `${data.summary?.verified_leads ?? 0} verified leads saved.` });
+      toast({
+        title: '✅ Scraping complete!',
+        description: `${normalized.supabaseInfo.totalLeadsScraped} leads found, ${normalized.supabaseInfo.totalLeadsRequested} requested.`,
+      });
 
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Unknown error occurred');
@@ -297,7 +370,8 @@ export default function ScraperPage() {
   // ── SUCCESS ────────────────────────────────────────────────────────────────
 
   if (pageState === 'success' && result) {
-    const { summary, sheetInfo, executionTime } = result;
+    const { supabaseInfo, emailVerification, executionTime } = result;
+    const isSuccess = result.status.toLowerCase() === 'success';
 
     return (
       <div>
@@ -311,78 +385,92 @@ export default function ScraperPage() {
             </div>
             <h2 className="text-xl font-bold text-gray-900">Scraping Complete!</h2>
             <p className="text-sm text-gray-500 mt-1">
-              {summary.location} · {executionTime ? formatTime(executionTime) : formatTime(elapsed)}
+              {result.location} · {result.niches}
             </p>
           </div>
 
-          {/* Stats grid */}
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            {[
-              { label: 'Total Scraped', value: summary.total_scraped, icon: Search, color: 'text-blue-600 bg-blue-50 border-blue-200' },
-              { label: 'Verified', value: summary.verified_leads, icon: CheckCircle, color: 'text-green-600 bg-green-50 border-green-200' },
-              { label: 'Invalid', value: summary.invalid_leads, icon: XCircle, color: 'text-red-500 bg-red-50 border-red-200' },
-              { label: 'Unknown', value: summary.unknown_leads, icon: HelpCircle, color: 'text-gray-500 bg-gray-50 border-gray-200' },
-            ].map(({ label, value, icon: Icon, color }) => (
-              <div key={label} className={`rounded-xl border p-4 text-center ${color}`}>
-                <Icon className="h-5 w-5 mx-auto mb-1 opacity-70" />
-                <p className="text-2xl font-bold">{value}</p>
-                <p className="text-xs mt-0.5">{label}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* Success rate */}
+          {/* Run overview */}
           <Card>
-            <CardContent className="pt-5 pb-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                  <BarChart3 className="h-4 w-4 text-[#0077b6]" />
-                  Email Verification Rate
-                </div>
-                <span className="text-lg font-bold text-[#0077b6]">{summary.success_rate}</span>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Clock className="h-4 w-4 text-[#0077b6]" />
+                Run Overview
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-0">
+              <div className="flex justify-between text-sm py-2 border-b border-gray-100">
+                <span className="text-gray-500">Process Status</span>
+                <span className={`font-medium capitalize ${isSuccess ? 'text-green-600' : 'text-amber-600'}`}>
+                  {formatStatusLabel(result.status)}
+                </span>
               </div>
-              <div className="w-full bg-gray-100 rounded-full h-2.5">
-                <div
-                  className="bg-[#0077b6] h-2.5 rounded-full"
-                  style={{ width: summary.success_rate }}
-                />
+              <div className="flex justify-between text-sm py-2 border-b border-gray-100">
+                <span className="text-gray-500">Completed At</span>
+                <span className="font-medium">{formatTimestamp(result.timestamp)}</span>
               </div>
-              <div className="flex justify-between text-xs text-gray-400 mt-2">
-                <span>{summary.verified_leads} verified</span>
-                <span>{summary.total_scraped} total</span>
+              <div className="flex justify-between text-sm py-2">
+                <span className="text-gray-500">Duration</span>
+                <span className="font-medium">
+                  {executionTime ? formatTime(executionTime) : formatTime(elapsed)}
+                </span>
               </div>
             </CardContent>
           </Card>
 
-          {/* Sheet info */}
-          {sheetInfo && (
-            <Card className="border-green-200">
+          {/* Scraping results */}
+          <Card className="border-green-200">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2 text-green-700">
+                <Database className="h-4 w-4" />
+                Scraping Results
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-0">
+              <div className="flex justify-between text-sm py-2 border-b border-gray-100">
+                <span className="text-gray-500">Lead Category</span>
+                <span className="font-medium text-right max-w-[60%]">{result.destination}</span>
+              </div>
+              <div className="flex justify-between text-sm py-2 border-b border-gray-100">
+                <span className="text-gray-500">Leads Requested</span>
+                <span className="font-bold text-[#0077b6]">{supabaseInfo.totalLeadsRequested}</span>
+              </div>
+              <div className="flex justify-between text-sm py-2 border-b border-gray-100">
+                <span className="text-gray-500">Leads Found</span>
+                <span className="font-bold text-green-600">{supabaseInfo.totalLeadsScraped}</span>
+              </div>
+              <div className="flex justify-between text-sm py-2">
+                <span className="text-gray-500">Database Save</span>
+                <span className={`font-medium capitalize ${supabaseInfo.saveStatus.toLowerCase() === 'success' ? 'text-green-600' : 'text-amber-600'}`}>
+                  {formatStatusLabel(supabaseInfo.saveStatus)}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Email verification */}
+          {emailVerification && (
+            <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm flex items-center gap-2 text-green-700">
-                  <Users className="h-4 w-4" />
-                  Leads Saved to Google Sheets
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Mail className="h-4 w-4 text-[#0077b6]" />
+                  Email Verification
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Sheet Tab</span>
-                  <span className="font-medium">{sheetInfo.sheet_tab}</span>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {[
+                    { label: 'Verified', value: emailVerification.verified, color: 'text-green-600 bg-green-50 border-green-200' },
+                    { label: 'Invalid', value: emailVerification.invalid, color: 'text-red-500 bg-red-50 border-red-200' },
+                    { label: 'Unknown', value: emailVerification.unknown, color: 'text-gray-500 bg-gray-50 border-gray-200' },
+                    { label: 'Catch-All', value: emailVerification.catchAll, color: 'text-amber-600 bg-amber-50 border-amber-200' },
+                    { label: 'Bounce Risk Removed', value: emailVerification.bounceRiskRemoved, color: 'text-orange-600 bg-orange-50 border-orange-200' },
+                  ].map(({ label, value, color }) => (
+                    <div key={label} className={`rounded-xl border p-3 text-center ${color}`}>
+                      <p className="text-xl font-bold">{value}</p>
+                      <p className="text-xs mt-0.5">{label}</p>
+                    </div>
+                  ))}
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Leads Added</span>
-                  <span className="font-bold text-green-600">{sheetInfo.leads_added}</span>
-                </div>
-                {sheetInfo.sheet_url && (
-                  <Button
-                    asChild
-                    className="w-full bg-green-600 hover:bg-green-700 text-white mt-2"
-                  >
-                    <a href={sheetInfo.sheet_url} target="_blank" rel="noopener noreferrer">
-                      <ExternalLink className="mr-2 h-4 w-4" />
-                      Open Google Sheet
-                    </a>
-                  </Button>
-                )}
               </CardContent>
             </Card>
           )}

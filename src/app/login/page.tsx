@@ -14,6 +14,7 @@ import {
   EyeOff
 } from "lucide-react";
 import { supabase } from "../../lib/supabase";
+import { signIn } from "next-auth/react";
 import "../globals.css";
 
 export default function LoginPage() {
@@ -68,7 +69,22 @@ export default function LoginPage() {
     const adminEmail = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "admin@tenantreport.ai").toLowerCase();
     const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || "Meta123.com";
 
-    // ── Local bypass (works offline, no network needed) ──
+    // ── NextAuth (client dashboard) for platform admin ──
+    if (enteredEmail === adminEmail) {
+      const nextAuthResult = await signIn("credentials", {
+        email: enteredEmail,
+        password,
+        redirect: false,
+      });
+      if (!nextAuthResult?.error) {
+        setSuccessStatus("Authentication successful. Redirecting to client dashboard...");
+        setTimeout(() => router.push("/client-dashboard"), 400);
+        setLoading(false);
+        return;
+      }
+    }
+
+    // ── Local bypass (legacy main dashboard at /) ──
     if (enteredEmail === adminEmail && password === adminPassword) {
       localStorage.setItem("app_auth_session", "true");
       localStorage.setItem("app_user_email", enteredEmail);
@@ -829,7 +845,10 @@ export default function LoginPage() {
             color: "#64748B",
             margin: 0
           }}>
-            Restricted to authorized administrator accounts only.
+            Restricted to authorized administrator accounts only.{" "}
+            <a href="/client-login" style={{ color: "#2563EB", fontWeight: 600, textDecoration: "none" }}>
+              Company login
+            </a>
           </p>
         </div>
       </div>

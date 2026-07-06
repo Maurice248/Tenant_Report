@@ -1,12 +1,16 @@
 import { NextResponse } from 'next/server';
+import { getMetaCredentialsForRequest } from '@/lib/meta-credentials';
+import { requireMetaApiAuth } from '@/lib/meta-api-auth';
 
 export async function GET() {
-  const accessToken = process.env.META_ACCESS_TOKEN;
-  const adAccountId = process.env.META_AD_ACCOUNT_ID;
+  const auth = await requireMetaApiAuth();
+  if (auth instanceof NextResponse) return auth;
 
-  if (!accessToken || !adAccountId) {
-    return NextResponse.json({ error: "Missing Meta credentials" }, { status: 500 });
+  const meta = await getMetaCredentialsForRequest();
+  if (!meta) {
+    return NextResponse.json({ error: 'Missing Meta credentials. Configure them in Client Dashboard → API keys.' }, { status: 500 });
   }
+  const { accessToken, adAccountId } = meta;
 
   try {
     // 1. Fetch Account-Level Insights (Aggregated)

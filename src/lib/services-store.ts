@@ -3,7 +3,7 @@ export const DEFAULT_SERVICES = [
   "Smart Tenant Subscription",
   "Rent Promise & Protection",
   "Background Screening",
-  "Credit Reports",
+  "Property Management",
   "Other Service",
 ];
 
@@ -13,7 +13,9 @@ export function getServices(): string[] {
   if (typeof window === "undefined") return DEFAULT_SERVICES;
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : DEFAULT_SERVICES;
+    return stored
+      ? JSON.parse(stored).map((s: string) => (s === "Credit Reports" ? "Property Management" : s))
+      : DEFAULT_SERVICES;
   } catch {
     return DEFAULT_SERVICES;
   }

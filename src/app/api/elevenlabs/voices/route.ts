@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getRequestCompanyIntegrations } from '@/lib/company-integrations';
 
 const FALLBACK_VOICES = [
   { voice_id: "pNInz6obpgq5pOtz5g1L", name: "Adam", gender: "male", accent: "American", language: "English", description: "Deep, crisp narrator voice - ideal for medical documentaries", preview_url: "" },
@@ -13,7 +14,8 @@ const FALLBACK_VOICES = [
 ];
 
 export async function GET() {
-  const apiKey = process.env.ELEVEN_LABS_API_KEY;
+  const creds = await getRequestCompanyIntegrations();
+  const apiKey = creds.elevenLabsApiKey?.trim();
 
   if (!apiKey) {
     console.log("[ElevenLabs] No API key found, using fallback list.");

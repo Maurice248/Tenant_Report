@@ -1,13 +1,19 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getRequestUserId } from '@/lib/auth';
+import { getRequestUserId, getRequestCompanyId } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import axios from 'axios';
+import { getRequestN8nConfig, getN8nWebhook } from '@/lib/company-integrations';
 
 export async function POST(req: NextRequest) {
   try {
     const userId = await getRequestUserId();
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const companyId = await getRequestCompanyId();
 
     const body = await req.json();
     const { campaignId, decision, comments } = body;
@@ -32,7 +38,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
     }
 
-    if (campaign.execution.userId !== userId) {
+    const inScope =
+      (companyId && campaign.execution.companyId === companyId) ||
+      campaign.execution.userId === userId;
+    if (!inScope) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -79,8 +88,17 @@ export async function POST(req: NextRequest) {
       },
     };
 
+    const n8n = await getRequestN8nConfig();
+    const approvalWebhookUrl = getN8nWebhook(n8n, 'N8N_APPROVAL_WEBHOOK_URL');
+    if (!approvalWebhookUrl) {
+      return NextResponse.json(
+        { error: 'Campaign approval webhook is not configured in API key management.' },
+        { status: 503 }
+      );
+    }
+
     const n8nResponse = await axios.post(
-      process.env.N8N_APPROVAL_WEBHOOK_URL!,
+      approvalWebhookUrl,
       approvalPayload,
       { headers: { 'Content-Type': 'application/json' }, timeout: 120000 }
     );
@@ -91,6 +109,7 @@ export async function POST(req: NextRequest) {
     await prisma.workflowExecution.create({
       data: {
         userId,
+        companyId: companyId ?? campaign.execution.companyId ?? undefined,
         workflowType: 'CAMPAIGN_APPROVAL',
         workflowName: `Approve: ${campaign.campaignName}`,
         status: n8nData.status === 'success' ? 'SUCCESS' : 'FAILED',

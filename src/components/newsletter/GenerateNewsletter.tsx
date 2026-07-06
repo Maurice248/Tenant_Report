@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useServices } from "@/context/ServicesContext";
 import { useNewsletter, NewsletterData } from "@/context/NewsletterContext";
 import { useNewsletterHistory } from "@/context/NewsletterHistoryContext";
+import { useN8nWebhooks, n8nUrl } from "@/hooks/use-n8n-webhooks";
 import EmailPreview from "./EmailPreview";
 import "./newsletter.css";
 
@@ -47,6 +48,7 @@ export default function GenerateNewsletter() {
   } = useNewsletter();
 
   const { addEntry } = useNewsletterHistory();
+  const n8nWebhooks = useN8nWebhooks();
   const [copied, setCopied] = useState(false);
 
   const applyResponse = (raw: unknown) => {
@@ -82,7 +84,7 @@ export default function GenerateNewsletter() {
     setErrorMessage("");
 
     try {
-      const webhookUrl = process.env.NEXT_PUBLIC_N8N_GENERATE_WEBHOOK_URL || "";
+      const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_GENERATE_WEBHOOK_URL");
 
       if (!webhookUrl) {
         await new Promise((r) => setTimeout(r, 1200));
@@ -128,7 +130,7 @@ export default function GenerateNewsletter() {
     setErrorMessage("");
 
     try {
-      const webhookUrl = process.env.NEXT_PUBLIC_N8N_REGENERATE_WEBHOOK_URL || "";
+      const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_REGENERATE_WEBHOOK_URL");
 
       if (!webhookUrl) {
         await new Promise((r) => setTimeout(r, 1200));
@@ -166,7 +168,7 @@ export default function GenerateNewsletter() {
     setTemplateId("");
 
     try {
-      const webhookUrl = process.env.NEXT_PUBLIC_N8N_HTML_WEBHOOK_URL || "";
+      const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_HTML_WEBHOOK_URL");
       if (webhookUrl) {
         const res = await fetch(webhookUrl, {
           method: "POST",

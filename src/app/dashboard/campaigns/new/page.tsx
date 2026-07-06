@@ -17,6 +17,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { Header } from '@/components/dashboard/header';
 import { PageBody } from '@/components/outreach/page-body';
 import { useAppSection } from '@/lib/app-section';
+import { LEAD_SHEET_OPTIONS } from '@/lib/validations';
 
 const campaignSchema = z.object({
   campaign_name: z.string().min(3, 'Campaign name must be at least 3 characters'),
@@ -230,7 +231,7 @@ export default function NewCampaignPage() {
                         <SelectItem value="Smart_Tenant_Subscription">Smart Tenant Subscription</SelectItem>
                         <SelectItem value="Rent_Protection">Rent Promise &amp; Protection</SelectItem>
                         <SelectItem value="Background_Screening">Background Screening</SelectItem>
-                        <SelectItem value="Credit_Reports">Credit Reports</SelectItem>
+                        <SelectItem value="Property_Management">Property Management</SelectItem>
                         <SelectItem value="All_Services">All Services</SelectItem>
                       </SelectContent>
                     </Select>
@@ -260,11 +261,9 @@ export default function NewCampaignPage() {
                   <Select onValueChange={(v) => form.setValue('selected_sheet', v)} disabled={isSubmitting}>
                     <SelectTrigger><SelectValue placeholder="Select Google Sheet tab" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Tenant Screening Leads">Tenant Screening Leads</SelectItem>
-                      <SelectItem value="Background Check Leads">Background Check Leads</SelectItem>
-                      <SelectItem value="Landlord Outreach Leads">Landlord Outreach Leads</SelectItem>
-                      <SelectItem value="Property Manager Leads">Property Manager Leads</SelectItem>
-                      <SelectItem value="All Services Leads">All Services Leads</SelectItem>
+                      {LEAD_SHEET_OPTIONS.map((sheet) => (
+                        <SelectItem key={sheet} value={sheet}>{sheet}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   {form.formState.errors.selected_sheet && (

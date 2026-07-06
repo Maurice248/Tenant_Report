@@ -1,8 +1,10 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getRequestUserEmail, getRequestUserId } from '@/lib/auth';
+import { getRequestUserEmail, getRequestUserId, getRequestCompanyId } from '@/lib/auth';
+import { executionRelationWhere } from '@/lib/workflow-scope';
 import { prisma } from '@/lib/prisma';
+import { getRequestN8nConfig, getN8nWebhook } from '@/lib/company-integrations';
 
 interface N8nCampaignResponse {
   status: string;           // "pending_approval" | "error"
@@ -32,8 +34,14 @@ export async function POST(req: NextRequest) {
 
   try {
     const userId = await getRequestUserId();
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     const userEmail = await getRequestUserEmail();
-
+    if (!userEmail) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const companyId = await getRequestCompanyId();
 
     const body = await req.json();
 
@@ -49,10 +57,19 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const n8n = await getRequestN8nConfig();
+    const campaignWebhookUrl = getN8nWebhook(n8n, 'N8N_CAMPAIGN_WEBHOOK_URL');
+    if (!campaignWebhookUrl) {
+      return NextResponse.json(
+        { error: 'Outreach campaign webhook is not configured in API key management.' },
+        { status: 503 }
+      );
+    }
+
     // Call n8n Workflow 1 — 130s timeout (n8n takes 50-120s for AI generation)
     let n8nRaw: Response;
     try {
-      n8nRaw = await fetch(process.env.N8N_CAMPAIGN_WEBHOOK_URL!, {
+      n8nRaw = await fetch(campaignWebhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -94,6 +111,7 @@ export async function POST(req: NextRequest) {
     const execution = await prisma.workflowExecution.create({
       data: {
         userId: userId,
+        companyId: companyId ?? undefined,
         workflowType: 'CAMPAIGN',
         workflowName: body.campaign_name,
         status: 'SUCCESS',
@@ -145,10 +163,14 @@ export async function POST(req: NextRequest) {
 export async function GET(_req: NextRequest) {
   try {
     const userId = await getRequestUserId();
-
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const companyId = await getRequestCompanyId();
+    const scope = executionRelationWhere(companyId, userId);
 
     const campaigns = await prisma.campaign.findMany({
-      where: { execution: { userId: userId } },
+      where: { execution: scope },
       include: {
         execution: {
           select: { status: true, createdAt: true, duration: true, outputData: true },

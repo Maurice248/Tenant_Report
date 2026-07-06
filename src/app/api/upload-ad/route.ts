@@ -3,6 +3,7 @@ export const maxDuration = 60; // allow up to 60s for large file uploads
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { getRequestUserId, getRequestCompanyId } from '@/lib/auth';
 
 function getServiceClient() {
   return createClient(
@@ -13,6 +14,12 @@ function getServiceClient() {
 
 export async function POST(req: NextRequest) {
   try {
+    const userId = await getRequestUserId();
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const companyId = await getRequestCompanyId();
+
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
     if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 });
@@ -47,6 +54,7 @@ export async function POST(req: NextRequest) {
         time: new Date().toISOString(),
         format,
         Approved: 'true',
+        company_id: companyId,
       }]);
 
     if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 });

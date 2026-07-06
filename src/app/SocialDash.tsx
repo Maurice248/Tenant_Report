@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useN8nWebhooks, n8nUrl } from '@/hooks/use-n8n-webhooks';
 import CustomSelect from './CustomSelect';
 import { createPortal } from 'react-dom';
 import {
@@ -154,6 +155,7 @@ interface ToastState {
 }
 
 export default function SocialDash() {
+  const n8nWebhooks = useN8nWebhooks();
   const [videoUrl, setVideoUrl] = useState<string>("");
   const [supabaseVideoUrl, setSupabaseVideoUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState<string | null>(null);
@@ -528,7 +530,7 @@ export default function SocialDash() {
     setIsImageGenerating(true);
     setGeneratedSocialImage(null);
 
-    const webhookUrl = process.env.NEXT_PUBLIC_N8N_SOCIAL_IMAGE_URL || "https://n8n.srv1208919.hstgr.cloud/webhook/1703fb64-ec58-4e56-9ce7-bd9e16e15220";
+    const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_SOCIAL_IMAGE_URL");
     const result = await triggerWebhook(
       webhookUrl,
       "images",
@@ -601,7 +603,7 @@ export default function SocialDash() {
   const handleSocialPost = async () => {
     setIsImagePosting(true);
     try {
-      const webhookUrl = "https://n8n.srv1374096.hstgr.cloud/webhook/5636fbef-db11-419b-b7cf-92bff14c25b7";
+      const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_SOCIAL_POST_URL");
       await triggerWebhook(
         webhookUrl,
         "post_social",
@@ -631,7 +633,7 @@ export default function SocialDash() {
     setIsImageGenerating(true);
     setGeneratedSocialImage(null);
 
-    const webhookUrl = process.env.NEXT_PUBLIC_N8N_SOCIAL_IMAGE_URL || "https://n8n.srv1208919.hstgr.cloud/webhook/1703fb64-ec58-4e56-9ce7-bd9e16e15220";
+    const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_SOCIAL_IMAGE_URL");
     const result = await triggerWebhook(
       webhookUrl,
       "images",
@@ -713,7 +715,7 @@ export default function SocialDash() {
     hasTriggeredInSession.current = true;
     localStorage.setItem('sd_generation_start', Date.now().toString()); // ── Persist start time
     setStatus("Starting video process...");
-    const webhookUrl = process.env.NEXT_PUBLIC_N8N_SOCIAL_MANUAL_URL || "https://n8n.srv1208919.hstgr.cloud/webhook/289d4090-ac38-4c90-9876-5ca765e46211";
+    const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_SOCIAL_MANUAL_URL");
     triggerWebhook(
       webhookUrl,
       "manual", "Video processing started. Check email!"
@@ -740,7 +742,7 @@ export default function SocialDash() {
     setLastInputs(formattedData);
     setGeneratedScenes([]);
 
-    const webhookUrl = process.env.NEXT_PUBLIC_N8N_SOCIAL_DYNAMIC_URL || "https://n8n.srv1208919.hstgr.cloud/webhook/7be28969-c4ad-404a-b982-841dda7133af";
+    const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_SOCIAL_DYNAMIC_URL");
     const result = await triggerWebhook(
       webhookUrl,
       "dynamic",
@@ -777,7 +779,7 @@ export default function SocialDash() {
     localStorage.setItem('sd_generation_start', Date.now().toString()); // ── Persist start time
     setStatus("Accepting story and generating prompts...");
 
-    const webhookUrl = process.env.NEXT_PUBLIC_N8N_SOCIAL_ACCEPT_URL || "https://n8n.srv1208919.hstgr.cloud/webhook/81f0d39d-6344-421a-b3a2-019b2c737483";
+    const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_SOCIAL_ACCEPT_URL");
     const result = await triggerWebhook(
       webhookUrl,
       "accept",
@@ -824,7 +826,7 @@ export default function SocialDash() {
     localStorage.setItem('sd_generation_start', Date.now().toString());
     setStatus("Generating your social video preview...");
 
-    const webhookUrl = "https://n8n.srv1374096.hstgr.cloud/webhook-test/c44e7bac-b0db-43a7-96d3-8b2a3f483885";
+    const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_SOCIAL_CONFIRM_PROMPTS_URL");
     console.log("[UI] Confirming prompts to:", webhookUrl);
 
     let result: any = null;
@@ -897,7 +899,7 @@ export default function SocialDash() {
     setSceneFailures({});
     const data = { ...lastInputs, retry_prompt: retryPrompt, status: "retry", generated_story: generatedStory };
     
-    const webhookUrl = process.env.NEXT_PUBLIC_N8N_SOCIAL_RETRY_URL || "https://n8n.srv1208919.hstgr.cloud/webhook/ddcfb213-9313-46e3-8270-dd603301c1bd";
+    const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_SOCIAL_RETRY_URL");
     const result = await triggerWebhook(
       webhookUrl,
       "dynamic", 
@@ -1664,7 +1666,7 @@ export default function SocialDash() {
   };
 
   const handlePostVideo = () => {
-    const webhookUrl = "https://n8n.srv1374096.hstgr.cloud/webhook/9f2515c1-b4fc-4dc9-9f39-8e766aee0dc6";
+    const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_SOCIAL_POST_VIDEO_URL");
     triggerWebhook(
       webhookUrl,
       "post",

@@ -328,7 +328,7 @@ export default function EmailAnalyticsDashboard() {
             </div>
           </div>
           <ResponsiveContainer width="100%" height={280}>
-            <LineChart data={stats?.chartData || []} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+            <LineChart data={stats?.chartData || []} margin={{ top: 5, right: 10, left: 8, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
               <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#9ca3af' }} tickLine={false} axisLine={false} />
               <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} tickLine={false} axisLine={false} />
