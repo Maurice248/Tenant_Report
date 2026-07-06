@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
+import { normalizeMemberRole } from '@/lib/auth';
 import { ensureCompanyBrandConfig } from '@/lib/company-brand-config';
 import { hashInviteToken } from '@/lib/invite-tokens';
 import { prisma } from '@/lib/prisma';
@@ -59,7 +60,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
           email: invite.email,
           name,
           password: hashedPassword,
-          role: invite.role,
+          role: normalizeMemberRole(invite.role),
           companyId: invite.companyId,
         },
       });

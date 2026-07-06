@@ -1,7 +1,13 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { CLIENT_ROLE, COMPANY_ADMIN_ROLE, requireCompanyAdmin } from '@/lib/auth';
+import {
+  COMPANY_ADMIN_ROLE,
+  COMPANY_MEMBER_ROLE,
+  isCompanyMemberRole,
+  normalizeMemberRole,
+  requireCompanyAdmin,
+} from '@/lib/auth';
 import { isLastCompanyAdmin } from '@/lib/company-members';
 import { prisma } from '@/lib/prisma';
 
@@ -18,9 +24,10 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
 
   try {
     const body = await req.json();
-    const role = typeof body.role === 'string' ? body.role : '';
+    const roleInput = typeof body.role === 'string' ? body.role : '';
+    const role = normalizeMemberRole(roleInput);
 
-    if (role !== COMPANY_ADMIN_ROLE && role !== CLIENT_ROLE) {
+    if (role !== COMPANY_ADMIN_ROLE && role !== COMPANY_MEMBER_ROLE) {
       return NextResponse.json({ error: 'Invalid role.' }, { status: 400 });
     }
 
@@ -33,7 +40,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Member not found.' }, { status: 404 });
     }
 
-    if (member.role === COMPANY_ADMIN_ROLE && role === CLIENT_ROLE) {
+    if (member.role === COMPANY_ADMIN_ROLE && isCompanyMemberRole(role)) {
       if (id === admin.id || (await isLastCompanyAdmin(companyId, id))) {
         return NextResponse.json(
           { error: 'Cannot demote the last company admin.' },

@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { CLIENT_ROLE, COMPANY_ADMIN_ROLE, requireCompanyAdmin } from '@/lib/auth';
+import { COMPANY_ADMIN_ROLE, COMPANY_MEMBER_ROLE, normalizeMemberRole, requireCompanyAdmin } from '@/lib/auth';
 import { generateInviteToken, hashInviteToken, inviteExpiresAt } from '@/lib/invite-tokens';
 import { prisma } from '@/lib/prisma';
 
@@ -47,8 +47,9 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
-    const roleInput = typeof body.role === 'string' ? body.role : CLIENT_ROLE;
-    const role = roleInput === COMPANY_ADMIN_ROLE ? COMPANY_ADMIN_ROLE : CLIENT_ROLE;
+    const roleInput = typeof body.role === 'string' ? body.role : COMPANY_MEMBER_ROLE;
+    const role =
+      roleInput === COMPANY_ADMIN_ROLE ? COMPANY_ADMIN_ROLE : normalizeMemberRole(roleInput);
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return NextResponse.json({ error: 'A valid email address is required.' }, { status: 400 });

@@ -18,3 +18,9 @@ ALTER TABLE IF EXISTS public."Error Alerts"
 
 CREATE INDEX IF NOT EXISTS error_alerts_company_id_idx
   ON public."Error Alerts" (company_id);
+
+ALTER TABLE IF EXISTS public.reports_json
+  ADD COLUMN IF NOT EXISTS company_id TEXT;
+
+CREATE INDEX IF NOT EXISTS reports_json_company_id_idx
+  ON public.reports_json (company_id);
