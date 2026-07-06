@@ -25,7 +25,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
-import { campaignSchema, type CampaignFormValues } from '@/lib/validations';
+import { campaignSchema, LEAD_SHEET_OPTIONS, type CampaignFormValues } from '@/lib/validations';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 
 export function CampaignForm() {
@@ -113,7 +113,7 @@ export function CampaignForm() {
                         <SelectItem value="Smart_Tenant_Subscription">Smart Tenant Subscription</SelectItem>
                         <SelectItem value="Rent_Protection">Rent Promise &amp; Protection</SelectItem>
                         <SelectItem value="Background_Screening">Background Screening</SelectItem>
-                        <SelectItem value="Credit_Reports">Credit Reports</SelectItem>
+                        <SelectItem value="Property_Management">Property Management</SelectItem>
                         <SelectItem value="All_Services">All Services</SelectItem>
                       </SelectContent>
                     </Select>
@@ -159,11 +159,9 @@ export function CampaignForm() {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="Tenant Screening Leads">Tenant Screening Leads</SelectItem>
-                      <SelectItem value="Background Check Leads">Background Check Leads</SelectItem>
-                      <SelectItem value="Landlord Outreach Leads">Landlord Outreach Leads</SelectItem>
-                      <SelectItem value="Property Manager Leads">Property Manager Leads</SelectItem>
-                      <SelectItem value="All Services Leads">All Services Leads</SelectItem>
+                      {LEAD_SHEET_OPTIONS.map((sheet) => (
+                        <SelectItem key={sheet} value={sheet}>{sheet}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormDescription>Which Google Sheet to pull leads from</FormDescription>

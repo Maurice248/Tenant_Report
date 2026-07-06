@@ -1,28 +1,134 @@
 import { PrismaClient } from '@prisma/client';
 import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
+import { encryptSecret } from '../src/lib/integration-crypto';
+import { computeBrandConfigHash } from '../src/lib/brand-config';
+import { webhooksFromEnv } from '../src/lib/n8n-config';
 
 const prisma = new PrismaClient();
 
 const ADMIN_EMAIL = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || 'admin@tenantreport.ai').toLowerCase();
 const ADMIN_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'pass@123';
 const ADMIN_NAME = process.env.ADMIN_NAME || 'Tenant Report Admin';
+const PLATFORM_COMPANY_NAME = process.env.PLATFORM_COMPANY_NAME || 'Tenant Report';
+const PLATFORM_COMPANY_SLUG = process.env.PLATFORM_COMPANY_SLUG || 'tenant-report';
+const PLATFORM_COMPANY_LOGO = '/tenant-report-logo.png';
 
-async function seedPrismaAdmin() {
+async function ensureIntegrationsTable() {
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS company_integrations (
+      id TEXT NOT NULL,
+      "companyId" TEXT NOT NULL,
+      "metaAccessTokenEnc" TEXT,
+      "metaAdAccountId" TEXT,
+      "metaPageId" TEXT,
+      "elevenLabsApiKeyEnc" TEXT,
+      "wordpressSiteUrl" TEXT,
+      "wordpressUsername" TEXT,
+      "wordpressAppPasswordEnc" TEXT,
+      "n8nApiKeyEnc" TEXT,
+      "n8nApiBaseUrl" TEXT,
+      "n8nBlogWorkflowId" TEXT,
+      "n8nBlogWorkflowName" TEXT,
+      "n8nWebhooksJson" JSONB NOT NULL DEFAULT '{}',
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT company_integrations_pkey PRIMARY KEY (id),
+      CONSTRAINT company_integrations_companyId_key UNIQUE ("companyId"),
+      CONSTRAINT company_integrations_companyId_fkey FOREIGN KEY ("companyId") REFERENCES companies(id) ON DELETE CASCADE ON UPDATE CASCADE
+    );
+  `);
+}
+
+async function ensurePlatformCompany() {
+  const company = await prisma.company.upsert({
+    where: { slug: PLATFORM_COMPANY_SLUG },
+    update: { name: PLATFORM_COMPANY_NAME, logoUrl: PLATFORM_COMPANY_LOGO },
+    create: {
+      name: PLATFORM_COMPANY_NAME,
+      slug: PLATFORM_COMPANY_SLUG,
+      logoUrl: PLATFORM_COMPANY_LOGO,
+    },
+  });
+
+  console.log('[Prisma] Platform company ready:', company.name, `(id: ${company.id})`);
+  return company;
+}
+
+async function seedCompanyIntegrationsFromEnv(companyId: string) {
+  const existing = await prisma.companyIntegration.findUnique({ where: { companyId } });
+  if (existing) {
+    console.log('[Prisma] Company integrations already exist — skipping env seed');
+    return;
+  }
+
+  const metaAccessToken = process.env.META_ACCESS_TOKEN?.trim();
+  const metaAdAccountId = process.env.META_AD_ACCOUNT_ID?.trim();
+  const metaPageId = process.env.META_PAGE_ID?.trim();
+  const elevenLabsApiKey =
+    process.env.ELEVENLABS_API_KEY?.trim() || process.env.ELEVEN_LABS_API_KEY?.trim();
+  const wordpressSiteUrl = process.env.WORDPRESS_SITE_URL?.trim();
+  const wordpressUsername = process.env.WORDPRESS_USERNAME?.trim();
+  const wordpressAppPassword = process.env.WORDPRESS_APP_PASSWORD?.replace(/\s/g, '');
+  const n8nApiKey = process.env.N8N_API_KEY?.trim();
+  const n8nApiBaseUrl = process.env.N8N_API_BASE_URL?.trim();
+  const n8nBlogWorkflowId = process.env.N8N_BLOG_WORKFLOW_ID?.trim();
+  const n8nBlogWorkflowName = process.env.N8N_BLOG_WORKFLOW_NAME?.trim();
+  const n8nWebhooks = webhooksFromEnv();
+
+  const hasAny =
+    metaAccessToken ||
+    metaAdAccountId ||
+    metaPageId ||
+    elevenLabsApiKey ||
+    wordpressSiteUrl ||
+    n8nApiKey ||
+    n8nApiBaseUrl ||
+    Object.keys(n8nWebhooks).length > 0;
+
+  if (!hasAny) {
+    console.log('[Prisma] No integration env vars found — skipping integration seed');
+    return;
+  }
+
+  await prisma.companyIntegration.create({
+    data: {
+      companyId,
+      metaAccessTokenEnc: metaAccessToken ? encryptSecret(metaAccessToken) : null,
+      metaAdAccountId: metaAdAccountId || null,
+      metaPageId: metaPageId || null,
+      elevenLabsApiKeyEnc: elevenLabsApiKey ? encryptSecret(elevenLabsApiKey) : null,
+      wordpressSiteUrl: wordpressSiteUrl?.replace(/\/$/, '') || null,
+      wordpressUsername: wordpressUsername || null,
+      wordpressAppPasswordEnc: wordpressAppPassword ? encryptSecret(wordpressAppPassword) : null,
+      n8nApiKeyEnc: n8nApiKey ? encryptSecret(n8nApiKey) : null,
+      n8nApiBaseUrl: n8nApiBaseUrl?.replace(/\/$/, '') || null,
+      n8nBlogWorkflowId: n8nBlogWorkflowId || null,
+      n8nBlogWorkflowName: n8nBlogWorkflowName || null,
+      n8nWebhooksJson: n8nWebhooks,
+    },
+  });
+
+  console.log('[Prisma] Seeded company integrations from environment variables');
+}
+
+async function seedPrismaAdmin(companyId: string) {
   const passwordHash = await bcrypt.hash(ADMIN_PASSWORD, 10);
 
   const admin = await prisma.user.upsert({
     where: { email: ADMIN_EMAIL },
     update: {
       password: passwordHash,
-      role: 'ADMIN',
+      role: 'COMPANY_ADMIN',
       name: ADMIN_NAME,
+      companyId,
     },
     create: {
       email: ADMIN_EMAIL,
       name: ADMIN_NAME,
       password: passwordHash,
-      role: 'ADMIN',
+      role: 'COMPANY_ADMIN',
+      companyId,
     },
   });
 
@@ -71,10 +177,109 @@ async function seedSupabaseAuthAdmin() {
   console.log('[Supabase Auth] Admin user created:', ADMIN_EMAIL, `(id: ${data.user?.id})`);
 }
 
+async function seedTenantReportBrandConfig(companyId: string) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceKey) {
+    await prisma.companyBrandConfig.upsert({
+      where: { companyId },
+      create: { companyId },
+      update: {},
+    });
+    return;
+  }
+
+  const supabase = createClient(supabaseUrl, serviceKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  const LEGACY_ID = 'd33fb700-9a07-4478-9ff1-6f636f2f3625';
+  const { data: legacy } = await supabase
+    .from('brand_configs')
+    .select('*')
+    .eq('id', LEGACY_ID)
+    .maybeSingle();
+
+  const brandConfig = await prisma.companyBrandConfig.upsert({
+    where: { companyId },
+    create: {
+      companyId,
+      productsServices: legacy?.products_services ?? '',
+      valueProposition: legacy?.value_proposition ?? '',
+      brandVoice: legacy?.brand_voice ?? '',
+      positioning: legacy?.positioning ?? '',
+      competitors: legacy?.competitors ?? '',
+      painPoints: legacy?.pain_points ?? '',
+      icpMetaAds: legacy?.icp_meta_ads ?? '',
+      icpNewsletter: legacy?.icp_newsletter ?? '',
+      icpOutreach: legacy?.icp_outreach ?? '',
+    },
+    update: {
+      productsServices: legacy?.products_services ?? '',
+      valueProposition: legacy?.value_proposition ?? '',
+      brandVoice: legacy?.brand_voice ?? '',
+      positioning: legacy?.positioning ?? '',
+      competitors: legacy?.competitors ?? '',
+      painPoints: legacy?.pain_points ?? '',
+      icpMetaAds: legacy?.icp_meta_ads ?? '',
+      icpNewsletter: legacy?.icp_newsletter ?? '',
+      icpOutreach: legacy?.icp_outreach ?? '',
+    },
+  });
+
+  const { data: snapshots } = await supabase
+    .from('brand_config_snapshots')
+    .select('*')
+    .eq('brand_config_id', LEGACY_ID);
+
+  for (const snap of snapshots ?? []) {
+    const fields = {
+      products_services: snap.products_services ?? '',
+      value_proposition: snap.value_proposition ?? '',
+      brand_voice: snap.brand_voice ?? '',
+      positioning: snap.positioning ?? '',
+      competitors: snap.competitors ?? '',
+      pain_points: snap.pain_points ?? '',
+      icp_meta_ads: snap.icp_meta_ads ?? '',
+      icp_newsletter: snap.icp_newsletter ?? '',
+      icp_outreach: snap.icp_outreach ?? '',
+    };
+    const contentHash = snap.content_hash || computeBrandConfigHash(fields);
+    const exists = await prisma.companyBrandSnapshot.findFirst({
+      where: { brandConfigId: brandConfig.id, contentHash },
+    });
+    if (exists) continue;
+
+    await prisma.companyBrandSnapshot.create({
+      data: {
+        brandConfigId: brandConfig.id,
+        productsServices: fields.products_services,
+        valueProposition: fields.value_proposition,
+        brandVoice: fields.brand_voice,
+        positioning: fields.positioning,
+        competitors: fields.competitors,
+        painPoints: fields.pain_points,
+        icpMetaAds: fields.icp_meta_ads,
+        icpNewsletter: fields.icp_newsletter,
+        icpOutreach: fields.icp_outreach,
+        contentHash,
+        label: snap.label,
+        createdAt: snap.created_at ? new Date(snap.created_at) : undefined,
+      },
+    });
+  }
+
+  console.log('[Prisma] Tenant Report brand config ready');
+}
+
 async function main() {
-  await seedPrismaAdmin();
+  await ensureIntegrationsTable();
+  const company = await ensurePlatformCompany();
+  await seedPrismaAdmin(company.id);
+  await seedCompanyIntegrationsFromEnv(company.id);
+  await seedTenantReportBrandConfig(company.id);
   await seedSupabaseAuthAdmin();
-  console.log('\nLogin credentials:');
+  console.log('\nLogin credentials (Client Dashboard at /client-login):');
   console.log(`  Email:    ${ADMIN_EMAIL}`);
   console.log(`  Password: ${ADMIN_PASSWORD}`);
 }

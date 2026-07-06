@@ -33,6 +33,11 @@ export interface OutreachDashboardData {
   dbUnavailable: boolean;
 }
 
+function executionScope(companyId: string | null, userId: string): Prisma.WorkflowExecutionWhereInput {
+  if (companyId) return { companyId };
+  return { userId };
+}
+
 function emptyMonths(): DashboardChartMonth[] {
   return Array.from({ length: 6 }, (_, i) => {
     const date = subMonths(new Date(), 5 - i);
@@ -60,7 +65,11 @@ function isMissingTableError(err: unknown): boolean {
   );
 }
 
-export async function getOutreachDashboardData(userId: string): Promise<OutreachDashboardData> {
+export async function getOutreachDashboardData(
+  companyId: string | null,
+  userId: string
+): Promise<OutreachDashboardData> {
+  const scope = executionScope(companyId, userId);
   const months = Array.from({ length: 6 }, (_, i) => {
     const date = subMonths(new Date(), 5 - i);
     return { start: startOfMonth(date), end: endOfMonth(date), label: format(date, 'MMM') };
@@ -69,13 +78,13 @@ export async function getOutreachDashboardData(userId: string): Promise<Outreach
   try {
     const [campaigns, scraperJobs, recentExecutions, campaignsByMonth, leadsBySheet] =
       await Promise.all([
-        prisma.campaign.count({ where: { execution: { userId } } }),
+        prisma.campaign.count({ where: { execution: scope } }),
         prisma.scraperJob.aggregate({
-          where: { execution: { userId } },
+          where: { execution: scope },
           _sum: { totalScraped: true, validEmails: true },
         }),
         prisma.workflowExecution.findMany({
-          where: { userId },
+          where: scope,
           orderBy: { createdAt: 'desc' },
           take: 8,
           include: { campaign: { select: { id: true } } },
@@ -84,10 +93,10 @@ export async function getOutreachDashboardData(userId: string): Promise<Outreach
           months.map(async ({ start, end, label }) => {
             const [count, agg] = await Promise.all([
               prisma.campaign.count({
-                where: { execution: { userId }, createdAt: { gte: start, lte: end } },
+                where: { execution: scope, createdAt: { gte: start, lte: end } },
               }),
               prisma.campaign.aggregate({
-                where: { execution: { userId }, createdAt: { gte: start, lte: end } },
+                where: { execution: scope, createdAt: { gte: start, lte: end } },
                 _sum: { totalLeadsSent: true },
               }),
             ]);
@@ -96,14 +105,14 @@ export async function getOutreachDashboardData(userId: string): Promise<Outreach
         ),
         prisma.scraperJob.groupBy({
           by: ['targetSheet'],
-          where: { execution: { userId } },
+          where: { execution: scope },
           _sum: { validEmails: true },
         }),
       ]);
 
     const [successCount, totalCount] = await Promise.all([
-      prisma.workflowExecution.count({ where: { userId, status: 'SUCCESS' } }),
-      prisma.workflowExecution.count({ where: { userId } }),
+      prisma.workflowExecution.count({ where: { ...scope, status: 'SUCCESS' } }),
+      prisma.workflowExecution.count({ where: scope }),
     ]);
 
     return {

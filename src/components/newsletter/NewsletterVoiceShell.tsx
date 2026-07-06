@@ -10,7 +10,6 @@ import {
   Megaphone,
   History,
   Settings,
-  Phone,
   Mail,
   ChevronRight,
 } from 'lucide-react';
@@ -19,11 +18,6 @@ import { NewsletterProviders } from '@/components/newsletter/Providers';
 import { HideNextDevIndicator } from '@/components/HideNextDevIndicator';
 
 const NAV = [
-  {
-    label: 'Voice Agent',
-    icon: Phone,
-    children: [{ label: 'Dashboard', href: '/voice/dashboard', icon: LayoutDashboard }],
-  },
   {
     label: 'Newsletter',
     icon: Mail,
@@ -44,7 +38,6 @@ function ShellInner({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
-    'Voice Agent': true,
     Newsletter: true,
   });
 
@@ -52,9 +45,7 @@ function ShellInner({ children }: { children: React.ReactNode }) {
     if (!embed) return;
 
     const handler = (event: MouseEvent) => {
-      const anchor = (event.target as Element | null)?.closest(
-        'a[href^="/voice"], a[href^="/newsletter"]'
-      );
+      const anchor = (event.target as Element | null)?.closest('a[href^="/newsletter"]');
       if (!anchor || anchor.getAttribute('target') === '_blank') return;
 
       const href = anchor.getAttribute('href');

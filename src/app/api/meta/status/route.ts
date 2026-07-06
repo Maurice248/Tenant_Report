@@ -1,9 +1,15 @@
+import { getMetaAccessTokenForRequest } from '@/lib/meta-credentials';
+import { requireMetaApiAuth } from '@/lib/meta-api-auth';
+import { NextResponse } from 'next/server';
 
-export async function POST(request) {
-  const accessToken = process.env.META_ACCESS_TOKEN;
+export async function POST(request: Request) {
+  const auth = await requireMetaApiAuth();
+  if (auth instanceof NextResponse) return auth;
+
+  const accessToken = await getMetaAccessTokenForRequest();
   
   if (!accessToken) {
-    return Response.json({ error: "Missing Meta credentials" }, { status: 500 });
+    return Response.json({ error: 'Missing Meta credentials. Configure them in Client Dashboard → API keys.' }, { status: 500 });
   }
 
   try {

@@ -1,4 +1,11 @@
-export async function GET(request) {
+import { getMetaAccessTokenForRequest } from '@/lib/meta-credentials';
+import { requireMetaApiAuth } from '@/lib/meta-api-auth';
+import { NextResponse } from 'next/server';
+
+export async function GET(request: Request) {
+  const auth = await requireMetaApiAuth();
+  if (auth instanceof NextResponse) return auth;
+
   const { searchParams } = new URL(request.url);
   const q = searchParams.get("q");
   
@@ -6,9 +13,9 @@ export async function GET(request) {
     return Response.json([]);
   }
 
-  const token = process.env.META_ACCESS_TOKEN;
+  const token = await getMetaAccessTokenForRequest();
   if (!token) {
-    return Response.json({ error: "Missing META_ACCESS_TOKEN" }, { status: 500 });
+    return Response.json({ error: "Missing Meta access token. Configure it in Client Dashboard → API keys." }, { status: 500 });
   }
 
   try {

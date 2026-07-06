@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { getMetaCredentialsForRequest } from '@/lib/meta-credentials';
+import { requireMetaApiAuth } from '@/lib/meta-api-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,12 +35,14 @@ async function fetchCampaigns(accessToken: string, adAccountId: string, fields: 
 }
 
 export async function GET() {
-  const accessToken = process.env.META_ACCESS_TOKEN;
-  const adAccountId = normalizeAdAccountId(process.env.META_AD_ACCOUNT_ID || '');
+  const auth = await requireMetaApiAuth();
+  if (auth instanceof NextResponse) return auth;
 
-  if (!accessToken || !adAccountId) {
-    return NextResponse.json({ error: 'Missing Meta credentials (META_ACCESS_TOKEN / META_AD_ACCOUNT_ID)' }, { status: 500 });
+  const meta = await getMetaCredentialsForRequest();
+  if (!meta) {
+    return NextResponse.json({ error: 'Missing Meta credentials. Configure them in Client Dashboard → API keys.' }, { status: 500 });
   }
+  const { accessToken, adAccountId } = meta;
 
   try {
     let { response, data } = await fetchCampaigns(accessToken, adAccountId, FULL_FIELDS);
@@ -69,12 +73,14 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const accessToken = process.env.META_ACCESS_TOKEN;
-  const adAccountId = normalizeAdAccountId(process.env.META_AD_ACCOUNT_ID || '');
+  const auth = await requireMetaApiAuth();
+  if (auth instanceof NextResponse) return auth;
 
-  if (!accessToken || !adAccountId) {
-    return NextResponse.json({ error: 'Missing Meta credentials' }, { status: 500 });
+  const meta = await getMetaCredentialsForRequest();
+  if (!meta) {
+    return NextResponse.json({ error: 'Missing Meta credentials. Configure them in Client Dashboard → API keys.' }, { status: 500 });
   }
+  const { accessToken, adAccountId } = meta;
 
   try {
     const body = await request.json();

@@ -1,6 +1,6 @@
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { requireServerSession } from '@/lib/server-auth';
+import { executionWhere, executionRelationWhere } from '@/lib/workflow-scope';
 import { Header } from '@/components/dashboard/header';
 import { StatsCard } from '@/components/dashboard/stats-card';
 import { CampaignChart } from '@/components/analytics/campaign-chart';
@@ -12,7 +12,9 @@ import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns';
 
 const labels = SECTION_CONFIG.outreach.labels;
 
-async function getAnalytics(userId: string) {
+async function getAnalytics(companyId: string | null, userId: string) {
+  const scope = executionRelationWhere(companyId, userId);
+  const execScope = executionWhere(companyId, userId);
   const months = Array.from({ length: 6 }, (_, i) => {
     const date = subMonths(new Date(), 5 - i);
     return { start: startOfMonth(date), end: endOfMonth(date), label: format(date, 'MMM') };
@@ -23,13 +25,13 @@ async function getAnalytics(userId: string) {
       const [count, agg] = await Promise.all([
         prisma.campaign.count({
           where: {
-            execution: { userId },
+            execution: scope,
             createdAt: { gte: start, lte: end },
           },
         }),
         prisma.campaign.aggregate({
           where: {
-            execution: { userId },
+            execution: scope,
             createdAt: { gte: start, lte: end },
           },
           _sum: { totalLeadsSent: true },
@@ -41,23 +43,23 @@ async function getAnalytics(userId: string) {
 
   const leadsBySheet = await prisma.scraperJob.groupBy({
     by: ['targetSheet'],
-    where: { execution: { userId } },
+    where: { execution: scope },
     _sum: { validEmails: true },
   });
 
   const [totalCampaigns, totalLeads, totalDeleted, successRate] = await Promise.all([
-    prisma.campaign.count({ where: { execution: { userId } } }),
+    prisma.campaign.count({ where: { execution: scope } }),
     prisma.scraperJob.aggregate({
-      where: { execution: { userId } },
+      where: { execution: scope },
       _sum: { validEmails: true },
     }),
     prisma.cleanupLog.aggregate({
-      where: { execution: { userId } },
+      where: { execution: scope },
       _sum: { deletedCount: true },
     }),
     Promise.all([
-      prisma.workflowExecution.count({ where: { userId, status: 'SUCCESS' } }),
-      prisma.workflowExecution.count({ where: { userId } }),
+      prisma.workflowExecution.count({ where: { ...execScope, status: 'SUCCESS' } }),
+      prisma.workflowExecution.count({ where: execScope }),
     ]).then(([s, t]) => (t > 0 ? Math.round((s / t) * 100) : 0)),
   ]);
 
@@ -75,10 +77,11 @@ async function getAnalytics(userId: string) {
 }
 
 export default async function OutreachAnalyticsPage() {
-  const session = await getServerSession(authOptions);
-  const userId = session?.user?.id ?? 'cmo8ubhgi0000difwp4jsua3t';
+  const session = await requireServerSession();
+  const userId = session.user.id;
+  const companyId = session.user.companyId ?? null;
 
-  const data = await getAnalytics(userId);
+  const data = await getAnalytics(companyId, userId);
 
   return (
     <div>

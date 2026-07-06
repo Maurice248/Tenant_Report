@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { getRequestUserId, getRequestCompanyId } from '@/lib/auth';
 
 function getServiceClient() {
   return createClient(
@@ -12,6 +13,12 @@ function getServiceClient() {
 
 export async function POST(req: NextRequest) {
   try {
+    const userId = await getRequestUserId();
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const companyId = await getRequestCompanyId();
+
     const { publicUrl, format } = await req.json();
     if (!publicUrl) return NextResponse.json({ error: 'publicUrl required' }, { status: 400 });
 
@@ -20,7 +27,7 @@ export async function POST(req: NextRequest) {
 
     const { error } = await supabase
       .from('your_name_table')
-      .insert([{ text: publicUrl, time, format, Approved: 'true' }]);
+      .insert([{ text: publicUrl, time, format, Approved: 'true', company_id: companyId }]);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

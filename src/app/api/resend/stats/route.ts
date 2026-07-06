@@ -3,9 +3,13 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { getResendStats } from '@/lib/resend-stats';
+import { requireApiCompanyId } from '@/lib/api-auth';
 
 export async function GET(request: NextRequest) {
   try {
+    const companyId = await requireApiCompanyId();
+    if (companyId instanceof NextResponse) return companyId;
+
     const daysParam = request.nextUrl.searchParams.get('days');
     const days = daysParam ? Number.parseInt(daysParam, 10) : undefined;
     const supabase = getSupabaseAdmin();

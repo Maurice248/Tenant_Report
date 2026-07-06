@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import {
   Badge,
@@ -35,67 +35,70 @@ import {
   ClipboardCheck,
   Settings2,
   TrendingUp,
+  Activity,
   PieChart,
   Share2,
   Newspaper,
-  Phone,
   PenLine,
   Search,
   History,
   Trash2,
+  FileText,
+  Sparkles,
 } from "lucide-react";
 import OutreachTab from "./OutreachTab";
 import NewsletterTab from "./NewsletterTab";
+import BlogTab from "./BlogTab";
 import { supabase, supabaseProjectUrl } from "../lib/supabase";
 import { useRouter } from "next/navigation";
+import { useSession, signOut } from "next-auth/react";
+import { tenantStorageKey } from "@/lib/tenant-storage";
 import CampaignSetup from "./CampaignSetup";
+import AdPerformance from "./AdPerformance";
 import SocialDash from "./SocialDash";
 import CustomSelect from "./CustomSelect";
 import VoiceExplorerModal from "./VoiceExplorerModal";
+import { HideNextDevIndicator } from "@/components/HideNextDevIndicator";
+import { useN8nWebhooks, n8nUrl } from "@/hooks/use-n8n-webhooks";
 import "./globals.css";
 import { DEFAULT_WEBSITE_URL } from "@/lib/legacy-brand";
+import {
+  BRAND_ICP_FIELDS,
+  BRAND_STRATEGY_FIELDS,
+  profileFromDb,
+  profileToDb,
+  snapshotToProfile,
+} from "@/lib/brand-config";
 
 // ─── CONSTANTS ───────────────────────────────────────────────
 const API_URL = "/api/trigger-n8n";
+const VIDEO_GEN_DURATION = 360_000; // 6 minutes
+const AD_COMPLETION_POLL_MS = 10_000;
 
 const DEFAULT_BRAND_CONFIG = {
-  productsAndServices:
-    "Tenant Reports (background checks & applicant reports), Smart Tenant Subscription (AI-powered reliability scoring), Rent Promise & Protection Package, Online landlord dashboard, Background Screening, Credit Reports",
-  valueProposition:
-    "Reduce risk and ensure reliable rental income — affordable AI-powered tenant screening with comprehensive background & credit reports, real-time application tracking, and rent protection guarantees",
-  brandVoice:
-    "Trustworthy, Professional, Clear, Landlord-focused, Solution-oriented, Confidence-building",
-  positioning:
-    "Affordable AI-powered tenant screening platform for Canadian landlords — streamlining tenant selection with transparent pricing and comprehensive risk reduction tools",
-  competitors:
-    "SingleKey, Naborly, Certn, Landlord Credit Bureau, TenantCheck",
-  painPoints:
-    "Unreliable tenant payment history, risk of missed rent, time-consuming manual screening, difficulty verifying applicant reliability, rental income uncertainty, fear of bad tenant selection",
-  icpMetaAds:
-    "Canadian landlords and property managers aged 28-60, owning 1-10 rental units, interested in property management, real estate investing, landlord rights, rental income protection, tenant screening",
-  icpNewsletter:
-    "Canadian landlords actively screening tenants or comparing screening services — need trust-building content about AI-driven reliability scoring, background checks, credit reports, and rent protection packages",
-  icpOutreach:
-    "Landlords, property managers, and real estate investors in Canada — small-to-mid portfolio owners managing residential rentals, seeking affordable tenant screening solutions",
+  productsAndServices: "",
+  valueProposition: "",
+  brandVoice: "",
+  positioning: "",
+  competitors: "",
+  painPoints: "",
+  icpMetaAds: "",
+  icpNewsletter: "",
+  icpOutreach: "",
 };
 
 const TABS = [
-  { id: "profile", label: "Brand", icon: User },
+  { id: "profile", label: "Brand Context", icon: User },
   { id: "analysis", label: "Ads Analysis", icon: BarChart3 },
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "create", label: "Create Ad", icon: WandSparkles },
   { id: "approval", label: "Approval", icon: ClipboardCheck },
   { id: "campaigns", label: "Campaign Setup", icon: Settings2 },
   { id: "live_campaigns", label: "Running Campaign", icon: TrendingUp },
+  { id: "ad_performance", label: "Ad Performance", icon: Activity },
   { id: "reports", label: "Reports", icon: PieChart },
   { id: "social-dash", label: "Social-Dash", icon: Share2 },
 ];
-
-const VOICE_AGENT_ENABLED = false;
-
-const VOICE_TABS = VOICE_AGENT_ENABLED
-  ? [{ id: "voice-dashboard", label: "Dashboard", icon: LayoutDashboard }]
-  : [];
 
 const NEWSLETTER_TABS = [
   { id: "newsletter-dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -105,12 +108,9 @@ const NEWSLETTER_TABS = [
   { id: "newsletter-services", label: "Manage Services", icon: Settings2 },
 ];
 
-const VOICE_NEWSLETTER_IDS = new Set([
-  ...VOICE_TABS.map((t) => t.id),
-  ...NEWSLETTER_TABS.map((t) => t.id),
-]);
+const NEWSLETTER_TAB_IDS = new Set(NEWSLETTER_TABS.map((t) => t.id));
 
-const META_ADS_IDS = new Set(["overview", "create", "approval", "campaigns", "live_campaigns", "reports"]);
+const META_ADS_IDS = new Set(["overview", "create", "approval", "campaigns", "live_campaigns", "ad_performance", "reports"]);
 
 const OUTREACH_TABS = [
   { id: "outreach-dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -122,6 +122,20 @@ const OUTREACH_TABS = [
 ];
 
 const OUTREACH_IDS = new Set(OUTREACH_TABS.map((t) => t.id));
+
+const BLOG_TABS = [
+  { id: "blog-post", label: "Blog Posts", icon: FileText },
+  { id: "blog-automation", label: "Automation", icon: Sparkles },
+];
+
+const BLOG_IDS = new Set(BLOG_TABS.map((t) => t.id));
+
+const ALL_APP_TAB_IDS = new Set([
+  ...TABS.map((t) => t.id),
+  ...OUTREACH_TABS.map((t) => t.id),
+  ...NEWSLETTER_TABS.map((t) => t.id),
+  ...BLOG_TABS.map((t) => t.id),
+]);
 
 const DEFAULT_RESEARCH_KEYWORDS = [
   "tenant screening",
@@ -149,7 +163,7 @@ const restoreResearchKeywords = (parsed: unknown) =>
 const TOPICS = [
   "Tenant Screening",
   "Background Checks",
-  "Credit Reports",
+  "Property Management",
   "Rent Protection",
   "Landlord Dashboard",
   "Rental Application Tracking",
@@ -400,19 +414,56 @@ function useLocalStorage(key, defaultValue, onRestore = null) {
   return [value, setValue];
 }
 
+function readEmbedTabFromUrl() {
+  if (typeof window === "undefined") return "overview";
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("embed") !== "1") return "overview";
+  const urlTab = params.get("tab");
+  return urlTab && ALL_APP_TAB_IDS.has(urlTab) ? urlTab : "overview";
+}
+
+function isEmbedMode() {
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).get("embed") === "1";
+}
+
 // ─── MAIN DASHBOARD ──────────────────────────────────────────
 export default function Dashboard() {
   const router = useRouter();
-  const [tab, setTab] = useLocalStorage("app_active_tab", "overview");
+  const { data: session, status: sessionStatus } = useSession();
+  const companyId = session?.user?.companyId ?? null;
+  const n8nWebhooks = useN8nWebhooks();
+  const [storedTab, setStoredTab] = useLocalStorage(tenantStorageKey(companyId, "app_active_tab"), "overview");
+  const [embedTab, setEmbedTab] = useState(readEmbedTabFromUrl);
+  const [embed, setEmbed] = useState(isEmbedMode);
+  const tab = embed ? embedTab : storedTab;
+  const setTab = useCallback(
+    (value) => {
+      if (embed) setEmbedTab(value);
+      else setStoredTab(value);
+    },
+    [embed, setStoredTab]
+  );
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useLocalStorage("app_sidebar_collapsed", false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useLocalStorage(tenantStorageKey(companyId, "app_sidebar_collapsed"), false);
   const [metaAdsOpen, setMetaAdsOpen] = useState(false);
   const [outreachOpen, setOutreachOpen] = useState(false);
-  const [voiceOpen, setVoiceOpen] = useState(false);
   const [newsletterOpen, setNewsletterOpen] = useState(false);
+  const [blogOpen, setBlogOpen] = useState(false);
   const [selectedTopic, setSelectedTopic] = useState(TOPICS[1]);
   const [user, setUser] = useState(null);
   const [isAuthenticating, setIsAuthenticating] = useState(true);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const isEmbed = params.get("embed") === "1";
+    setEmbed(isEmbed);
+    const urlTab = params.get("tab");
+    if (!urlTab || !ALL_APP_TAB_IDS.has(urlTab)) return;
+    if (isEmbed) setEmbedTab(urlTab);
+    else setStoredTab(urlTab);
+  }, [setStoredTab]);
 
   // Auto-open Meta Ads group when navigating to one of its tabs
   useEffect(() => { if (META_ADS_IDS.has(tab)) setMetaAdsOpen(true); }, [tab]);
@@ -420,17 +471,17 @@ export default function Dashboard() {
   // Auto-open Outreach group when navigating to one of its tabs
   useEffect(() => { if (OUTREACH_IDS.has(tab)) setOutreachOpen(true); }, [tab]);
 
-  // Auto-open Voice Agent / Newsletter groups
+  // Auto-open Newsletter / Blog groups
   useEffect(() => {
-    if (VOICE_TABS.some((t) => t.id === tab)) setVoiceOpen(true);
     if (NEWSLETTER_TABS.some((t) => t.id === tab)) setNewsletterOpen(true);
+    if (BLOG_IDS.has(tab)) setBlogOpen(true);
   }, [tab]);
 
   // Migrate legacy tab ids from localStorage
   useEffect(() => { if (tab === "outreach") setTab("outreach-dashboard"); }, [tab, setTab]);
   useEffect(() => { if (tab === "newsletter") setTab("newsletter-generate"); }, [tab, setTab]);
+  useEffect(() => { if (tab === "blog-management") setTab("blog-post"); }, [tab, setTab]);
   useEffect(() => {
-    if (!VOICE_AGENT_ENABLED && tab === "voice-dashboard") setTab("overview");
   }, [tab, setTab]);
 
 
@@ -549,9 +600,19 @@ export default function Dashboard() {
 
   // ── Profile Form Data (Supabase Integration) ──
   const [profileData, setProfileData] = useState<any>({ ...DEFAULT_BRAND_CONFIG });
-  const [profileId, setProfileId] = useState<string>("d33fb700-9a07-4478-9ff1-6f636f2f3625");
+  const [profileId, setProfileId] = useState<string>("");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [brandSnapshots, setBrandSnapshots] = useState<any[]>([]);
+  const [brandSnapshotsModalOpen, setBrandSnapshotsModalOpen] = useState(false);
+  const [loadingBrandSnapshots, setLoadingBrandSnapshots] = useState(false);
+  const [expandedBrandSnapshotId, setExpandedBrandSnapshotId] = useState<string | null>(null);
+  const [activeBrandSnapshot, setActiveBrandSnapshot] = useLocalStorage("app_active_brand_snapshot", null);
+  const [templateNameModalOpen, setTemplateNameModalOpen] = useState(false);
+  const [templateNameInput, setTemplateNameInput] = useState("");
+  const [pendingSnapshotPayload, setPendingSnapshotPayload] = useState<any>(null);
+  const [isSavingTemplateName, setIsSavingTemplateName] = useState(false);
+  const [deletingSnapshotId, setDeletingSnapshotId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -561,49 +622,13 @@ export default function Dashboard() {
       if (data) {
         setProfileId(data.id);
         setProfileData({
-          productsAndServices: data.products_services || DEFAULT_BRAND_CONFIG.productsAndServices,
-          valueProposition: data.value_proposition || DEFAULT_BRAND_CONFIG.valueProposition,
-          brandVoice: data.brand_voice || DEFAULT_BRAND_CONFIG.brandVoice,
-          positioning: data.positioning || DEFAULT_BRAND_CONFIG.positioning,
-          competitors: data.competitors || DEFAULT_BRAND_CONFIG.competitors,
-          painPoints: data.pain_points || DEFAULT_BRAND_CONFIG.painPoints,
-          icpMetaAds: data.icp_meta_ads || DEFAULT_BRAND_CONFIG.icpMetaAds,
-          icpNewsletter: data.icp_newsletter || DEFAULT_BRAND_CONFIG.icpNewsletter,
-          icpOutreach: data.icp_outreach || DEFAULT_BRAND_CONFIG.icpOutreach,
+          ...DEFAULT_BRAND_CONFIG,
+          ...profileFromDb(data),
         });
       }
     };
     fetchProfile();
   }, []);
-
-  const handleSaveProfile = async () => {
-    setIsSavingProfile(true);
-    const payload = {
-      products_services: profileData.productsAndServices,
-      value_proposition: profileData.valueProposition,
-      brand_voice: profileData.brandVoice,
-      positioning: profileData.positioning,
-      competitors: profileData.competitors,
-      pain_points: profileData.painPoints,
-      icp_meta_ads: profileData.icpMetaAds,
-      icp_newsletter: profileData.icpNewsletter,
-      icp_outreach: profileData.icpOutreach
-    };
-
-    const res = await fetch("/api/brand-config", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-
-    if (res.ok) {
-      addSbToast("Brand saved successfully!", "success");
-      setIsEditingProfile(false);
-    } else {
-      addSbToast("Error saving brand", "error");
-    }
-    setIsSavingProfile(false);
-  };
 
   // ── Poll for global n8n errors directly from Supabase (RLS disabled) ──
   // Strategy: track the DISMISSED ERROR MESSAGE (not timestamp).
@@ -740,6 +765,11 @@ export default function Dashboard() {
   const [videoGenProgress, setVideoGenProgress] = useState(0);
   const videoGenTimerRef = useRef<any>(null);
   const videoGenPollRef = useRef<any>(null);
+  const videoGenStartRef = useRef<number | null>(null);
+  const videoGeneratingRef = useRef(false);
+  const generationActiveRef = useRef(false);
+  const imageGeneratingRef = useRef(false);
+  const generationHandledRef = useRef(false);
   const [promptsAccepted, setPromptsAccepted] = useState<boolean>(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("app_prompts_accepted") === "true";
@@ -796,6 +826,16 @@ export default function Dashboard() {
     setImageGenerating(false);
     setImageGenProgress(0);
     clearInterval(imageGenTimerRef.current);
+    clearInterval(videoGenPollRef.current);
+    clearInterval(videoGenTimerRef.current);
+    videoGenStartRef.current = null;
+    videoGeneratingRef.current = false;
+    generationActiveRef.current = false;
+    imageGeneratingRef.current = false;
+    generationHandledRef.current = false;
+    window.localStorage.removeItem("app_video_gen_start");
+    setVideoGenerating(false);
+    setVideoGenProgress(0);
     setSentIdeaIds({});
     setGeneratedIdeas({});
     setWebhookError("");
@@ -811,6 +851,238 @@ export default function Dashboard() {
     setSbToasts((prev) => [...prev, { id, message, type }]);
     setTimeout(() => setSbToasts((prev) => prev.filter((t) => t.id !== id)), 3000);
   }, []);
+
+  const fetchBrandSnapshots = useCallback(async () => {
+    setLoadingBrandSnapshots(true);
+    try {
+      const res = await fetch("/api/brand-config/snapshots");
+      if (!res.ok) throw new Error("Failed to load saved templates");
+      const data = await res.json();
+      setBrandSnapshots(Array.isArray(data) ? data : []);
+    } catch {
+      addSbToast("Could not load saved brand templates", "error");
+    } finally {
+      setLoadingBrandSnapshots(false);
+    }
+  }, [addSbToast]);
+
+  const getBrandConfigForAnalysis = useCallback(() => {
+    if (activeBrandSnapshot?.id && activeBrandSnapshot.id !== "current" && activeBrandSnapshot.data) {
+      return profileToDb(activeBrandSnapshot.data);
+    }
+    return profileToDb(profileData);
+  }, [activeBrandSnapshot, profileData]);
+
+  const closeBrandSnapshotsModalDelayed = useCallback(() => {
+    setTimeout(() => setBrandSnapshotsModalOpen(false), 200);
+  }, []);
+
+  const handleDeleteBrandSnapshot = useCallback(async (snapshot: any) => {
+    const label = snapshot.label || "Unnamed template";
+    if (activeBrandSnapshot?.id === snapshot.id) {
+      addSbToast("Switch to another template before deleting the active one", "error");
+      return;
+    }
+    if (!confirm(`Delete template "${label}"? This cannot be undone.`)) return;
+
+    setDeletingSnapshotId(snapshot.id);
+    try {
+      const res = await fetch(`/api/brand-config/snapshots/${snapshot.id}`, { method: "DELETE" });
+      const result = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        addSbToast(result.error || "Failed to delete template", "error");
+        return;
+      }
+
+      if (expandedBrandSnapshotId === snapshot.id) {
+        setExpandedBrandSnapshotId(null);
+      }
+      setBrandSnapshots((prev) => prev.filter((s) => s.id !== snapshot.id));
+      addSbToast(`Template "${label}" deleted`, "success");
+    } catch {
+      addSbToast("Failed to delete template", "error");
+    } finally {
+      setDeletingSnapshotId(null);
+    }
+  }, [activeBrandSnapshot?.id, expandedBrandSnapshotId, setActiveBrandSnapshot, addSbToast]);
+
+  const applyBrandSnapshotForAnalysis = useCallback((snapshot: any) => {
+    const data = snapshotToProfile(snapshot);
+    setActiveBrandSnapshot({
+      id: snapshot.id,
+      label: snapshot.label || "Saved template",
+      created_at: snapshot.created_at,
+      data,
+    });
+    addSbToast("Template selected for Ads Analysis", "success");
+    closeBrandSnapshotsModalDelayed();
+  }, [setActiveBrandSnapshot, addSbToast, closeBrandSnapshotsModalDelayed]);
+
+  const handleConfirmTemplateName = async () => {
+    const name = templateNameInput.trim();
+    if (!name) {
+      addSbToast("Please enter a template name", "error");
+      return;
+    }
+    if (!pendingSnapshotPayload) return;
+
+    setIsSavingTemplateName(true);
+    try {
+      const res = await fetch("/api/brand-config/snapshots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...pendingSnapshotPayload, label: name }),
+      });
+      const result = await res.json().catch(() => ({}));
+
+      if (res.status === 409 || result.duplicate) {
+        addSbToast("This brand data already has a saved template", "error");
+        setTemplateNameModalOpen(false);
+        setPendingSnapshotPayload(null);
+        setTemplateNameInput("");
+        return;
+      }
+
+      if (!res.ok) {
+        addSbToast(result.error || "Failed to save template", "error");
+        return;
+      }
+
+      if (result.snapshot) {
+        const data = snapshotToProfile(result.snapshot);
+        setActiveBrandSnapshot({
+          id: result.snapshot.id,
+          label: result.snapshot.label || name,
+          created_at: result.snapshot.created_at,
+          data,
+        });
+        setProfileData({ ...DEFAULT_BRAND_CONFIG, ...data });
+        fetchBrandSnapshots();
+        setIsEditingProfile(false);
+        addSbToast(`Template "${name}" saved and selected for Ads Analysis`, "success");
+      }
+
+      setTemplateNameModalOpen(false);
+      setPendingSnapshotPayload(null);
+      setTemplateNameInput("");
+    } catch {
+      addSbToast("Failed to save template", "error");
+    } finally {
+      setIsSavingTemplateName(false);
+    }
+  };
+
+  const handleCancelTemplateName = () => {
+    setTemplateNameModalOpen(false);
+    setPendingSnapshotPayload(null);
+    setTemplateNameInput("");
+  };
+
+  useEffect(() => {
+    if (brandSnapshotsModalOpen || tab === "profile") fetchBrandSnapshots();
+  }, [brandSnapshotsModalOpen, tab, fetchBrandSnapshots]);
+
+  // Restore full template data when only id/label persisted in localStorage
+  useEffect(() => {
+    if (!activeBrandSnapshot?.id || activeBrandSnapshot.id === "current" || activeBrandSnapshot.data) return;
+    const snapshot = brandSnapshots.find((s: any) => s.id === activeBrandSnapshot.id);
+    if (!snapshot) return;
+    setActiveBrandSnapshot({
+      ...activeBrandSnapshot,
+      label: snapshot.label || activeBrandSnapshot.label,
+      created_at: snapshot.created_at,
+      data: snapshotToProfile(snapshot),
+    });
+  }, [activeBrandSnapshot, brandSnapshots, setActiveBrandSnapshot]);
+
+  const isActiveSavedTemplate =
+    Boolean(activeBrandSnapshot?.id && activeBrandSnapshot.id !== "current" && activeBrandSnapshot.data);
+
+  const displayProfileData = useMemo(() => {
+    if (isEditingProfile) return profileData;
+    if (isActiveSavedTemplate) {
+      return { ...DEFAULT_BRAND_CONFIG, ...activeBrandSnapshot.data };
+    }
+    return profileData;
+  }, [isEditingProfile, isActiveSavedTemplate, activeBrandSnapshot?.data, profileData]);
+
+  const handleStartEditingProfile = () => {
+    if (isActiveSavedTemplate) {
+      setProfileData({ ...DEFAULT_BRAND_CONFIG, ...activeBrandSnapshot.data });
+    }
+    setIsEditingProfile(true);
+  };
+
+  const handleCancelEditingProfile = async () => {
+    setIsEditingProfile(false);
+    try {
+      const res = await fetch("/api/brand-config");
+      if (res.ok) {
+        const data = await res.json();
+        if (data) {
+          setProfileData({ ...DEFAULT_BRAND_CONFIG, ...profileFromDb(data) });
+        }
+      }
+    } catch {
+      // keep current profileData on fetch failure
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    setIsSavingProfile(true);
+    const payload = profileToDb(profileData);
+
+    try {
+      if (isActiveSavedTemplate) {
+        const res = await fetch(`/api/brand-config/snapshots/${activeBrandSnapshot.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const result = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          addSbToast(result.error || "Error saving template", "error");
+          return;
+        }
+
+        const data = snapshotToProfile(result.snapshot);
+        setActiveBrandSnapshot({
+          ...activeBrandSnapshot,
+          data,
+        });
+        setProfileData({ ...DEFAULT_BRAND_CONFIG, ...data });
+        fetchBrandSnapshots();
+        setIsEditingProfile(false);
+        addSbToast(`Template "${activeBrandSnapshot.label || "Saved template"}" saved`, "success");
+      } else {
+        const res = await fetch("/api/brand-config", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) {
+          addSbToast("Error saving brand", "error");
+          return;
+        }
+
+        setIsEditingProfile(false);
+        addSbToast("Brand saved successfully!", "success");
+      }
+    } catch {
+      addSbToast("Error saving brand", "error");
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  const handleSaveAsNewTemplate = () => {
+    setPendingSnapshotPayload(profileToDb(profileData));
+    setTemplateNameInput("");
+    setTemplateNameModalOpen(true);
+  };
 
   const fetchAdTableLinks = useCallback(async () => {
     setAdVideosLoading(true);
@@ -899,9 +1171,72 @@ export default function Dashboard() {
       );
     }
 
+    // Auto-clear stuck progress UI when new ads land in the table (uses /api/ads, not anon Supabase)
+    const genStart = videoGenStartRef.current;
+    if (
+      genStart &&
+      !generationHandledRef.current &&
+      (videoGeneratingRef.current || generationActiveRef.current || imageGeneratingRef.current)
+    ) {
+      const threshold = genStart - 5000;
+      const hasNewPending = validPending.some(
+        (row) => new Date(row.time).getTime() >= threshold
+      );
+      if (hasNewPending) {
+        generationHandledRef.current = true;
+        clearInterval(videoGenPollRef.current);
+        clearInterval(videoGenTimerRef.current);
+        clearInterval(imageGenTimerRef.current);
+        window.localStorage.removeItem("app_video_gen_start");
+        videoGenStartRef.current = null;
+        const wasImage = imageGeneratingRef.current;
+        videoGeneratingRef.current = false;
+        generationActiveRef.current = false;
+        imageGeneratingRef.current = false;
+        setGenerationActive(false);
+        if (wasImage) {
+          setImageGenProgress(100);
+          addSbToast("✅ Image Generated Successfully! Check Ad Previews below.", "success");
+          setTimeout(() => {
+            setImageGenerating(false);
+            setImageGenProgress(0);
+            resetCreateTabWorkspace();
+          }, 2000);
+        } else {
+          setVideoGenProgress(100);
+          addSbToast("✅ Ads generated successfully! Check Ad Previews below.", "success");
+          setTimeout(() => {
+            setVideoGenerating(false);
+            setVideoGenProgress(0);
+            resetCreateTabWorkspace();
+          }, 2000);
+        }
+      }
+    }
+
     setAdVideosLoading(false);
     setAdVideosRefreshKey(Date.now());
   }, [addSbToast]);
+
+  function startAdCompletionPolling(genStart: number) {
+    videoGenStartRef.current = genStart;
+    generationHandledRef.current = false;
+    clearInterval(videoGenPollRef.current);
+    videoGenPollRef.current = setInterval(async () => {
+      if (Date.now() - genStart > VIDEO_GEN_DURATION) {
+        clearInterval(videoGenPollRef.current);
+        setGenerationActive(false);
+        generationActiveRef.current = false;
+        videoGeneratingRef.current = false;
+        setVideoGenerating(false);
+        setVideoGenProgress(0);
+        window.localStorage.removeItem("app_video_gen_start");
+        videoGenStartRef.current = null;
+        return;
+      }
+      await fetchAdTableLinks();
+    }, AD_COMPLETION_POLL_MS);
+  }
 
 
 
@@ -1163,7 +1498,11 @@ export default function Dashboard() {
     const start = Number(stored);
     const elapsed = Date.now() - start;
     if (elapsed < VIDEO_GEN_DURATION) {
+      videoGenStartRef.current = start;
+      videoGeneratingRef.current = true;
+      generationActiveRef.current = true;
       setVideoGenerating(true);
+      setGenerationActive(true);
       setVideoGenProgress(Math.min(99, Math.round((elapsed / VIDEO_GEN_DURATION) * 100)));
       clearInterval(videoGenTimerRef.current);
       videoGenTimerRef.current = setInterval(() => {
@@ -1171,6 +1510,7 @@ export default function Dashboard() {
         setVideoGenProgress(Math.min(99, Math.round((e2 / VIDEO_GEN_DURATION) * 100)));
         if (e2 >= VIDEO_GEN_DURATION) clearInterval(videoGenTimerRef.current);
       }, 2000);
+      startAdCompletionPolling(start);
     } else {
       window.localStorage.removeItem("app_video_gen_start");
     }
@@ -1180,65 +1520,31 @@ export default function Dashboard() {
   useEffect(() => {
     const adsChannel = supabase
       .channel("your_name_table_realtime")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "your_name_table" }, async (payload) => {
-        if (!videoGenerating && !imageGenerating) return;
-        const newAd = payload.new as any;
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "your_name_table" }, async () => {
+        if (!videoGeneratingRef.current && !generationActiveRef.current && !imageGeneratingRef.current) return;
         await fetchAdTableLinks();
-        setAllApprovedAds(prev => {
-          const exists = prev.some((a: any) => `${a.id}_${a.time}` === `${newAd.id}_${newAd.time}`);
-          return exists ? prev : [newAd, ...prev];
-        });
-        if (videoGenerating) {
-          stopVideoGenProgress(true);
-          addSbToast("✅ Video Generated Successfully! Check Ad Previews below.", "success");
-          setTimeout(() => resetCreateTabWorkspace(), 2000);
-        } else if (imageGenerating) {
-          clearInterval(imageGenTimerRef.current);
-          clearInterval(videoGenPollRef.current);
-          setImageGenProgress(100);
-          addSbToast("✅ Image Generated Successfully! Check Ad Previews below.", "success");
-          setTimeout(() => { setImageGenerating(false); setImageGenProgress(0); resetCreateTabWorkspace(); }, 2000);
-        }
       })
       .subscribe();
     return () => { supabase.removeChannel(adsChannel); };
-  }, [videoGenerating, imageGenerating]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [fetchAdTableLinks]);
 
   useEffect(() => {
-    // Check local session (Bypassing Supabase Auth)
-    const checkLocalSession = () => {
-      const isLoggedIn = localStorage.getItem("app_auth_session") === "true";
-      const userEmail = localStorage.getItem("app_user_email") || process.env.NEXT_PUBLIC_ADMIN_EMAIL || "admin@tenantreport.ai";
+    if (sessionStatus === "loading") return;
 
-      if (isLoggedIn) {
-        setUser({ email: userEmail });
-        setIsAuthenticating(false);
-      } else {
-        // No local session found, redirect to login
-        router.push("/login");
-      }
-    };
+    if (sessionStatus === "authenticated" && session?.user?.email) {
+      setUser({ email: session.user.email });
+      setIsAuthenticating(false);
+      return;
+    }
 
-    checkLocalSession();
-
-    // Listen for storage changes (e.g. logout in another tab)
-    const handleStorageChange = (e) => {
-      if (e.key === "app_auth_session" && e.newValue !== "true") {
-        setUser(null);
-        router.push("/login");
-      }
-    };
-
-    window.addEventListener("storage", handleStorageChange);
-    return () => window.removeEventListener("storage", handleStorageChange);
-  }, [router]);
+    const callbackUrl = embed ? "/client-login" : "/client-login";
+    router.push(callbackUrl);
+  }, [router, session, sessionStatus, embed]);
 
   const handleSignOut = async () => {
     try {
-      localStorage.removeItem("app_auth_session");
-      localStorage.removeItem("app_user_email");
+      await signOut({ callbackUrl: "/client-login" });
       addSbToast("Signed out successfully");
-      router.push("/login");
     } catch (e) {
       console.error("Logout error:", e);
       addSbToast("Failed to sign out", "error");
@@ -1254,16 +1560,18 @@ export default function Dashboard() {
     }
   }, [tab, fetchLiveCampaigns, fetchMetaInsights]);
 
-  // ── Polling workflow status from Supabase status_table (id: 1) ──
+  // ── Polling workflow status from Supabase status_table (tenant-scoped) ──
   useEffect(() => {
     let interval;
     if (isStatusPolling || adStatus === "waiting") {
       interval = setInterval(async () => {
-        const { data, error } = await supabase
-          .from("status_table")
-          .select("status")
-          .eq("id", 1)
-          .maybeSingle();
+        let query = supabase.from("status_table").select("status");
+        if (companyId) {
+          query = query.eq("company_id", companyId);
+        } else {
+          query = query.eq("id", 1);
+        }
+        const { data, error } = await query.maybeSingle();
 
         if (error) {
           console.error("Status polling error:", error);
@@ -1285,13 +1593,22 @@ export default function Dashboard() {
           if (isFullyDone) {
             setIsStatusPolling(false);
             setAdStatus("idle");
+            generationActiveRef.current = false;
+            videoGeneratingRef.current = false;
+            setGenerationActive(false);
+            clearInterval(videoGenPollRef.current);
+            clearInterval(videoGenTimerRef.current);
+            window.localStorage.removeItem("app_video_gen_start");
+            videoGenStartRef.current = null;
+            setVideoGenerating(false);
+            setVideoGenProgress(0);
             addSbToast("Ads Generation Completed! Your ad creatives are being processed. Check the Ad Previews section below.", "success");
           }
         }
       }, 3000);
     }
     return () => { if (interval) clearInterval(interval); };
-  }, [isStatusPolling, adStatus, fetchAdTableLinks, addSbToast]);
+  }, [isStatusPolling, adStatus, fetchAdTableLinks, addSbToast, companyId]);
 
   // ── Analysis progress bar: increments over time, persists across refresh ──
   useEffect(() => {
@@ -1497,7 +1814,7 @@ export default function Dashboard() {
   }
 
   async function handleRemoveApprovedAd(ad) {
-    if (!ad || !confirm("Remove this creative from the approval queue?")) return;
+    if (!ad || !confirm("Permanently delete this creative? This cannot be undone.")) return;
     setRemovingId(ad.id + "_" + ad.time);
     try {
       const res = await fetch("/api/ads", {
@@ -1507,13 +1824,14 @@ export default function Dashboard() {
           id: ad.id,
           time: ad.time,
           text: ad.originalText || ad.text,
+          deleteRow: true,
         }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
         throw new Error(data.error || "Remove failed");
       }
-      addSbToast("Creative removed from approval queue.");
+      addSbToast("Creative deleted.");
       await fetchAdTableLinks();
     } catch (error) {
       console.error("Remove error:", error);
@@ -1653,7 +1971,7 @@ export default function Dashboard() {
     }, 2000);
 
     try {
-      const webhookUrl = process.env.NEXT_PUBLIC_N8N_GENERATE_AD_URL || "https://n8n.srv881198.hstgr.cloud/webhook/generate_ad";
+      const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_GENERATE_AD_URL");
       const res = await fetch(webhookUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1689,10 +2007,11 @@ export default function Dashboard() {
     }
   }
 
-  const VIDEO_GEN_DURATION = 360_000; // 6 minutes
-
   function startVideoGenProgress() {
     const start = Date.now();
+    videoGenStartRef.current = start;
+    videoGeneratingRef.current = true;
+    generationHandledRef.current = false;
     window.localStorage.setItem("app_video_gen_start", String(start));
     setVideoGenerating(true);
     setVideoGenProgress(0);
@@ -1704,16 +2023,19 @@ export default function Dashboard() {
       if (elapsed >= VIDEO_GEN_DURATION) {
         clearInterval(videoGenTimerRef.current);
         clearInterval(videoGenPollRef.current);
-        // Timed out — stop bar, prompt manual refresh
         addSbToast("Video generation may still be running. Check Ad Previews to see results.", "info");
       }
     }, 2000);
+    startAdCompletionPolling(start);
   }
 
   function stopVideoGenProgress(success = true) {
     clearInterval(videoGenTimerRef.current);
     clearInterval(videoGenPollRef.current);
     window.localStorage.removeItem("app_video_gen_start");
+    videoGenStartRef.current = null;
+    videoGeneratingRef.current = false;
+    generationActiveRef.current = false;
     if (success) {
       setVideoGenProgress(100);
       setTimeout(() => { setVideoGenerating(false); setVideoGenProgress(0); }, 1500);
@@ -1868,6 +2190,7 @@ export default function Dashboard() {
     if (!item) return;
 
     setImageGenerating(true);
+    imageGeneratingRef.current = true;
     setImageGenProgress(0);
     setFailedPrompts([]);
 
@@ -1889,7 +2212,7 @@ export default function Dashboard() {
     }, 2000);
 
     // Fire-and-forget — same generate_ad webhook handles both image and video
-    const webhookUrl = process.env.NEXT_PUBLIC_N8N_GENERATE_AD_URL || "https://n8n.srv1208919.hstgr.cloud/webhook/generate_ad";
+    const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_GENERATE_AD_URL");
     fetch(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1901,32 +2224,7 @@ export default function Dashboard() {
       }),
     }).catch(() => {}); // delivery only — n8n handles image gen async
 
-    // Poll Supabase every 15s for the new image (same mechanism as video)
-    const genStart = Date.now();
-    clearInterval(videoGenPollRef.current);
-    videoGenPollRef.current = setInterval(async () => {
-      try {
-        const { data } = await supabase
-          .from("your_name_table")
-          .select("id, time, text, format, Approved")
-          .gte("time", new Date(genStart - 5000).toISOString())
-          .order("time", { ascending: false })
-          .limit(10);
-        if (data && data.length > 0) {
-          // Realtime will handle the UI update — clear polling to avoid double-fire
-          clearInterval(videoGenPollRef.current);
-          clearInterval(imageGenTimerRef.current);
-          setImageGenProgress(100);
-          await fetchAdTableLinks();
-          setAllApprovedAds(prev => {
-            const newIds = new Set(data.map((d: any) => `${d.id}_${d.time}`));
-            return [...data, ...prev.filter((a: any) => !newIds.has(`${a.id}_${a.time}`))];
-          });
-          addSbToast("✅ Image Generated Successfully! Check Ad Previews below.", "success");
-          setTimeout(() => { setImageGenerating(false); setImageGenProgress(0); resetCreateTabWorkspace(); }, 2000);
-        }
-      } catch {}
-    }, 15_000);
+    startAdCompletionPolling(Date.now());
   }
 
   async function handleAcceptPrompts() {
@@ -1959,45 +2257,15 @@ export default function Dashboard() {
       audio_keys: adAudioKeysMap,
       scene_index_map: indexMap.map(m => ({ itemId: m.itemId, sceneIndex: m.sceneIndex })),
     };
-    const webhookUrl = process.env.NEXT_PUBLIC_N8N_ACCEPT_PROMPTS_URL || "https://n8n.srv881198.hstgr.cloud/webhook/3be958fe-3d6e-4ccf-8d72-5a9a0bb2d932";
+    const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_ACCEPT_PROMPTS_URL");
 
     // ── IMMEDIATE: unblock UI, start progress bar, keep workspace cards visible ──
     setAcceptingPrompts(false);
-    setGenerationActive(true);   // cards stay, show "Generating..." overlay on each
+    setGenerationActive(true);
+    generationActiveRef.current = true;
     setFailedPrompts([]);
     startVideoGenProgress();
     addSbToast("✅ Prompts accepted! Generation started — cards will update when done.", "success");
-
-    // Start Supabase polling for completed videos
-    const genStart = Date.now();
-    clearInterval(videoGenPollRef.current);
-    videoGenPollRef.current = setInterval(async () => {
-      if (Date.now() - genStart > VIDEO_GEN_DURATION) {
-        clearInterval(videoGenPollRef.current);
-        setGenerationActive(false);
-        return;
-      }
-      try {
-        const { data } = await supabase
-          .from("your_name_table")
-          .select("id, time, text, format, Approved")
-          .gte("time", new Date(genStart - 5000).toISOString())
-          .order("time", { ascending: false })
-          .limit(10);
-        if (data && data.length > 0) {
-          clearInterval(videoGenPollRef.current);
-          stopVideoGenProgress(true);
-          setGenerationActive(false);
-          await fetchAdTableLinks();
-          setAllApprovedAds(prev => {
-            const newIds = new Set(data.map((d: any) => `${d.id}_${d.time}`));
-            return [...data, ...prev.filter((a: any) => !newIds.has(`${a.id}_${a.time}`))];
-          });
-          addSbToast("✅ Ads generated successfully! Check Ad Previews below.", "success");
-          setTimeout(() => resetCreateTabWorkspace(), 2000);
-        }
-      } catch {}
-    }, 30_000);
 
     // ── BACKGROUND: fire webhook, read response for error detection (10-min window) ──
     const bgController = new AbortController();
@@ -2019,8 +2287,8 @@ export default function Dashboard() {
         }
         if (failures.length > 0) {
           stopVideoGenProgress(false);
-          clearInterval(videoGenPollRef.current);
           setGenerationActive(false);
+          generationActiveRef.current = false;
           setFailedPrompts(failures);
           addSbToast(`⚠️ ${failures.length} scene(s) failed. Click the red card to view and fix prompts.`, "error");
         }
@@ -2072,10 +2340,11 @@ export default function Dashboard() {
     // Reset failed prompts, start generation
     setFailedPrompts([]);
     setGenerationActive(true);
+    generationActiveRef.current = true;
     startVideoGenProgress();
     addSbToast(`🔄 Restarting generation for ${Object.keys(scenesForRequest).length} ad(s)…`, "success");
 
-    const webhookUrl = process.env.NEXT_PUBLIC_N8N_ACCEPT_PROMPTS_URL || "https://n8n.srv881198.hstgr.cloud/webhook/3be958fe-3d6e-4ccf-8d72-5a9a0bb2d932";
+    const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_ACCEPT_PROMPTS_URL");
     const payload = {
       report_id: analysisData?.id || crypto.randomUUID(),
       report_data: analysisData,
@@ -2085,33 +2354,6 @@ export default function Dashboard() {
       is_retry: true,
       scene_index_map: newIndexMap.map(m => ({ itemId: m.itemId, sceneIndex: m.sceneIndex })),
     };
-
-    // Start Supabase polling
-    const genStart = Date.now();
-    clearInterval(videoGenPollRef.current);
-    videoGenPollRef.current = setInterval(async () => {
-      if (Date.now() - genStart > VIDEO_GEN_DURATION) { clearInterval(videoGenPollRef.current); setGenerationActive(false); return; }
-      try {
-        const { data } = await supabase
-          .from("your_name_table")
-          .select("id, time, text, format, Approved")
-          .gte("time", new Date(genStart - 5000).toISOString())
-          .order("time", { ascending: false })
-          .limit(10);
-        if (data && data.length > 0) {
-          clearInterval(videoGenPollRef.current);
-          stopVideoGenProgress(true);
-          setGenerationActive(false);
-          await fetchAdTableLinks();
-          setAllApprovedAds(prev => {
-            const newIds = new Set(data.map((d: any) => `${d.id}_${d.time}`));
-            return [...data, ...prev.filter((a: any) => !newIds.has(`${a.id}_${a.time}`))];
-          });
-          addSbToast("✅ Ads generated successfully! Check Ad Previews below.", "success");
-          setTimeout(() => resetCreateTabWorkspace(), 2000);
-        }
-      } catch {}
-    }, 30_000);
 
     const bgController = new AbortController();
     const bgTimeout = setTimeout(() => bgController.abort(), 600_000);
@@ -2129,8 +2371,8 @@ export default function Dashboard() {
         if (successes.length > 0) setCompletedItemIds(prev => [...new Set([...prev, ...successes])]);
         if (failures.length > 0) {
           stopVideoGenProgress(false);
-          clearInterval(videoGenPollRef.current);
           setGenerationActive(false);
+          generationActiveRef.current = false;
           setFailedPrompts(failures);
           addSbToast(`⚠️ ${failures.length} scene(s) failed again. Fix and retry.`, "error");
         }
@@ -2165,7 +2407,7 @@ export default function Dashboard() {
       setRetryItemProgress(Math.min(99, Math.round(((Date.now() - retryStart) / CARD_RETRY_DURATION) * 100)));
     }, 2000);
 
-    const webhookUrl = process.env.NEXT_PUBLIC_N8N_ACCEPT_PROMPTS_URL || "https://n8n.srv881198.hstgr.cloud/webhook/3be958fe-3d6e-4ccf-8d72-5a9a0bb2d932";
+    const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_ACCEPT_PROMPTS_URL");
     const payload = {
       report_id: analysisData?.id || crypto.randomUUID(),
       report_data: analysisData,
@@ -2267,7 +2509,7 @@ export default function Dashboard() {
       if (Date.now() - retryStart >= RETRY_DURATION) clearInterval(retryGenTimerRef.current);
     }, 2000);
 
-    const webhookUrl = process.env.NEXT_PUBLIC_N8N_ACCEPT_PROMPTS_URL || "https://n8n.srv881198.hstgr.cloud/webhook/3be958fe-3d6e-4ccf-8d72-5a9a0bb2d932";
+    const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_ACCEPT_PROMPTS_URL");
     const payload = {
       report_id: analysisData?.id || crypto.randomUUID(),
       report_data: analysisData,
@@ -2405,6 +2647,7 @@ export default function Dashboard() {
     await new Promise((r) => setTimeout(r, 100));
 
     try {
+      const brandConfig = getBrandConfigForAnalysis();
       const result = await callWebhook({
         action: "competitor_analysis",
         topic: kwSnapshot[0] || selectedTopic || "Tenant Screening",
@@ -2413,6 +2656,8 @@ export default function Dashboard() {
         max_ads: Number(researchMaxAds) || 100,
         only_active: researchOnlyActive,
         sort: researchSort,
+        brand_config: brandConfig,
+        brand_snapshot_id: activeBrandSnapshot?.id !== "current" ? activeBrandSnapshot?.id : null,
         timestamp: new Date().toISOString(),
       }, setAnalysisStatus);
 
@@ -2670,7 +2915,11 @@ export default function Dashboard() {
     >
       {/* Full-screen overlay removed — replaced by non-blocking progress bar in Create Ad tab */}
 
+      {embed && <HideNextDevIndicator />}
+
       {/* ── MOBILE TOP BAR ── */}
+      {!embed && (
+      <>
       {/* ── MOBILE TOP BAR ── */}
       <div className="mobile-topbar" style={{ display: "none", position: "fixed", top: 0, left: 0, right: 0, zIndex: 400, background: "var(--card-bg)", borderBottom: "1px solid var(--border)", padding: "10px 16px", alignItems: "center", justifyContent: "space-between", boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -2757,10 +3006,10 @@ export default function Dashboard() {
             const showMetaAdsChildren = metaAdsOpen;
             const outreachActive = OUTREACH_IDS.has(tab);
             const showOutreachChildren = outreachOpen;
-            const voiceActive = VOICE_TABS.some((t) => t.id === tab);
-            const showVoiceChildren = voiceOpen;
             const newsletterActive = NEWSLETTER_TABS.some((t) => t.id === tab);
             const showNewsletterChildren = newsletterOpen;
+            const blogActive = BLOG_IDS.has(tab);
+            const showBlogChildren = blogOpen;
 
             const renderTabBtn = (t: any, indent = false) => (
               <div key={t.id} style={{ position: "relative" }} className="sidebar-nav-item">
@@ -2899,60 +3148,6 @@ export default function Dashboard() {
                 {/* Social-Dash */}
                 {TABS.filter(t => t.id === "social-dash").map(t => renderTabBtn(t))}
 
-                {VOICE_AGENT_ENABLED && (
-                  <div style={{ position: "relative" }} className="sidebar-nav-item">
-                    <button
-                      title={sidebarCollapsed ? "Voice Agent" : ""}
-                      style={{
-                        width: "100%",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: sidebarCollapsed ? "center" : "flex-start",
-                        gap: sidebarCollapsed ? 0 : 10,
-                        padding: sidebarCollapsed ? "10px 0" : "9px 12px",
-                        borderRadius: showVoiceChildren ? "var(--radius-md) var(--radius-md) 0 0" : "var(--radius-md)",
-                        border: "none",
-                        fontSize: 13,
-                        fontWeight: voiceActive ? 700 : 500,
-                        textAlign: "left",
-                        cursor: "pointer",
-                        background: voiceActive ? "var(--primary-light)" : showVoiceChildren ? "var(--surface)" : "transparent",
-                        color: voiceActive ? "var(--primary-dark)" : showVoiceChildren ? "var(--text)" : "var(--text-muted)",
-                        transition: "all 0.18s ease",
-                        fontFamily: "inherit",
-                        position: "relative",
-                        overflow: "hidden",
-                      }}
-                      onClick={() => setVoiceOpen(o => !o)}
-                      onMouseEnter={e => { if (!voiceActive) e.currentTarget.style.background = "var(--surface-hover)"; }}
-                      onMouseLeave={e => { if (!voiceActive) e.currentTarget.style.background = showVoiceChildren ? "var(--surface)" : "transparent"; }}
-                    >
-                      <Phone size={15} style={{ flexShrink: 0 }} />
-                      {!sidebarCollapsed && (
-                        <>
-                          <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Voice Agent</span>
-                          <span style={{
-                            fontSize: 10, color: "var(--text-muted)", flexShrink: 0,
-                            transform: showVoiceChildren ? "rotate(180deg)" : "rotate(0deg)",
-                            transition: "transform 0.2s ease",
-                          }}>▼</span>
-                        </>
-                      )}
-                    </button>
-                    {showVoiceChildren && (
-                      <div style={{
-                        background: "var(--surface)",
-                        borderRadius: "0 0 var(--radius-md) var(--radius-md)",
-                        borderTop: "1px solid var(--border-light)",
-                        paddingBottom: 4,
-                        overflow: "hidden",
-                      }}>
-                        {VOICE_TABS.map(t => renderTabBtn(t, true))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
                 {/* Newsletter group */}
                 <div style={{ position: "relative" }} className="sidebar-nav-item">
                   <button
@@ -3074,6 +3269,75 @@ export default function Dashboard() {
                     </div>
                   )}
                 </div>
+
+                {/* Blog management group */}
+                <div style={{ position: "relative" }} className="sidebar-nav-item">
+                  <button
+                    title={sidebarCollapsed ? "Blog management" : ""}
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: sidebarCollapsed ? "center" : "flex-start",
+                      gap: sidebarCollapsed ? 0 : 10,
+                      padding: sidebarCollapsed ? "10px 0" : "9px 12px",
+                      borderRadius: showBlogChildren ? "var(--radius-md) var(--radius-md) 0 0" : "var(--radius-md)",
+                      border: "none",
+                      fontSize: 13,
+                      fontWeight: blogActive ? 700 : 500,
+                      textAlign: "left",
+                      cursor: "pointer",
+                      background: blogActive ? "var(--primary-light)" : showBlogChildren ? "var(--surface)" : "transparent",
+                      color: blogActive ? "var(--primary-dark)" : showBlogChildren ? "var(--text)" : "var(--text-muted)",
+                      transition: "all 0.18s ease",
+                      fontFamily: "inherit",
+                      position: "relative",
+                      overflow: "hidden",
+                    }}
+                    onClick={() => setBlogOpen(o => !o)}
+                    onMouseEnter={e => { if (!blogActive) e.currentTarget.style.background = "var(--surface-hover)"; }}
+                    onMouseLeave={e => { if (!blogActive) e.currentTarget.style.background = showBlogChildren ? "var(--surface)" : "transparent"; }}
+                  >
+                    <FileText size={15} style={{ flexShrink: 0 }} />
+                    {!sidebarCollapsed && (
+                      <>
+                        <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Blog management</span>
+                        <span style={{
+                          fontSize: 10, color: "var(--text-muted)", flexShrink: 0,
+                          transform: showBlogChildren ? "rotate(180deg)" : "rotate(0deg)",
+                          transition: "transform 0.2s ease",
+                        }}>▼</span>
+                      </>
+                    )}
+                    {blogActive && (
+                      <span style={{ position: "absolute", left: 0, top: "20%", width: 3, height: "60%", borderRadius: "0 3px 3px 0", background: "var(--primary)" }} />
+                    )}
+                  </button>
+                  {sidebarCollapsed && (
+                    <span className="sidebar-tooltip" style={{
+                      position: "absolute", left: "calc(100% + 8px)", top: "50%", transform: "translateY(-50%)",
+                      background: "#1e293b", color: "#fff", fontSize: 11, fontWeight: 600,
+                      padding: "4px 10px", borderRadius: 6, whiteSpace: "nowrap",
+                      pointerEvents: "none", zIndex: 9999,
+                      opacity: 0, transition: "opacity 0.15s",
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+                    }}>
+                      Blog management
+                    </span>
+                  )}
+
+                  {showBlogChildren && (
+                    <div style={{
+                      background: "var(--surface)",
+                      borderRadius: "0 0 var(--radius-md) var(--radius-md)",
+                      borderTop: "1px solid var(--border-light)",
+                      paddingBottom: 4,
+                      overflow: "hidden",
+                    }}>
+                      {BLOG_TABS.map(t => renderTabBtn(t, true))}
+                    </div>
+                  )}
+                </div>
               </>
             );
           })()}
@@ -3129,13 +3393,15 @@ export default function Dashboard() {
           )}
         </div>
       </aside>
+      </>
+      )}
 
       {/* ── RIGHT MAIN CONTENT ── */}
       <main
         className="main-layout-content"
         style={{
           flex: 1,
-          padding: "24px 32px 4rem",
+          padding: embed ? "16px" : "24px 32px 4rem",
           minWidth: 0,
           maxWidth: "100%",
           overflowX: "hidden",
@@ -3369,105 +3635,25 @@ export default function Dashboard() {
 
           {/* ── Sidebar + Content Row ── */}
           <div style={{ display: "flex", gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}>
-          {/* History Sidebar */}
-          <div className="w-full lg:w-[290px] lg:flex-shrink-0 lg:sticky lg:top-5" style={{
-            background: "#fff", border: "1px solid #E2E8F0",
-            borderRadius: 20, overflow: "hidden",
-            height: "fit-content", boxShadow: "0 2px 8px rgba(0,0,0,0.06)"
-          }}>
-            {/* Sidebar Header — on mobile acts as toggle */}
-            <div
-              onClick={() => setShowPreviousRuns(o => !o)}
-              style={{ padding: "14px 20px", background: "#F8FAFC", borderBottom: showPreviousRuns ? "1px solid #E2E8F0" : "none", display: "flex", alignItems: "center", gap: 10, cursor: "pointer", userSelect: "none" }}
-            >
-              <div style={{ width: 34, height: 34, borderRadius: 10, background: "#EFF6FF", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <span style={{ fontSize: 16 }}>🕐</span>
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: "#1E293B" }}>Previous Runs</div>
-                <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 1 }}>{sbRows.length} saved {sbRows.length === 1 ? "result" : "results"}</div>
-              </div>
-              {/* Toggle chevron — visible on mobile, hidden on desktop */}
-              <span className="prev-runs-chevron" style={{ fontSize: 13, color: "#64748b", fontWeight: 700, transition: "transform 0.2s", display: "inline-block", transform: showPreviousRuns ? "rotate(180deg)" : "rotate(0deg)" }}>▼</span>
-            </div>
-
-            {/* Run Cards — toggled on mobile, always shown on desktop via CSS */}
-            <div className="prev-runs-list" style={{ display: showPreviousRuns ? "flex" : "none", flexDirection: "column", gap: 0, maxHeight: "70vh", overflowY: "auto" }}>
-              {[...sbRows].map((row: any, idx: number) => {
-                const report = parseSbReport(row);
-                const inputsObj = typeof row.inputs === 'string' ? JSON.parse(row.inputs || "{}") : (row.inputs || {});
-                const keyword = inputsObj.topic || (inputsObj.keywords && inputsObj.keywords[0]) || inputsObj.action || inputsObj.query || null;
-                const displayTitle = keyword || report.topic || `Run at ${formatSbTime(row.created_at)}`;
-
-                return (
-                  <div key={row.id} style={{
-                    padding: "14px 20px",
-                    borderBottom: "1px solid #F1F5F9",
-                    transition: "background 0.15s",
-                    cursor: "default"
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = "#F8FAFC";
-                    if (row.inputs) {
-                      if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      let y = rect.top;
-                      if (y + 420 > window.innerHeight) y = Math.max(10, window.innerHeight - 440);
-                      setHoveredInputs({ data: inputsObj, x: rect.right + 12, y });
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = "transparent";
-                    hoverTimeoutRef.current = setTimeout(() => setHoveredInputs(null), 200);
-                  }}>
-                    {/* Run number + title */}
-                    <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 6 }}>
-                      <div style={{ width: 22, height: 22, borderRadius: 6, background: "#EFF6FF", color: "#2563EB", fontSize: 10, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
-                        {sbRows.length - idx}
-                      </div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: "#1E293B", lineHeight: 1.35, textTransform: "capitalize", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as any }}>
-                        {displayTitle}
-                      </div>
-                    </div>
-                    {/* Date */}
-                    <div style={{ fontSize: 11, color: "#94A3B8", marginBottom: 10, display: "flex", alignItems: "center", gap: 5, paddingLeft: 32 }}>
-                      <span>📅</span> {formatSbDate(row.created_at)}
-                    </div>
-                    {/* Use Result button */}
-                    <div style={{ paddingLeft: 32 }}>
-                      <button
-                        onClick={() => {
-                          setAnalysisData({ ...report, id: row.id });
-                          setAnalysisStatus("done");
-                          setSelectedTopic(report.topic || TOPICS[1]);
-                          addSbToast("Loaded history: " + report.topic);
-                        }}
-                        style={{
-                          width: "100%", padding: "8px 0", borderRadius: 10, border: "none",
-                          background: "#2563EB", color: "#fff",
-                          fontSize: 12, fontWeight: 600, cursor: "pointer", transition: "all 0.15s"
-                        }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = "#1D4ED8"; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = "#2563EB"; }}
-                      >
-                        Use Result →
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-              {sbRows.length === 0 && (
-                <div style={{ padding: "32px 20px", textAlign: "center" }}>
-                  <div style={{ fontSize: 28, marginBottom: 8 }}>📭</div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "#64748B" }}>No runs yet</div>
-                  <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 4 }}>Your analysis history will appear here</div>
-                </div>
-              )}
-            </div>
-          </div>
-
           {/* Main Content Area */}
           <div style={{ flex: 1, minWidth: 0 }}>
+            {/* Active brand template for analysis */}
+            <div style={{ marginBottom: 14, background: "#EFF6FF", border: "1.5px solid #BFDBFE", borderRadius: 16, padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", boxShadow: "0 1px 4px rgba(37,99,235,0.08)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+                <div style={{ width: 38, height: 38, borderRadius: 10, background: "#DBEAFE", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <ClipboardList size={18} color="#2563EB" />
+                </div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#2563EB", whiteSpace: "nowrap" }}>
+                  Active Brand Context for Analysis
+                </div>
+              </div>
+              <div style={{ padding: "8px 14px", borderRadius: 10, background: "#DBEAFE", border: "1.5px solid #93C5FD", fontSize: 13, fontWeight: 600, color: "#1E40AF", whiteSpace: "nowrap", maxWidth: "min(320px, 50vw)", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {activeBrandSnapshot?.id && activeBrandSnapshot.id !== "current"
+                  ? (activeBrandSnapshot.label || "Saved template")
+                  : "Current brand (live)"}
+              </div>
+            </div>
+
             <Card style={{ marginBottom: 14 }}>
               <style dangerouslySetInnerHTML={{ __html: `
                 @keyframes radar-sweep {
@@ -4064,10 +4250,10 @@ export default function Dashboard() {
             {analysisStatus === "done" && analysisData && (
               <div className="animate-slide-up">
 
-                {/* 1. Executive Summary */}
+                {/* 1. Analysis Summary */}
                 {analysisData?.executive_summary && (
                   <Card style={{ marginBottom: 14 }}>
-                    <SectionTitle>Executive Summary</SectionTitle>
+                    <SectionTitle>Analysis Summary</SectionTitle>
                     <div style={{ fontSize: 13, lineHeight: 1.7, color: "var(--text-body)" }}>
                       {analysisData.executive_summary}
                     </div>
@@ -4285,6 +4471,103 @@ export default function Dashboard() {
                 )}
               </div>
             )}
+          </div>
+
+          {/* History Sidebar */}
+          <div className="w-full lg:w-[290px] lg:flex-shrink-0 lg:sticky lg:top-5" style={{
+            background: "#fff", border: "1px solid #E2E8F0",
+            borderRadius: 20, overflow: "hidden",
+            height: "fit-content", boxShadow: "0 2px 8px rgba(0,0,0,0.06)"
+          }}>
+            {/* Sidebar Header — on mobile acts as toggle */}
+            <div
+              onClick={() => setShowPreviousRuns(o => !o)}
+              style={{ padding: "14px 20px", background: "#F8FAFC", borderBottom: showPreviousRuns ? "1px solid #E2E8F0" : "none", display: "flex", alignItems: "center", gap: 10, cursor: "pointer", userSelect: "none" }}
+            >
+              <div style={{ width: 34, height: 34, borderRadius: 10, background: "#EFF6FF", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <span style={{ fontSize: 16 }}>🕐</span>
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#1E293B" }}>Previous Runs</div>
+                <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 1 }}>{sbRows.length} saved {sbRows.length === 1 ? "result" : "results"}</div>
+              </div>
+              {/* Toggle chevron — visible on mobile, hidden on desktop */}
+              <span className="prev-runs-chevron" style={{ fontSize: 13, color: "#64748b", fontWeight: 700, transition: "transform 0.2s", display: "inline-block", transform: showPreviousRuns ? "rotate(180deg)" : "rotate(0deg)" }}>▼</span>
+            </div>
+
+            {/* Run Cards — toggled on mobile, always shown on desktop via CSS */}
+            <div className="prev-runs-list" style={{ display: showPreviousRuns ? "flex" : "none", flexDirection: "column", gap: 0, maxHeight: "70vh", overflowY: "auto" }}>
+              {[...sbRows].map((row: any, idx: number) => {
+                const report = parseSbReport(row);
+                const inputsObj = typeof row.inputs === 'string' ? JSON.parse(row.inputs || "{}") : (row.inputs || {});
+                const keyword = inputsObj.topic || (inputsObj.keywords && inputsObj.keywords[0]) || inputsObj.action || inputsObj.query || null;
+                const displayTitle = keyword || report.topic || `Run at ${formatSbTime(row.created_at)}`;
+
+                return (
+                  <div key={row.id} style={{
+                    padding: "14px 20px",
+                    borderBottom: "1px solid #F1F5F9",
+                    transition: "background 0.15s",
+                    cursor: "default"
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "#F8FAFC";
+                    if (row.inputs) {
+                      if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      let y = rect.top;
+                      if (y + 420 > window.innerHeight) y = Math.max(10, window.innerHeight - 440);
+                      setHoveredInputs({ data: inputsObj, x: rect.left - 372, y });
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "transparent";
+                    hoverTimeoutRef.current = setTimeout(() => setHoveredInputs(null), 200);
+                  }}>
+                    {/* Run number + title */}
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 6 }}>
+                      <div style={{ width: 22, height: 22, borderRadius: 6, background: "#EFF6FF", color: "#2563EB", fontSize: 10, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
+                        {sbRows.length - idx}
+                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "#1E293B", lineHeight: 1.35, textTransform: "capitalize", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as any }}>
+                        {displayTitle}
+                      </div>
+                    </div>
+                    {/* Date */}
+                    <div style={{ fontSize: 11, color: "#94A3B8", marginBottom: 10, display: "flex", alignItems: "center", gap: 5, paddingLeft: 32 }}>
+                      <span>📅</span> {formatSbDate(row.created_at)}
+                    </div>
+                    {/* Use Result button */}
+                    <div style={{ paddingLeft: 32 }}>
+                      <button
+                        onClick={() => {
+                          setAnalysisData({ ...report, id: row.id });
+                          setAnalysisStatus("done");
+                          setSelectedTopic(report.topic || TOPICS[1]);
+                          addSbToast("Loaded history: " + report.topic);
+                        }}
+                        style={{
+                          width: "100%", padding: "8px 0", borderRadius: 10, border: "none",
+                          background: "#2563EB", color: "#fff",
+                          fontSize: 12, fontWeight: 600, cursor: "pointer", transition: "all 0.15s"
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = "#1D4ED8"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = "#2563EB"; }}
+                      >
+                        Use Result →
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+              {sbRows.length === 0 && (
+                <div style={{ padding: "32px 20px", textAlign: "center" }}>
+                  <div style={{ fontSize: 28, marginBottom: 8 }}>📭</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#64748B" }}>No runs yet</div>
+                  <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 4 }}>Your analysis history will appear here</div>
+                </div>
+              )}
+            </div>
           </div>
           </div>
         </div>
@@ -4589,7 +4872,7 @@ export default function Dashboard() {
                                       setSentIdeaIds(prev => ({ ...prev, [item.id]: true }));
                                       addSbToast(`Generating Video ${idx + 1} ideas via webhook...`);
                                       try {
-                                        const webhookUrl = process.env.NEXT_PUBLIC_N8N_SINGLE_IDEA_URL || "https://n8n.srv881198.hstgr.cloud/webhook/5dd8a76d-f4e4-45b5-808a-c784057d29b1";
+                                        const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_SINGLE_IDEA_URL");
                                         const res = await fetch(webhookUrl, {
                                           method: "POST",
                                           headers: { "Content-Type": "application/json" },
@@ -4704,7 +4987,7 @@ export default function Dashboard() {
                                       setSentIdeaIds(prev => ({ ...prev, [item.id]: true }));
                                       addSbToast(`Generating Image ${idx + 1} ideas via webhook...`);
                                       try {
-                                        const webhookUrl = process.env.NEXT_PUBLIC_N8N_SINGLE_IDEA_URL || "https://n8n.srv881198.hstgr.cloud/webhook/5dd8a76d-f4e4-45b5-808a-c784057d29b1";
+                                        const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_SINGLE_IDEA_URL");
                                         const res = await fetch(webhookUrl, {
                                           method: "POST",
                                           headers: { "Content-Type": "application/json" },
@@ -6011,7 +6294,20 @@ export default function Dashboard() {
         </div>
       )}
 
-
+      {/* ═══════════════════════════════════════════════════════
+          AD PERFORMANCE
+      ═══════════════════════════════════════════════════════ */}
+      {tab === "ad_performance" && (
+        <div className="animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: 16, paddingTop: 8, paddingBottom: 40 }}>
+          <div>
+            <SectionTitle style={{ marginBottom: 4 }}>Ad Performance</SectionTitle>
+            <div style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>
+              Compare metrics across every ad, filtered by campaign, ad set, and date range.
+            </div>
+          </div>
+          <AdPerformance />
+        </div>
+      )}
 
       {/* ═══════════════════════════════════════════════════════
           REPORTS — Meta Ads Performance Dashboard
@@ -6352,9 +6648,16 @@ export default function Dashboard() {
       )}
 
       {/* ═══════════════════════════════════════════════════════
-          VOICE AGENT & NEWSLETTER — Inline embed
+          BLOG MANAGEMENT — Inline embed
       ═══════════════════════════════════════════════════════ */}
-      {VOICE_NEWSLETTER_IDS.has(tab) && (
+      {BLOG_IDS.has(tab) && (
+        <BlogTab activeTab={tab} />
+      )}
+
+      {/* ═══════════════════════════════════════════════════════
+          NEWSLETTER — Inline embed
+      ═══════════════════════════════════════════════════════ */}
+      {NEWSLETTER_TAB_IDS.has(tab) && (
         <NewsletterTab activeTab={tab} />
       )}
 
@@ -6376,10 +6679,17 @@ export default function Dashboard() {
               </div>
             </div>
             {/* Action buttons on their own row — always fully visible */}
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+              <button
+                onClick={() => setBrandSnapshotsModalOpen(true)}
+                style={{ display: "flex", alignItems: "center", gap: 7, background: "#2563EB", color: "#fff", border: "none", borderRadius: 10, padding: "8px 18px", fontWeight: 600, fontSize: 13, cursor: "pointer", marginRight: "auto", boxShadow: "0 2px 8px rgba(37,99,235,0.25)" }}
+              >
+                <History size={15} color="#fff" />
+                Saved Templates{brandSnapshots.length ? ` (${brandSnapshots.length})` : ""}
+              </button>
               {!isEditingProfile ? (
                 <button
-                  onClick={() => setIsEditingProfile(true)}
+                  onClick={handleStartEditingProfile}
                   style={{ display: "flex", alignItems: "center", gap: 7, background: "#fff", color: "#2563EB", border: "1.5px solid #2563EB", borderRadius: 10, padding: "8px 18px", fontWeight: 600, fontSize: 13, cursor: "pointer" }}
                 >
                   ✏️ Edit
@@ -6387,10 +6697,17 @@ export default function Dashboard() {
               ) : (
                 <>
                   <button
-                    onClick={() => setIsEditingProfile(false)}
+                    onClick={handleCancelEditingProfile}
                     style={{ background: "#fff", color: "#64748B", border: "1.5px solid #E2E8F0", borderRadius: 10, padding: "8px 18px", fontWeight: 600, fontSize: 13, cursor: "pointer" }}
                   >
                     Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveAsNewTemplate}
+                    disabled={isSavingProfile}
+                    style={{ display: "flex", alignItems: "center", gap: 7, background: "#fff", color: "#2563EB", border: "1.5px solid #2563EB", borderRadius: 10, padding: "9px 18px", fontWeight: 600, fontSize: 13, cursor: isSavingProfile ? "not-allowed" : "pointer", opacity: isSavingProfile ? 0.7 : 1 }}
+                  >
+                    Save as new template
                   </button>
                   <button
                     onClick={handleSaveProfile}
@@ -6405,23 +6722,27 @@ export default function Dashboard() {
           </div>
 
           {/* Brand Strategy Section */}
-          <div style={{ background: "#fff", borderRadius: 20, border: "1px solid #E2E8F0", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", overflow: "hidden" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "16px 24px", background: "#F8FAFC", borderBottom: "1px solid #E2E8F0" }}>
+          <div style={{ background: "#fff", borderRadius: 20, border: isActiveSavedTemplate && !isEditingProfile ? "1.5px solid #2563EB" : "1px solid #E2E8F0", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", overflow: "hidden" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "16px 24px", background: isActiveSavedTemplate && !isEditingProfile ? "#EFF6FF" : "#F8FAFC", borderBottom: "1px solid #E2E8F0" }}>
               <div style={{ width: 44, height: 44, borderRadius: 12, background: "#DBEAFE", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 <Megaphone size={20} color="#2563EB" />
               </div>
-              <div>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 15, fontWeight: 700, color: "#2563EB" }}>Brand Strategy</div>
-                <div style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>Define your brand positioning and core messaging</div>
+                <div style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>
+                  {isActiveSavedTemplate && !isEditingProfile
+                    ? <>Showing active template: <span style={{ fontWeight: 700, color: "#1E293B" }}>{activeBrandSnapshot.label || "Saved template"}</span></>
+                    : "Define your brand positioning and core messaging"}
+                </div>
               </div>
             </div>
             {[
-              { key: "productsAndServices", label: "Products & Services", placeholder: "Tenant Reports, Smart Tenant Subscription, Rent Promise & Protection Package, Background Screening, Credit Reports", iconEl: <Tag size={16} color="#059669" />, iconBg: "#ECFDF5" },
-              { key: "valueProposition", label: "Value Proposition", placeholder: 'Why choose you — the core unique benefit (e.g., "Reduce risk and ensure reliable rental income with affordable AI-powered screening")', iconEl: <Gem size={16} color="#0D9488" />, iconBg: "#F0FDFA" },
-              { key: "brandVoice", label: "Brand Voice", placeholder: "Tone of all content (e.g., Trustworthy, Professional, Landlord-focused, Solution-oriented)", iconEl: <MessageSquare size={16} color="#7C3AED" />, iconBg: "#F5F3FF" },
-              { key: "positioning", label: "Positioning", placeholder: 'Market placement (e.g., "Affordable AI-powered tenant screening platform for Canadian landlords")', iconEl: <Target size={16} color="#EA580C" />, iconBg: "#FFF7ED" },
-              { key: "competitors", label: "Competitors", placeholder: "Competing tenant screening services to benchmark against (e.g., SingleKey, Naborly, Certn)", iconEl: <Users size={16} color="#DB2777" />, iconBg: "#FDF2F8" },
-              { key: "painPoints", label: "Pain Points", placeholder: 'Core customer problems your service solves (e.g., "Unreliable tenant payments", "Time-consuming manual screening")', iconEl: <AlertTriangle size={16} color="#D97706" />, iconBg: "#FFFBEB" },
+              { key: "productsAndServices", label: "Products & Services", iconEl: <Tag size={16} color="#059669" />, iconBg: "#ECFDF5" },
+              { key: "valueProposition", label: "Value Proposition", iconEl: <Gem size={16} color="#0D9488" />, iconBg: "#F0FDFA" },
+              { key: "brandVoice", label: "Brand Voice", iconEl: <MessageSquare size={16} color="#7C3AED" />, iconBg: "#F5F3FF" },
+              { key: "positioning", label: "Positioning", iconEl: <Target size={16} color="#EA580C" />, iconBg: "#FFF7ED" },
+              { key: "competitors", label: "Competitors", iconEl: <Users size={16} color="#DB2777" />, iconBg: "#FDF2F8" },
+              { key: "painPoints", label: "Pain Points", iconEl: <AlertTriangle size={16} color="#D97706" />, iconBg: "#FFFBEB" },
             ].map((f, i, arr) => (
               <div key={f.key} className="profile-field-row" style={{ padding: "14px 20px", borderBottom: i < arr.length - 1 ? "1px solid #F1F5F9" : "none" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
@@ -6431,9 +6752,8 @@ export default function Dashboard() {
                   <label style={{ fontSize: 13, fontWeight: 600, color: "#1E293B" }}>{f.label}</label>
                 </div>
                 <textarea
-                  value={profileData[f.key]}
+                  value={displayProfileData[f.key]}
                   onChange={(e) => setProfileData({...profileData, [f.key]: e.target.value})}
-                  placeholder={f.placeholder}
                   rows={2}
                   disabled={!isEditingProfile}
                   style={{ width: "100%", padding: "10px 14px", fontSize: 13, border: `1.5px solid ${isEditingProfile ? "#93C5FD" : "#E2E8F0"}`, borderRadius: 12, background: isEditingProfile ? "#fff" : "#F8FAFC", color: "#334155", outline: "none", resize: "none", lineHeight: 1.6, fontFamily: "inherit", boxSizing: "border-box", cursor: isEditingProfile ? "text" : "default" }}
@@ -6454,9 +6774,9 @@ export default function Dashboard() {
               </div>
             </div>
             {[
-              { key: "icpMetaAds", label: "ICP - Meta Ads", placeholder: 'Audience for paid ads — age, gender, interests, behaviors (e.g., "Canadian landlords 28-60, property management, real estate investing, tenant screening")', iconEl: <LayoutGrid size={16} color="#059669" />, iconBg: "#ECFDF5" },
-              { key: "icpNewsletter", label: "ICP - Newsletter", placeholder: "Subscriber profile — who reads your emails, what stage of journey they're in (e.g., \"Landlords comparing screening services, need trust-building on AI reliability scoring\")", iconEl: <Mail size={16} color="#7C3AED" />, iconBg: "#F5F3FF" },
-              { key: "icpOutreach", label: "ICP - Outreach", placeholder: 'Cold lead profile — job title, business type, location for scraping (e.g., "Property managers and landlords in Canada with 1-10 rental units")', iconEl: <Send size={16} color="#2563EB" />, iconBg: "#EFF6FF" },
+              { key: "icpMetaAds", label: "ICP - Meta Ads", iconEl: <LayoutGrid size={16} color="#059669" />, iconBg: "#ECFDF5" },
+              { key: "icpNewsletter", label: "ICP - Newsletter", iconEl: <Mail size={16} color="#7C3AED" />, iconBg: "#F5F3FF" },
+              { key: "icpOutreach", label: "ICP - Outreach", iconEl: <Send size={16} color="#2563EB" />, iconBg: "#EFF6FF" },
             ].map((f, i, arr) => (
               <div key={f.key} className="profile-field-row" style={{ padding: "14px 20px", borderBottom: i < arr.length - 1 ? "1px solid #F1F5F9" : "none" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
@@ -6466,9 +6786,8 @@ export default function Dashboard() {
                   <label style={{ fontSize: 13, fontWeight: 600, color: "#1E293B" }}>{f.label}</label>
                 </div>
                 <textarea
-                  value={profileData[f.key]}
+                  value={displayProfileData[f.key]}
                   onChange={(e) => setProfileData({...profileData, [f.key]: e.target.value})}
-                  placeholder={f.placeholder}
                   rows={2}
                   disabled={!isEditingProfile}
                   style={{ width: "100%", padding: "10px 14px", fontSize: 13, border: `1.5px solid ${isEditingProfile ? "#93C5FD" : "#E2E8F0"}`, borderRadius: 12, background: isEditingProfile ? "#fff" : "#F8FAFC", color: "#334155", outline: "none", resize: "none", lineHeight: 1.6, fontFamily: "inherit", boxSizing: "border-box", cursor: isEditingProfile ? "text" : "default" }}
@@ -6480,9 +6799,221 @@ export default function Dashboard() {
           {/* Footer Note */}
           <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: "#F8FAFC", borderRadius: 12, border: "1px solid #E2E8F0" }}>
             <Info size={15} color="#94A3B8" style={{ flexShrink: 0 }} />
-            <span style={{ fontSize: 12, color: "#64748B" }}>Use this template to maintain consistency across all marketing and communication workflows.</span>
+            <span style={{ fontSize: 12, color: "#64748B" }}>
+              {isActiveSavedTemplate
+                ? <>Save updates the active template <strong>{activeBrandSnapshot.label || "Saved template"}</strong>. Use Save as new template to keep a separate copy.</>
+                : "Save updates your live brand. Use Save as new template to store a named version for Ads Analysis."}
+            </span>
           </div>
 
+        </div>
+      )}
+
+      {/* Brand Saved Templates Modal */}
+      {brandSnapshotsModalOpen && (
+        <div
+          onClick={() => setBrandSnapshotsModalOpen(false)}
+          style={{
+            position: "fixed", inset: 0, zIndex: 9999,
+            background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)",
+            display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#fff", borderRadius: 18, width: "100%", maxWidth: 760,
+              maxHeight: "90vh", overflow: "hidden", display: "flex", flexDirection: "column",
+              boxShadow: "0 32px 80px rgba(0,0,0,0.35)",
+            }}
+          >
+            <div style={{ padding: "16px 20px", background: "linear-gradient(135deg, #2563EB, #1D4ED8)", display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 12, background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <History size={20} color="#fff" />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: "#fff" }}>Saved Brand Templates</div>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.85)", marginTop: 2 }}>Stored prompts for Ads Analysis — select one as your analysis basis</div>
+              </div>
+              <button
+                onClick={() => setBrandSnapshotsModalOpen(false)}
+                style={{ background: "rgba(255,255,255,0.2)", border: "none", color: "#fff", borderRadius: 8, padding: "8px 14px", cursor: "pointer", fontSize: 12, fontWeight: 700 }}
+              >
+                ✕ Close
+              </button>
+            </div>
+
+            <div style={{ padding: "14px 20px", borderBottom: "1px solid #E2E8F0", background: "#F8FAFC" }}>
+              <div style={{ fontSize: 12, color: "#64748B" }}>
+                Active for Ads Analysis:{" "}
+                <span style={{ fontWeight: 700, color: "#1E293B" }}>
+                  {activeBrandSnapshot?.id && activeBrandSnapshot.id !== "current"
+                    ? (activeBrandSnapshot.label || "Saved template")
+                    : "Current brand (live)"}
+                </span>
+              </div>
+            </div>
+
+            <div style={{ overflowY: "auto", padding: "12px 16px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+              {loadingBrandSnapshots ? (
+                <div style={{ padding: 40, textAlign: "center", color: "#64748B" }}>
+                  <Spinner size={24} color="#2563EB" />
+                  <div style={{ marginTop: 12, fontSize: 13 }}>Loading templates…</div>
+                </div>
+              ) : brandSnapshots.length === 0 ? (
+                <div style={{ padding: 40, textAlign: "center" }}>
+                  <div style={{ fontSize: 32, marginBottom: 10 }}>📋</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "#475569" }}>No saved templates yet</div>
+                  <div style={{ fontSize: 12, color: "#94A3B8", marginTop: 6 }}>Edit your brand strategy and save — you'll be asked to name each new template.</div>
+                </div>
+              ) : (
+                brandSnapshots.map((snapshot: any) => {
+                  const isActive = activeBrandSnapshot?.id === snapshot.id;
+                  const isExpanded = expandedBrandSnapshotId === snapshot.id;
+                  const snapshotProfile = snapshotToProfile(snapshot);
+                  const savedDate = snapshot.created_at
+                    ? new Date(snapshot.created_at).toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })
+                    : "";
+                  return (
+                    <div
+                      key={snapshot.id}
+                      style={{
+                        border: `1.5px solid ${isActive ? "#2563EB" : "#E2E8F0"}`,
+                        borderRadius: 14,
+                        background: isActive ? "#EFF6FF" : "#fff",
+                      }}
+                    >
+                      <div style={{ padding: "14px 16px", display: "flex", alignItems: "flex-start", gap: 12 }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: "#1E293B", lineHeight: 1.4 }}>
+                            {snapshot.label || "Unnamed template"}
+                          </div>
+                          <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 4 }}>Saved {savedDate}</div>
+                          {snapshot.positioning && (
+                            <div style={{ fontSize: 12, color: "#64748B", marginTop: 8, lineHeight: 1.5 }}>
+                              <span style={{ fontWeight: 600 }}>Positioning: </span>{snapshot.positioning}
+                            </div>
+                          )}
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
+                          <button
+                            onClick={() => applyBrandSnapshotForAnalysis(snapshot)}
+                            style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: isActive ? "#1D4ED8" : "#2563EB", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
+                          >
+                            {isActive ? "✓ Active" : "Use for Ads Analysis"}
+                          </button>
+                          <button
+                            onClick={() => setExpandedBrandSnapshotId(isExpanded ? null : snapshot.id)}
+                            style={{ padding: "7px 12px", borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
+                          >
+                            {isExpanded ? "Hide details" : "View prompts"}
+                          </button>
+                          <button
+                            onClick={() => handleDeleteBrandSnapshot(snapshot)}
+                            disabled={isActive || deletingSnapshotId === snapshot.id}
+                            title={isActive ? "Switch to another template before deleting the active one" : undefined}
+                            style={{ padding: "7px 12px", borderRadius: 8, border: `1px solid ${isActive ? "#E2E8F0" : "#FECACA"}`, background: isActive ? "#F8FAFC" : "#FEF2F2", color: isActive ? "#94A3B8" : "#DC2626", fontSize: 11, fontWeight: 600, cursor: isActive || deletingSnapshotId === snapshot.id ? "not-allowed" : "pointer", opacity: deletingSnapshotId === snapshot.id ? 0.7 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}
+                          >
+                            {deletingSnapshotId === snapshot.id ? (
+                              <Spinner size={12} color="#DC2626" />
+                            ) : (
+                              <Trash2 size={12} />
+                            )}
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                      {isExpanded && (
+                        <div style={{ padding: "12px 16px 16px", display: "flex", flexDirection: "column", gap: 10, borderTop: "1px solid #E2E8F0", background: "#FAFBFC", borderRadius: "0 0 14px 14px" }}>
+                          {[...BRAND_STRATEGY_FIELDS, ...BRAND_ICP_FIELDS].map(({ key, label }) => {
+                            const value = snapshotProfile[key];
+                            return (
+                              <div key={key}>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>{label}</div>
+                                <div style={{ fontSize: 12, color: value ? "#334155" : "#94A3B8", lineHeight: 1.6, whiteSpace: "pre-wrap", fontStyle: value ? "normal" : "italic" }}>
+                                  {value || "Not set"}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Name new brand template modal */}
+      {templateNameModalOpen && (
+        <div
+          onClick={handleCancelTemplateName}
+          style={{
+            position: "fixed", inset: 0, zIndex: 10000,
+            background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)",
+            display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#fff", borderRadius: 18, width: "100%", maxWidth: 440,
+              overflow: "hidden", boxShadow: "0 32px 80px rgba(0,0,0,0.35)",
+            }}
+          >
+            <div style={{ padding: "18px 22px", background: "linear-gradient(135deg, #2563EB, #1D4ED8)" }}>
+              <div style={{ fontSize: 16, fontWeight: 800, color: "#fff" }}>Save as new template</div>
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.85)", marginTop: 4 }}>
+                Give this version a name — it will be stored as a separate template for Ads Analysis.
+              </div>
+            </div>
+            <div style={{ padding: "20px 22px" }}>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#64748B", marginBottom: 8 }}>
+                Template name
+              </label>
+              <input
+                type="text"
+                autoFocus
+                placeholder="e.g. Q2 Landlord Focus, Canada Launch…"
+                value={templateNameInput}
+                onChange={(e) => setTemplateNameInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleConfirmTemplateName();
+                  if (e.key === "Escape") handleCancelTemplateName();
+                }}
+                style={{
+                  width: "100%", padding: "11px 14px", fontSize: 14,
+                  border: "1.5px solid #93C5FD", borderRadius: 12,
+                  outline: "none", boxSizing: "border-box", fontFamily: "inherit",
+                }}
+              />
+              <div style={{ display: "flex", gap: 10, marginTop: 18, justifyContent: "flex-end" }}>
+                <button
+                  onClick={handleCancelTemplateName}
+                  disabled={isSavingTemplateName}
+                  style={{ padding: "9px 18px", borderRadius: 10, border: "1.5px solid #E2E8F0", background: "#fff", color: "#64748B", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+                >
+                  Skip
+                </button>
+                <button
+                  onClick={handleConfirmTemplateName}
+                  disabled={isSavingTemplateName || !templateNameInput.trim()}
+                  style={{
+                    padding: "9px 20px", borderRadius: 10, border: "none",
+                    background: "#2563EB", color: "#fff", fontSize: 13, fontWeight: 600,
+                    cursor: isSavingTemplateName || !templateNameInput.trim() ? "not-allowed" : "pointer",
+                    opacity: isSavingTemplateName || !templateNameInput.trim() ? 0.6 : 1,
+                    display: "flex", alignItems: "center", gap: 7,
+                  }}
+                >
+                  {isSavingTemplateName ? <Spinner size={14} color="#fff" /> : "Save template"}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -7077,7 +7608,7 @@ export default function Dashboard() {
                     ));
                     // Resubmit to single idea webhook
                     try {
-                      const singleIdeaUrl = process.env.NEXT_PUBLIC_N8N_SINGLE_IDEA_URL || "";
+                      const singleIdeaUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_SINGLE_IDEA_URL");
                       const res = await fetch(singleIdeaUrl, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },

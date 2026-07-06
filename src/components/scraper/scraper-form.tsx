@@ -147,10 +147,11 @@ export function ScraperForm() {
                     </FormControl>
                     <SelectContent>
                       <SelectItem value="Tenant Screening Leads">Tenant Screening Leads</SelectItem>
-                      <SelectItem value="Background Check Leads">Background Check Leads</SelectItem>
-                      <SelectItem value="Landlord Outreach Leads">Landlord Outreach Leads</SelectItem>
-                      <SelectItem value="Property Manager Leads">Property Manager Leads</SelectItem>
-                      <SelectItem value="All Services Leads">All Services Leads</SelectItem>
+                      <SelectItem value="Smart Tenant Subscription Leads">Smart Tenant Subscription Leads</SelectItem>
+                      <SelectItem value="Rent Promise & Protection Leads">Rent Promise & Protection Leads</SelectItem>
+                      <SelectItem value="Background Screening Leads">Background Screening Leads</SelectItem>
+                      <SelectItem value="Property Management Leads">Property Management Leads</SelectItem>
+                      <SelectItem value="All Service Leads">All Service Leads</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormDescription>Which Google Sheet to save leads into</FormDescription>

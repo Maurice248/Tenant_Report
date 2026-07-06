@@ -4,26 +4,58 @@ import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 
-const DEFAULT_ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || 'admin@tenantreport.ai';
-
-/** Session user id, or seeded admin from DB when auth is bypassed in dev. */
-export async function getRequestUserId(): Promise<string> {
+/** Session user id; null when unauthenticated. */
+export async function getRequestUserId(): Promise<string | null> {
   const session = await getServerSession(authOptions);
-  if (session?.user?.id) return session.user.id;
-
-  const user = await prisma.user.findUnique({
-    where: { email: DEFAULT_ADMIN_EMAIL },
-    select: { id: true },
-  });
-  if (!user) {
-    throw new Error(`No user found for ${DEFAULT_ADMIN_EMAIL}. Run: npx prisma db seed`);
-  }
-  return user.id;
+  return session?.user?.id ?? null;
 }
 
-export async function getRequestUserEmail(): Promise<string> {
+/** Session user email; null when unauthenticated. */
+export async function getRequestUserEmail(): Promise<string | null> {
   const session = await getServerSession(authOptions);
-  return session?.user?.email ?? DEFAULT_ADMIN_EMAIL;
+  return session?.user?.email ?? null;
+}
+
+/** Session company id; null when unauthenticated or user has no company. */
+export async function getRequestCompanyId(): Promise<string | null> {
+  const session = await getServerSession(authOptions);
+  return session?.user?.companyId ?? null;
+}
+
+export type RequestUser = {
+  id: string;
+  companyId: string | null;
+  role: string;
+};
+
+/** Session user context; null when unauthenticated. */
+export async function getRequestUser(): Promise<RequestUser | null> {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return null;
+
+  return {
+    id: session.user.id,
+    companyId: session.user.companyId ?? null,
+    role: session.user.role,
+  };
+}
+
+export const COMPANY_ADMIN_ROLE = 'COMPANY_ADMIN';
+export const CLIENT_ROLE = 'CLIENT';
+/** Legacy platform seed role — treated as company admin for backward compatibility. */
+export const LEGACY_ADMIN_ROLE = 'ADMIN';
+
+export function isCompanyAdminRole(role: string | undefined | null): boolean {
+  return role === COMPANY_ADMIN_ROLE || role === LEGACY_ADMIN_ROLE;
+}
+
+/** Returns the request user if they are a company admin, otherwise null. */
+export async function requireCompanyAdmin(): Promise<RequestUser | null> {
+  const user = await getRequestUser();
+  if (!user?.companyId || !isCompanyAdminRole(user.role)) {
+    return null;
+  }
+  return user;
 }
 
 export const authOptions: NextAuthOptions = {
@@ -32,8 +64,8 @@ export const authOptions: NextAuthOptions = {
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   pages: {
-    signIn: '/login',
-    error: '/login',
+    signIn: '/client-login',
+    error: '/client-login',
   },
   providers: [
     CredentialsProvider({
@@ -61,6 +93,7 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           name: user.name,
           role: user.role,
+          companyId: user.companyId,
         };
       },
     }),
@@ -70,6 +103,16 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id;
         token.role = (user as { role?: string }).role;
+        token.companyId = (user as { companyId?: string | null }).companyId ?? null;
+      } else if (token.id) {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: token.id as string },
+          select: { role: true, companyId: true },
+        });
+        if (dbUser) {
+          token.role = dbUser.role;
+          token.companyId = dbUser.companyId;
+        }
       }
       return token;
     },
@@ -77,6 +120,7 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         session.user.id = token.id as string;
         session.user.role = token.role as string;
+        session.user.companyId = (token.companyId as string | null | undefined) ?? null;
       }
       return session;
     },
@@ -90,6 +134,15 @@ declare module 'next-auth' {
       email: string;
       name?: string | null;
       role: string;
+      companyId?: string | null;
     };
+  }
+}
+
+declare module 'next-auth/jwt' {
+  interface JWT {
+    id?: string;
+    role?: string;
+    companyId?: string | null;
   }
 }

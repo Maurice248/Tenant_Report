@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useCampaigns, Campaign } from "@/context/CampaignContext";
+import { useN8nWebhooks, n8nUrl } from "@/hooks/use-n8n-webhooks";
 import "./newsletter.css";
 
 const SUBSCRIBER_OPTIONS = ["50", "150", "200", "All Subscribers"];
@@ -11,6 +12,7 @@ type Status = "idle" | "loading" | "success" | "error";
 
 export default function CreateCampaign() {
   const { history, addCampaign, clearHistory } = useCampaigns();
+  const n8nWebhooks = useN8nWebhooks();
 
   const [templateId, setTemplateId] = useState("");
   const [campaignName, setCampaignName] = useState("");
@@ -30,7 +32,7 @@ export default function CreateCampaign() {
     setErrorMessage("");
 
     try {
-      const webhookUrl = process.env.NEXT_PUBLIC_N8N_CAMPAIGN_WEBHOOK_URL || "";
+      const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_CAMPAIGN_WEBHOOK_URL");
       let campaignId = "";
 
       if (webhookUrl) {

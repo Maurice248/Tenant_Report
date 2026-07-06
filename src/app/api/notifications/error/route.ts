@@ -1,27 +1,26 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireApiCompanyId } from '@/lib/api-auth';
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://cdssxtquayzijmbnlqmt.supabase.co';
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-// Use service role key if set (bypasses RLS), fall back to anon key
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
-// GET /api/notifications/error
-// Returns the latest active global error from the Supabase "Error Alerts" table (id=1)
 export async function GET() {
   try {
-    // Query Supabase REST API directly — server-side, bypasses CORS + RLS if service key is set
+    const companyId = await requireApiCompanyId();
+    if (companyId instanceof NextResponse) return companyId;
+
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/Error%20Alerts?id=eq.1&select=Error%2Cupdated_at&limit=1`,
+      `${SUPABASE_URL}/rest/v1/Error%20Alerts?company_id=eq.${encodeURIComponent(companyId)}&select=Error%2Cupdated_at&limit=1`,
       {
         method: 'GET',
         headers: {
-          'apikey': SUPABASE_KEY,
-          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          apikey: SUPABASE_KEY,
+          Authorization: `Bearer ${SUPABASE_KEY}`,
           'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Prefer': 'return=representation',
+          Accept: 'application/json',
+          Prefer: 'return=representation',
           'Cache-Control': 'no-cache',
         },
         cache: 'no-store',
@@ -29,38 +28,41 @@ export async function GET() {
     );
 
     if (!res.ok) {
-      console.error('[API] Supabase Error Alerts fetch failed:', res.status, res.statusText);
       return NextResponse.json({ message: null, updated_at: null, status: res.status });
     }
 
     const rows = await res.json();
-    if (!rows || rows.length === 0) {
+    if (!rows?.length) {
       return NextResponse.json({ message: null, updated_at: null });
     }
 
     const row = rows[0];
-    const message = row.Error || null;
-    const updatedAt = row.updated_at || null;
-
-    return NextResponse.json({ message, updated_at: updatedAt });
+    return NextResponse.json({
+      message: row.Error || null,
+      updated_at: row.updated_at || null,
+    });
   } catch (err) {
-    console.error('[API] GET global error error:', err);
+    console.error('[API] GET tenant error alert:', err);
     return NextResponse.json({ message: null, updated_at: null });
   }
 }
 
-// POST /api/notifications/error  (kept for legacy n8n webhook compatibility)
 export async function POST(req: NextRequest) {
   try {
+    const companyId = await requireApiCompanyId();
+    if (companyId instanceof NextResponse) return companyId;
+
     const body = await req.json();
     const message = body?.message || body?.Error || body?.error || null;
-    return NextResponse.json({ success: true, message });
-  } catch (error: any) {
-    return NextResponse.json({ error: error?.message || 'Failed' }, { status: 500 });
+    return NextResponse.json({ success: true, message, companyId });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
-// DELETE /api/notifications/error  (kept for legacy compatibility)
 export async function DELETE() {
+  const companyId = await requireApiCompanyId();
+  if (companyId instanceof NextResponse) return companyId;
   return NextResponse.json({ success: true });
 }

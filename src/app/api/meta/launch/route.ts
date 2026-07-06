@@ -1,4 +1,7 @@
 import { DEFAULT_BRAND_NAME, DEFAULT_WEBSITE_URL } from '@/lib/legacy-brand';
+import { getMetaCredentialsForRequest } from '@/lib/meta-credentials';
+import { requireMetaApiAuth } from '@/lib/meta-api-auth';
+import { NextResponse } from 'next/server';
 
 export const maxDuration = 60; // Allow Vercel to run up to 60s for video polling
 
@@ -168,8 +171,8 @@ async function uploadMedia(link_data, isVideo, accessToken, adAccountId) {
 }
 
 // ── STEP 1b: Fetch Page ID ──
-async function fetchPageId(accessToken) {
-  let pageId = process.env.META_PAGE_ID;
+async function fetchPageId(accessToken: string, configuredPageId?: string | null) {
+  let pageId = configuredPageId?.trim();
   if (!pageId || pageId === "me" || pageId.startsWith("YOUR_")) {
     const pagesRes = await fetch(`https://graph.facebook.com/v21.0/me/accounts?access_token=${accessToken}`);
     const pagesData = await fetchMetaJson(pagesRes);
@@ -370,13 +373,15 @@ async function createAd(adAccountId, accessToken, adName, adSetId, creativeId, t
   return assertMetaId(adFinalData, "create ad");
 }
 
-export async function POST(request) {
-  const accessToken = process.env.META_ACCESS_TOKEN;
-  const adAccountId = process.env.META_AD_ACCOUNT_ID;
+export async function POST(request: Request) {
+  const auth = await requireMetaApiAuth();
+  if (auth instanceof NextResponse) return auth;
 
-  if (!accessToken || !adAccountId) {
-    return Response.json({ error: "Missing Meta credentials" }, { status: 500 });
+  const meta = await getMetaCredentialsForRequest();
+  if (!meta) {
+    return Response.json({ error: 'Missing Meta credentials. Configure them in Client Dashboard → API keys.' }, { status: 500 });
   }
+  const { accessToken, adAccountId, pageId } = meta;
 
   try {
     const { schema, campaignId: existingCampaignId } = await request.json();
@@ -422,6 +427,7 @@ export async function POST(request) {
     const startTime       = ad_set?.start_time         || null;
     const stopTime        = ad_set?.has_end_date ? ad_set?.stop_time : null;
 
+    const existingAdSetId = ad_set?.existing_id       || null;
     const adSetName       = ad_set?.name              || "Ad Set";
     const ageMin          = ad_set?.age_min            || 18;
     const ageMax          = ad_set?.age_max            || 65;
@@ -522,7 +528,7 @@ export async function POST(request) {
     // ── Execute Concurrent Tasks: Media Upload & Page ID Fetch ──
     const [mediaPayload, pageId] = await Promise.all([
       uploadMedia(link_data, isVideo, accessToken, adAccountId),
-      fetchPageId(accessToken)
+      fetchPageId(accessToken, pageId)
     ]);
 
     // ── Sequential Tasks: Campaign -> Ad Set -> Creative -> Ad ──
@@ -531,7 +537,7 @@ export async function POST(request) {
       specialAdCats, isCbo, budgetType, dailyBudget, lifetimeBudget
     );
 
-    const adSetId = await createAdSet(
+    const adSetId = existingAdSetId || await createAdSet(
       adAccountId, accessToken, adSetName, campaignId, isCbo, 
       budgetType, dailyBudget, lifetimeBudget, startTime, stopTime, 
       targeting, dsaFields, optimizationGoal, promotedObject

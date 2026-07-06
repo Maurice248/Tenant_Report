@@ -1,4 +1,5 @@
 import axios, { AxiosError } from 'axios';
+import { getRequestN8nConfig, getN8nWebhook } from '@/lib/company-integrations';
 
 export interface N8nCampaignInput {
   campaign_name: string;
@@ -37,18 +38,25 @@ export interface N8nResponse<T = unknown> {
 }
 
 class N8nClient {
-  private baseHeaders = {
-    'Content-Type': 'application/json',
-    'X-API-Key': process.env.N8N_API_KEY || '',
-  };
+  private async getHeaders() {
+    const cfg = await getRequestN8nConfig();
+    return {
+      'Content-Type': 'application/json',
+      'X-API-Key': cfg.apiKey || '',
+    };
+  }
 
   async triggerCampaign(input: N8nCampaignInput): Promise<N8nResponse> {
     try {
-      const response = await axios.post(
-        process.env.N8N_CAMPAIGN_WEBHOOK_URL!,
-        input,
-        { headers: this.baseHeaders, timeout: 120000 }
-      );
+      const cfg = await getRequestN8nConfig();
+      const url = getN8nWebhook(cfg, 'N8N_CAMPAIGN_WEBHOOK_URL');
+      if (!url) {
+        return this.missingWebhookError('campaign', 'N8N_CAMPAIGN_WEBHOOK_URL');
+      }
+      const response = await axios.post(url, input, {
+        headers: await this.getHeaders(),
+        timeout: 120000,
+      });
       return response.data;
     } catch (error) {
       return this.handleError(error, 'campaign');
@@ -57,11 +65,15 @@ class N8nClient {
 
   async triggerScraper(input: N8nScraperInput): Promise<N8nResponse> {
     try {
-      const response = await axios.post(
-        process.env.N8N_SCRAPER_WEBHOOK_URL!,
-        input,
-        { headers: this.baseHeaders, timeout: 300000 }
-      );
+      const cfg = await getRequestN8nConfig();
+      const url = getN8nWebhook(cfg, 'N8N_SCRAPER_WEBHOOK_URL');
+      if (!url) {
+        return this.missingWebhookError('scraper', 'N8N_SCRAPER_WEBHOOK_URL');
+      }
+      const response = await axios.post(url, input, {
+        headers: await this.getHeaders(),
+        timeout: 300000,
+      });
       return response.data;
     } catch (error) {
       return this.handleError(error, 'scraper');
@@ -70,15 +82,29 @@ class N8nClient {
 
   async triggerCleanup(input: N8nCleanupInput): Promise<N8nResponse> {
     try {
-      const response = await axios.post(
-        process.env.N8N_CLEANUP_WEBHOOK_URL!,
-        input,
-        { headers: this.baseHeaders, timeout: 180000 }
-      );
+      const cfg = await getRequestN8nConfig();
+      const url = getN8nWebhook(cfg, 'N8N_CLEANUP_WEBHOOK_URL');
+      if (!url) {
+        return this.missingWebhookError('cleanup', 'N8N_CLEANUP_WEBHOOK_URL');
+      }
+      const response = await axios.post(url, input, {
+        headers: await this.getHeaders(),
+        timeout: 180000,
+      });
       return response.data;
     } catch (error) {
       return this.handleError(error, 'cleanup');
     }
+  }
+
+  private missingWebhookError(workflowType: string, key: string): N8nResponse {
+    return {
+      status: 'error',
+      execution_id: 'error',
+      workflow_type: workflowType,
+      error_message: `Webhook ${key} is not configured in API key management.`,
+      timestamp: new Date().toISOString(),
+    };
   }
 
   private handleError(error: unknown, workflowType: string): N8nResponse {

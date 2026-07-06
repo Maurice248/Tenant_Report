@@ -1,5 +1,3 @@
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 import { Header } from '@/components/dashboard/header';
 import { StatsCard } from '@/components/dashboard/stats-card';
 import { RecentExecutions, type ExecutionItem } from '@/components/dashboard/recent-executions';
@@ -7,6 +5,7 @@ import { CampaignChart } from '@/components/analytics/campaign-chart';
 import { LeadChart } from '@/components/analytics/lead-chart';
 import { PageBody } from '@/components/outreach/page-body';
 import { SECTION_CONFIG } from '@/lib/app-section-config';
+import { requireServerSession } from '@/lib/server-auth';
 import { getOutreachDashboardData } from '@/lib/dashboard-data';
 import { Mail, Search, TrendingUp, AlertCircle } from 'lucide-react';
 
@@ -14,10 +13,11 @@ const labels = SECTION_CONFIG.outreach.labels;
 const basePath = SECTION_CONFIG.outreach.basePath;
 
 export default async function OutreachDashboardPage() {
-  const session = await getServerSession(authOptions);
-  const userId = session?.user?.id ?? 'cmo8ubhgi0000difwp4jsua3t';
+  const session = await requireServerSession();
+  const userId = session.user.id;
+  const companyId = session.user.companyId ?? null;
 
-  const stats = await getOutreachDashboardData(userId);
+  const stats = await getOutreachDashboardData(companyId, userId);
 
   const executions: ExecutionItem[] = stats.recentExecutions.map((exec) => ({
     id: exec.id,

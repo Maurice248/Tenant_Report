@@ -20,10 +20,11 @@ export type CampaignTone =
 
 export type LeadSheet =
   | 'Tenant Screening Leads'
-  | 'Background Check Leads'
-  | 'Landlord Outreach Leads'
-  | 'Property Manager Leads'
-  | 'All Services Leads';
+  | 'Smart Tenant Subscription Leads'
+  | 'Rent Promise & Protection Leads'
+  | 'Background Screening Leads'
+  | 'Property Management Leads'
+  | 'All Service Leads';
 
 export interface User {
   id: string;

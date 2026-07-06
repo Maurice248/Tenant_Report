@@ -1,12 +1,17 @@
 import { NextResponse } from 'next/server';
+import { getMetaAccessTokenForRequest } from '@/lib/meta-credentials';
+import { requireMetaApiAuth } from '@/lib/meta-api-auth';
 
-export async function GET(request) {
+export async function GET(request: Request) {
+  const auth = await requireMetaApiAuth();
+  if (auth instanceof NextResponse) return auth;
+
   const { searchParams } = new URL(request.url);
   const campaignId = searchParams.get('campaignId');
-  const accessToken = process.env.META_ACCESS_TOKEN;
+  const accessToken = await getMetaAccessTokenForRequest();
 
   if (!accessToken || !campaignId) {
-    return NextResponse.json({ error: "Missing Meta credentials or campaignId" }, { status: 400 });
+    return NextResponse.json({ error: 'Missing Meta credentials or campaignId' }, { status: 400 });
   }
 
   try {

@@ -1,7 +1,8 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getRequestUserId } from '@/lib/auth';
+import { getRequestUserId, getRequestCompanyId } from '@/lib/auth';
+import { executionRelationWhere } from '@/lib/workflow-scope';
 import { prisma } from '@/lib/prisma';
 
 // DELETE /api/campaigns/[id]
@@ -12,18 +13,26 @@ export async function DELETE(
   try {
     const { id } = await params;
     const userId = await getRequestUserId();
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const companyId = await getRequestCompanyId();
+    const scope = executionRelationWhere(companyId, userId);
 
     const campaign = await prisma.campaign.findUnique({
       where: { id },
-      include: { execution: { select: { userId: true } } },
+      include: { execution: { select: { userId: true, companyId: true } } },
     });
 
     if (!campaign) {
       return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
     }
 
-    // Only owner can delete
-    if (campaign.execution.userId !== userId) {
+    // Only owner or same company can delete
+    const inScope =
+      (companyId && campaign.execution.companyId === companyId) ||
+      campaign.execution.userId === userId;
+    if (!inScope) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -45,17 +54,24 @@ export async function GET(
   try {
     const { id } = await params;
     const userId = await getRequestUserId();
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const companyId = await getRequestCompanyId();
 
     const campaign = await prisma.campaign.findUnique({
       where: { id },
-      include: { execution: { select: { userId: true, inputData: true } } },
+      include: { execution: { select: { userId: true, companyId: true, inputData: true } } },
     });
 
     if (!campaign) {
       return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
     }
 
-    if (campaign.execution.userId !== userId) {
+    const inScope =
+      (companyId && campaign.execution.companyId === companyId) ||
+      campaign.execution.userId === userId;
+    if (!inScope) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
