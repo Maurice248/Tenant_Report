@@ -381,7 +381,7 @@ export async function POST(request: Request) {
   if (!meta) {
     return Response.json({ error: 'Missing Meta credentials. Configure them in Client Dashboard → API keys.' }, { status: 500 });
   }
-  const { accessToken, adAccountId, pageId } = meta;
+  const { accessToken, adAccountId, pageId: configuredPageId } = meta;
 
   try {
     const { schema, campaignId: existingCampaignId } = await request.json();
@@ -528,7 +528,7 @@ export async function POST(request: Request) {
     // ── Execute Concurrent Tasks: Media Upload & Page ID Fetch ──
     const [mediaPayload, pageId] = await Promise.all([
       uploadMedia(link_data, isVideo, accessToken, adAccountId),
-      fetchPageId(accessToken, pageId)
+      fetchPageId(accessToken, configuredPageId)
     ]);
 
     // ── Sequential Tasks: Campaign -> Ad Set -> Creative -> Ad ──
